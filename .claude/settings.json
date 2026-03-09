@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch",
+      "Bash(uv:*)",
+      "Bash(python:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(black:*)",
+      "Bash(mypy:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(git worktree:*)",
+      "Bash(rm:*)",
+      "Bash(sqlite3:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(cd frontend && npm:*)",
+      "Bash(cd frontend && npx:*)",
+      "Read(//home/karin0624/**)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./**/*.p12)",
+      "Read(./**/*id_rsa*)",
+      "Read(./**/*credentials*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(sudo:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(pip:*)"
+    ],
+    "defaultMode": "default"
+  },
+  "language": "japanese",
+  "alwaysThinkingEnabled": true,
+  "plansDirectory": "./docs/plans",
+  "enabledPlugins": {
+    "skill-creator@claude-plugins-official": true
+  }
+}

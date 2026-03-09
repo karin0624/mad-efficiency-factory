@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# WXT output and generated files
+.output/
+.wxt/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS-specific artifacts
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Coverage
+coverage/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Claude Code worktrees
+.claude/worktrees/
+
+# Stryker mutation testing
+.stryker-tmp/
+reports/mutation/
+reports/stryker-incremental.json
+
+# Claude Plans
+docs/plans
