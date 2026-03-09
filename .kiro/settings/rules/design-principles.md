@@ -3,10 +3,11 @@
 ## Core Design Principles
 
 ### 1. Type Safety is Mandatory
-- **NEVER** use `any` type in TypeScript interfaces
-- Define explicit types for all parameters and returns
-- Use discriminated unions for error handling
-- Specify generic constraints clearly
+- **NEVER** use `object` or untyped collections (`ArrayList`, `Hashtable`) in C# interfaces
+- Define explicit types for all parameters and return values
+- Use `Result<T, E>` pattern or typed exceptions for error handling (no raw `bool` success flags)
+- Use C# generics with constraints where applicable (e.g., `where T : struct, IComponentData`)
+- Prefer value types (`struct`) for data-only containers; use `readonly struct` for immutability
 
 ### 2. Design vs Implementation
 - **Focus on WHAT, not HOW**
@@ -46,6 +47,14 @@
 - **Versioning**: Plan for API evolution
 - **Idempotency**: Design for retry safety
 - **Contract Visibility**: Surface API and event contracts in design.md while linking extended details from `research.md`
+
+### 8. Unity Testability Principles
+- **POCO Separation**: All game logic in Pure C# classes (POCO); MonoBehaviour is a thin adapter only
+- **Parameter Injection**: SerializeField-dependent logic must accept values as constructor/method parameters, not read fields directly
+- **No Update() Logic**: No branching logic in Update(); delegate to state machines or strategy patterns
+- **No Static Singletons**: Avoid static singleton pattern; use ScriptableObject or DI for dependency injection
+- **Event-Driven Communication**: Prefer UnityEvent / C# event / ScriptableObject Event Channel for cross-component communication
+- **Interface Decoupling**: No direct cross-component references; use interfaces for loose coupling
 
 ## Documentation Standards
 
@@ -109,10 +118,10 @@
 - Implementation Notes must combine Integration / Validation / Risks into a single bulleted subsection to reduce repetition.
 - Prefer lists or inline descriptors for short data (dependencies, contract selections). Use tables only when comparing multiple items.
 
-### Shared Interfaces & Props
-- Define a base interface (e.g., `BaseUIPanelProps`) for recurring UI components and extend it per component to capture only the deltas.
-- Hooks, utilities, and integration adapters that introduce new contracts should still include full TypeScript signatures.
-- When reusing a base contract, reference it explicitly (e.g., “Extends `BaseUIPanelProps` with `onSubmitAnswer` callback”) instead of duplicating the code block.
+### Shared Interfaces & Contracts
+- Define a base interface (e.g., `IUIPanel`) for recurring UI components and extend per component to capture only the deltas.
+- Service interfaces and integration adapters that introduce new contracts should include full C# signatures.
+- When reusing a base contract, reference it explicitly (e.g., “Implements `IUIPanel` with additional `OnSubmitAnswer` callback”) instead of duplicating the definition.
 
 ### Data Models
 - Domain Model covers aggregates, entities, value objects, domain events, and invariants. Add Mermaid diagrams only when relationships are non-trivial.

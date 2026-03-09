@@ -129,3 +129,38 @@ Focus on capabilities and outcomes, not code structure.
 Use `N.M`-style numeric requirement IDs where `N` is the top-level requirement number from requirements.md (for example, Requirement 1 → 1.1, 1.2; Requirement 2 → 2.1, 2.2), and `M` is a local index within that requirement group.
 
 Document any intentionally deferred requirements with rationale.
+
+## Unity-Specific Task Rules
+
+### Layer-Based Task Ordering
+- **Layer 1 tasks**: Test task MUST precede implementation task (TDD mandatory)
+  - Pattern: "Write EditMode test for [logic]" → "Implement [logic] in POCO class"
+- **Layer 2 tasks**: Include both PlayMode test and screenshot confirmation checkpoint
+  - Pattern: "Write PlayMode constraint test" → "Implement" → "Capture screenshot for constraint verification"
+- **Layer 3 tasks**: MUST end with a "Human Review" sub-task as the final item
+  - Pattern: "Implement [visual/feel feature]" → "Human review: [specific review criteria]"
+  - Mark the human review checkpoint clearly: `- [ ] X.Y Human review: [specific review criteria]`
+  - Human review tasks are NOT executed by spec-impl; they are handled by `/kiro:scene-review`
+
+### Logic and Scene Separation
+- Logic implementation tasks and scene construction tasks MUST be separate tasks
+- Logic tasks target Pure C# classes (POCO) in Core/ or ECS Systems
+- Scene tasks target GameObject/Component/Prefab setup using Unity MCP tools
+- Scene construction tasks MUST specify the Unity MCP tools to be used in detail bullets:
+  - Example: "Build conveyor belt prefab (Unity_ManageGameObject, manage_components, manage_prefabs)"
+
+### Prefab and ScriptableObject Sequencing
+- Prefab creation tasks: After scene construction, before integration tests
+- ScriptableObject definition tasks: After data structure design, before logic implementation
+- Pattern: Data design → ScriptableObject → Logic (POCO) → MonoBehaviour adapter → Scene setup → Prefab → Integration test
+
+### Unity MCP Tool Annotation
+- Tasks involving Unity Editor operations MUST note the relevant MCP tools in detail bullets
+- This ensures the implementation agent knows which tools to invoke
+- Common patterns:
+  - Script creation: Unity_ManageScript
+  - Test execution: run_tests
+  - Scene setup: Unity_ManageGameObject, manage_components
+  - Prefab creation: manage_prefabs
+  - Visual verification: screenshot-game-view
+  - Console check: Unity_ReadConsole

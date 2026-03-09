@@ -1,6 +1,6 @@
 ---
 description: Execute spec tasks using TDD methodology
-allowed-tools: Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS, WebFetch, WebSearch
+allowed-tools: Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS, WebFetch, WebSearch, Unity_ManageScript, run_tests, Unity_ReadConsole, screenshot-game-view, manage_components, manage_prefabs, Unity_ManageGameObject
 argument-hint: <feature-name> [task-numbers]
 ---
 
@@ -26,6 +26,7 @@ Execute implementation tasks for feature **$1** using Test-Driven Development.
 **Read all necessary context**:
 - `.kiro/specs/$1/spec.json`, `requirements.md`, `design.md`, `tasks.md`
 - **Entire `.kiro/steering/` directory** for complete project memory
+- **`.mcp.json`**: Verify `unity-mcp` server is configured. If absent, **stop with error**: "Unity MCP server not found in .mcp.json. This project requires Unity MCP for test execution and scene construction."
 
 **Validate approvals**:
 - Verify tasks are approved in spec.json (stop if not, see Safety & Fallback)
@@ -64,25 +65,67 @@ For each selected task, follow Kent Beck's TDD cycle:
 5. **MARK COMPLETE**:
    - Update checkbox from `- [ ]` to `- [x]` in tasks.md
 
+### Unity MCP TDD Cycle
+
+**When the project uses Unity MCP** (check `.mcp.json` for `unity-mcp` server), replace generic Bash test execution with Unity MCP tools:
+
+1. **RED - Write Failing Test**:
+   - Generate NUnit test from the task's requirement (Layer 1: EditMode, Layer 2: PlayMode)
+   - Use `Unity_ManageScript` to create test file in `Assets/Tests/EditMode/` or `Assets/Tests/PlayMode/`
+   - Use `run_tests` to confirm test fails (expected: test exists but implementation missing)
+   - If compilation error: Use `Unity_ReadConsole` to diagnose, fix test, retry
+
+2. **GREEN - Write Minimal Implementation**:
+   - Use `Unity_ManageScript` to create/edit implementation code
+   - Layer 1: Pure C# class in `Assets/Scripts/Core/` (no MonoBehaviour dependency)
+   - Use `run_tests` to confirm test passes
+   - If test fails: `Unity_ReadConsole` for error details → fix → `run_tests` again
+
+3. **REFACTOR** (same as generic TDD):
+   - Improve code structure
+   - Run `run_tests` to confirm no regressions
+
+4. **SCENE CONSTRUCTION** (when task involves GameObjects/Prefabs):
+   - Use `Unity_ManageGameObject` to create/configure GameObjects
+   - Use `manage_components` to add and configure components
+   - Use `manage_prefabs` to create Prefabs from configured GameObjects
+   - Use `screenshot-game-view` to capture visual result
+
+5. **LAYER-BASED VERIFICATION**:
+   - **Layer 1**: `run_tests` only. Fully automated. No human intervention.
+   - **Layer 2**: `run_tests` for constraint checks + `screenshot-game-view` for visual reference. Report results with screenshots.
+   - **Layer 3**: Not applicable — Human Review sub-tasks are skipped by spec-impl (see below).
+
+6. **ERROR RECOVERY LOOP**:
+   - On test failure: `Unity_ReadConsole` → analyze error → `Unity_ManageScript` to fix → `run_tests`
+   - On compilation error: `Unity_ReadConsole` → fix syntax/reference → `run_tests`
+   - Maximum 5 retry iterations before reporting failure to user
+
 ## Critical Constraints
 - **TDD Mandatory**: Tests MUST be written before implementation code
 - **Task Scope**: Implement only what the specific task requires
 - **Test Coverage**: All new code must have tests
 - **No Regressions**: Existing tests must continue to pass
 - **Design Alignment**: Implementation must follow design.md specifications
+- **Layer Awareness**: Check requirement's Testability Layer before choosing test type (EditMode vs PlayMode)
+- **Human Review Skip**: Sub-tasks matching `Human review:` pattern are NOT executed by spec-impl. Detect and skip them during task selection, and include skipped task list in output. Use `/kiro:scene-review` to handle these tasks.
+- **Unity MCP Priority**: When Unity MCP is available, prefer MCP tools over Bash for all Unity operations
 </instructions>
 
 ## Tool Guidance
 - **Read first**: Load all context before implementation
 - **Test first**: Write tests before code
 - Use **WebSearch/WebFetch** for library documentation when needed
+- **Unity MCP tools**: Use `Unity_ManageScript` for script creation, `run_tests` for test execution, `Unity_ReadConsole` for error diagnosis
+- **Visual verification**: Use `screenshot-game-view` for Layer 2 tasks
 
 ## Output Description
 
 Provide brief summary in the language specified in spec.json:
 
 1. **Tasks Executed**: Task numbers and test results
-2. **Status**: Completed tasks marked in tasks.md, remaining tasks count
+2. **Skipped Human Review Tasks**: List of sub-tasks skipped (if any), with guidance to run `/kiro:scene-review`
+3. **Status**: Completed tasks marked in tasks.md, remaining tasks count
 
 **Format**: Concise (under 150 words)
 

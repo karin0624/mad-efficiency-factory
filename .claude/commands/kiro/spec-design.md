@@ -101,8 +101,7 @@ Generate technical design document for feature **$1** based on approved requirem
 ## Critical Constraints
  - **Type Safety**:
    - Enforce strong typing aligned with the project's technology stack.
-   - For statically typed languages, define explicit types/interfaces and avoid unsafe casts.
-   - For TypeScript, never use `any`; prefer precise types and generics.
+   - For statically typed languages, define explicit types/interfaces and avoid unsafe casts (e.g., C#: no `object` or untyped collections; use generics with constraints).
    - For dynamically typed languages, provide type hints/annotations where available (e.g., Python type hints) and validate inputs at boundaries.
    - Document public interfaces and contracts clearly to ensure cross-component type safety.
 - **Latest Information**: Use WebSearch/WebFetch for external dependencies and best practices

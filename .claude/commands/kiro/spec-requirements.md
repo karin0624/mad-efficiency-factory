@@ -37,6 +37,11 @@ Generate complete requirements for feature **$1** based on the project descripti
    - Create initial requirements based on project description
    - Group related functionality into logical requirement areas
    - Apply EARS format to all acceptance criteria
+   - Classify each requirement's Testability Layer:
+     - **Layer 1 (Fully Testable)**: Pure logic verifiable with EditMode tests. No Unity runtime dependency.
+     - **Layer 2 (Range-Testable)**: Constraint/range verification possible via PlayMode tests. Document non-testable aspects separately.
+     - **Layer 3 (Human Review)**: Not automatically testable. Specify review method, screenshots needed, and acceptance criteria for human judgment.
+   - For Layer 2/3 requirements, include a "Non-Testable Aspects" subsection specifying what cannot be automatically verified and how it should be reviewed
    - Use language specified in spec.json
 
 4. **Update Metadata**:
@@ -50,6 +55,9 @@ Generate complete requirements for feature **$1** based on the project descripti
 - Choose appropriate subject for EARS statements (system/service name for software)
 - Generate initial version first, then iterate with user feedback (no sequential questions upfront)
 - Requirement headings in requirements.md MUST include a leading numeric ID only (for example: "Requirement 1", "1.", "2 Feature ..."); do not use alphabetic IDs like "Requirement A".
+- Each requirement MUST include a `**Testability:** Layer N (classification)` field immediately after the Objective line
+- Layer 2 and Layer 3 requirements MUST include a "Non-Testable Aspects" subsection with review method and acceptance threshold
+- When uncertain about testability, default to the higher layer number (more conservative)
 </instructions>
 
 ## Tool Guidance
@@ -60,7 +68,7 @@ Generate complete requirements for feature **$1** based on the project descripti
 ## Output Description
 Provide output in the language specified in spec.json with:
 
-1. **Generated Requirements Summary**: Brief overview of major requirement areas (3-5 bullets)
+1. **Generated Requirements Summary**: Brief overview of major requirement areas (3-5 bullets), including Layer distribution (e.g., "4 Layer 1, 2 Layer 2, 1 Layer 3")
 2. **Document Status**: Confirm requirements.md updated and spec.json metadata updated
 3. **Next Steps**: Guide user on how to proceed (approve and continue, or modify)
 

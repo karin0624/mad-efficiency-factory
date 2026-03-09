@@ -57,10 +57,10 @@ When modifying existing systems:
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Frontend / CLI | | | |
-| Backend / Services | | | |
+| Simulation / Core Logic | | | |
+| Presentation / UI | | | |
 | Data / Storage | | | |
-| Messaging / Events | | | |
+| Events / Messaging | | | |
 | Infrastructure / Runtime | | | |
 
 > Keep rationale concise here and, when more depth is required (trade-offs, benchmarks), add a short summary plus pointer to the Supporting References section and `research.md` for raw investigation notes.
@@ -125,9 +125,10 @@ Summarize external dependency findings here; deeper investigation (API signature
 **Contracts**: Service [ ] / API [ ] / Event [ ] / Batch [ ] / State [ ]  ← check only the ones that apply.
 
 ##### Service Interface
-```typescript
-interface [ComponentName]Service {
-  methodName(input: InputType): Result<OutputType, ErrorType>;
+```csharp
+public interface I[ComponentName]Service
+{
+    Result<TOutput, TError> MethodName(TInput input);
 }
 ```
 - Preconditions:
@@ -246,11 +247,28 @@ Error tracking, logging, and health monitoring implementation.
 
 ## Testing Strategy
 
-### Default sections (adapt names/sections to fit the domain)
-- Unit Tests: 3–5 items from core functions/modules (e.g., auth methods, subscription logic)
-- Integration Tests: 3–5 cross-component flows (e.g., webhook handling, notifications)
-- E2E/UI Tests (if applicable): 3–5 critical user paths (e.g., forms, dashboards)
-- Performance/Load (if applicable): 3–4 items (e.g., concurrency, high-volume ops)
+### Layer 1: EditMode Tests (Pure Logic)
+- Target: Calculation logic, state machines, data validation, POCO classes
+- Framework: NUnit (Unity Test Framework)
+- Test against POCO classes; no MonoBehaviour dependency required
+- Fully automated verification via run_tests
+- List 3–5 specific test targets from this feature's core logic
+
+### Layer 2: PlayMode Tests (Constraint Verification)
+- Target: Physics behavior range checks, UI layout, component integration, prefab validation
+- Tolerance-based assertions (Assert.AreEqual with delta, range checks)
+- screenshot-game-view for visual confirmation checkpoints
+- List 3–5 constraint verification targets
+
+### Layer 3: Human Review (Non-Testable)
+- Target: Visual quality, game feel, usability, art direction alignment
+- Review method and criteria for each item
+- Screenshots attached for human presentation
+- List items requiring human judgment with specific review criteria
+
+### Performance (if applicable)
+- Frame rate targets, memory budgets, entity count limits
+- 3–4 specific performance verification items
 
 ## Optional Sections (include when relevant)
 

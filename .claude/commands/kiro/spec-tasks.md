@@ -36,7 +36,8 @@ Generate implementation tasks for feature **$1** based on approved requirements 
 ### Step 2: Generate Implementation Tasks
 
 **Load generation rules and template**:
-- Read `.kiro/settings/rules/tasks-generation.md` for principles
+- Read `.kiro/settings/rules/tasks-generation.md` for principles (includes Unity-specific task rules)
+- Read requirement Testability Layers from `.kiro/specs/$1/requirements.md` for layer-aware task ordering
 - If `sequential` is **false**: Read `.kiro/settings/rules/tasks-parallel-analysis.md` for parallel judgement criteria
 - Read `.kiro/settings/templates/specs/tasks.md` for format (supports `(P)` markers)
 
@@ -49,6 +50,14 @@ Generate implementation tasks for feature **$1** based on approved requirements 
 - Collapse single-subtask structures by promoting them to major tasks and avoid duplicating details on container-only major tasks (use template patterns accordingly)
 - Apply `(P)` markers to tasks that satisfy parallel criteria (omit markers in sequential mode)
 - Mark optional test coverage subtasks with `- [ ]*` only when they strictly cover acceptance criteria already satisfied by core implementation and can be deferred post-MVP
+- **Layer-aware task ordering**:
+  - Group tasks by implementation layer when logical (Core Logic → Scene Construction → Integration → Human Review)
+  - Layer 1 tasks: Test sub-task MUST precede implementation sub-task (TDD enforced)
+  - Layer 2 tasks: Include screenshot checkpoint sub-task after implementation
+  - Layer 3 tasks: Final sub-task MUST be a human review checkpoint: `- [ ] X.Y Human review: [criteria]`
+  - Human review sub-tasks are not executed by spec-impl; they are handled by `/kiro:scene-review`
+- **Logic/Scene separation**: Create separate tasks for POCO logic implementation and Unity scene construction
+- **Unity MCP tool annotation**: Scene construction tasks must note which MCP tools to use in detail bullets
 - If existing tasks.md found, merge with new content
 
 ### Step 3: Finalize
@@ -88,6 +97,8 @@ Provide brief summary in the language specified in spec.json:
    - ✅ All requirements mapped to tasks
    - ✅ Task dependencies verified
    - ✅ Testing tasks included
+   - ✅ Layer-aware ordering verified (Layer 1 TDD, Layer 3 human review checkpoints)
+   - ✅ Logic and scene tasks separated
 4. **Next Action**: Review tasks and proceed when ready
 
 **Format**: Concise (under 200 words)
