@@ -43,3 +43,5 @@ reports/stryker-incremental.json
 
 # Claude Plans
 docs/plans
+
+.mcp.json
