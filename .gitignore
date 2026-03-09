@@ -45,3 +45,7 @@ reports/stryker-incremental.json
 docs/plans
 
 .mcp.json
+
+
+# Unity cache file
+unity/Library
