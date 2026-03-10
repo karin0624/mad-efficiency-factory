@@ -25,7 +25,7 @@
 - **Unity Burst** (`com.unity.burst`): パフォーマンス最適化コンパイラ
 - **Unity Collections** (`com.unity.collections`): NativeHashMap, NativeQueue等
 - **Unity Test Framework** (`com.unity.test-framework`): テスト基盤
-- **Unity MCP** (`com.unity.ai.assistant@2.0`): AI-エディタ連携
+- **Nyamu MCP** (`dev.polyblank.nyamu`): AI-エディタ連携 — 詳細は `.kiro/steering/unity-mcp.md`
 
 ## Development Standards
 
@@ -46,14 +46,15 @@
 
 ### Required Tools
 - Unity 6.0.60f1 以降
-- Unity MCP (`com.unity.ai.assistant@2.0`)
+- Nyamu MCP (`dev.polyblank.nyamu`)
 - cc-sdd (Spec-Driven Development skills)
 
 ### AI-Editor Integration
-Unity MCPを通じてAIエージェントがエディタ操作を実行:
-- `Unity_ManageScript` / `run_tests` によるTDDサイクル
-- `Unity_ManageGameObject` / `manage_components` によるシーン構築
-- `screenshot-game-view` による視覚確認
+Nyamu MCPを通じてAIエージェントがエディタ操作を実行:
+- `Write`/`Edit` + `assets_refresh`/`scripts_compile` によるスクリプト管理
+- `tests_run_all`/`tests_run_single` + `tests_run_status` によるTDDサイクル
+- C# EditorScript + `menu_items_execute` によるシーン構築
+- `editor_log_tail`/`editor_log_grep` によるエラー診断
 
 ## ECS System実行順序
 

@@ -1,6 +1,6 @@
 ---
 description: Execute spec tasks using TDD methodology
-allowed-tools: Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS, WebFetch, WebSearch, Unity_ManageScript, run_tests, Unity_ReadConsole, screenshot-game-view, manage_components, manage_prefabs, Unity_ManageGameObject
+allowed-tools: Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS, WebFetch, WebSearch, assets_refresh, scripts_compile, scripts_compile_status, tests_run_all, tests_run_single, tests_run_regex, tests_run_status, tests_run_cancel, editor_status, editor_log_tail, editor_log_grep, editor_log_head, editor_log_path, menu_items_execute
 argument-hint: <feature-name> [task-numbers]
 ---
 
@@ -26,7 +26,7 @@ Execute implementation tasks for feature **$1** using Test-Driven Development.
 **Read all necessary context**:
 - `.kiro/specs/$1/spec.json`, `requirements.md`, `design.md`, `tasks.md`
 - **Entire `.kiro/steering/` directory** for complete project memory
-- **`.mcp.json`**: Verify `unity-mcp` server is configured. If absent, **stop with error**: "Unity MCP server not found in .mcp.json. This project requires Unity MCP for test execution and scene construction."
+- **`.mcp.json`**: Verify `nyamu` server is configured. If absent, **stop with error**: "Nyamu MCP server not found in .mcp.json. This project requires Nyamu MCP for test execution and scene construction."
 
 **Validate approvals**:
 - Verify tasks are approved in spec.json (stop if not, see Safety & Fallback)
@@ -67,38 +67,40 @@ For each selected task, follow Kent Beck's TDD cycle:
 
 ### Unity MCP TDD Cycle
 
-**When the project uses Unity MCP** (check `.mcp.json` for `unity-mcp` server), replace generic Bash test execution with Unity MCP tools:
+**When the project uses Nyamu MCP** (check `.mcp.json` for `nyamu` server), replace generic Bash test execution with Nyamu MCP tools:
 
 1. **RED - Write Failing Test**:
    - Generate NUnit test from the task's requirement (Layer 1: EditMode, Layer 2: PlayMode)
-   - Use `Unity_ManageScript` to create test file in `Assets/Tests/EditMode/` or `Assets/Tests/PlayMode/`
-   - Use `run_tests` to confirm test fails (expected: test exists but implementation missing)
-   - If compilation error: Use `Unity_ReadConsole` to diagnose, fix test, retry
+   - Use `Write` to create test file in `Assets/Tests/EditMode/` or `Assets/Tests/PlayMode/`
+   - Use `assets_refresh` to register the new file in Unity
+   - Use `tests_run_single` to run the test, then `tests_run_status` to poll for result - confirm fail
+   - If compilation error: Use `editor_log_tail`/`editor_log_grep` to diagnose, fix test, retry
 
 2. **GREEN - Write Minimal Implementation**:
-   - Use `Unity_ManageScript` to create/edit implementation code
+   - Use `Write`/`Edit` to create/edit implementation code
    - Layer 1: Pure C# class in `Assets/Scripts/Core/` (no MonoBehaviour dependency)
-   - Use `run_tests` to confirm test passes
-   - If test fails: `Unity_ReadConsole` for error details → fix → `run_tests` again
+   - Use `assets_refresh` (new file) or `scripts_compile` (existing file edit) to reflect changes
+   - Use `tests_run_single` to run the test, then `tests_run_status` to poll - confirm pass
+   - If test fails: `editor_log_tail`/`editor_log_grep` for error details - fix - retest
 
-3. **REFACTOR** (same as generic TDD):
+3. **REFACTOR**:
    - Improve code structure
-   - Run `run_tests` to confirm no regressions
+   - Use `assets_refresh` or `scripts_compile` to reflect changes
+   - Use `tests_run_all` to run all tests, then `tests_run_status` to poll - confirm no regressions
 
 4. **SCENE CONSTRUCTION** (when task involves GameObjects/Prefabs):
-   - Use `Unity_ManageGameObject` to create/configure GameObjects
-   - Use `manage_components` to add and configure components
-   - Use `manage_prefabs` to create Prefabs from configured GameObjects
-   - Use `screenshot-game-view` to capture visual result
+   - Use C# EditorScripts to automate GameObject/Component/Prefab creation
+   - Execute via `menu_items_execute` after registering the EditorScript
+   - For Layer 3 tasks, use `/kiro:scene-review` for human visual confirmation
 
 5. **LAYER-BASED VERIFICATION**:
-   - **Layer 1**: `run_tests` only. Fully automated. No human intervention.
-   - **Layer 2**: `run_tests` for constraint checks + `screenshot-game-view` for visual reference. Report results with screenshots.
-   - **Layer 3**: Not applicable — Human Review sub-tasks are skipped by spec-impl (see below).
+   - **Layer 1**: `tests_run_all` + `tests_run_status` only. Fully automated. No human intervention.
+   - **Layer 2**: `tests_run_all` + `tests_run_status` for constraint checks. Report results.
+   - **Layer 3**: Not applicable - Human Review sub-tasks are skipped by spec-impl (see below).
 
 6. **ERROR RECOVERY LOOP**:
-   - On test failure: `Unity_ReadConsole` → analyze error → `Unity_ManageScript` to fix → `run_tests`
-   - On compilation error: `Unity_ReadConsole` → fix syntax/reference → `run_tests`
+   - On test failure: `editor_log_tail`/`editor_log_grep` - analyze error - `Edit` to fix - `scripts_compile` - retest
+   - On compilation error: `editor_log_tail`/`editor_log_grep` - fix syntax/reference - `scripts_compile` - retest
    - Maximum 5 retry iterations before reporting failure to user
 
 ## Critical Constraints
@@ -109,15 +111,15 @@ For each selected task, follow Kent Beck's TDD cycle:
 - **Design Alignment**: Implementation must follow design.md specifications
 - **Layer Awareness**: Check requirement's Testability Layer before choosing test type (EditMode vs PlayMode)
 - **Human Review Skip**: Sub-tasks matching `Human review:` pattern are NOT executed by spec-impl. Detect and skip them during task selection, and include skipped task list in output. Use `/kiro:scene-review` to handle these tasks.
-- **Unity MCP Priority**: When Unity MCP is available, prefer MCP tools over Bash for all Unity operations
+- **Nyamu MCP Priority**: When Nyamu MCP is available, prefer MCP tools over Bash for all Unity operations
 </instructions>
 
 ## Tool Guidance
 - **Read first**: Load all context before implementation
 - **Test first**: Write tests before code
 - Use **WebSearch/WebFetch** for library documentation when needed
-- **Unity MCP tools**: Use `Unity_ManageScript` for script creation, `run_tests` for test execution, `Unity_ReadConsole` for error diagnosis
-- **Visual verification**: Use `screenshot-game-view` for Layer 2 tasks
+- **Nyamu MCP tools**: Use `Write`/`Edit` for script creation, `assets_refresh`/`scripts_compile` for Unity reflection, `tests_run_single`/`tests_run_all` + `tests_run_status` for test execution, `editor_log_tail`/`editor_log_grep` for error diagnosis
+- **Scene construction**: Use C# EditorScripts + `menu_items_execute` for GameObject/Prefab automation
 
 ## Output Description
 

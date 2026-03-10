@@ -146,8 +146,8 @@ Document any intentionally deferred requirements with rationale.
 - Logic implementation tasks and scene construction tasks MUST be separate tasks
 - Logic tasks target Pure C# classes (POCO) in Core/ or ECS Systems
 - Scene tasks target GameObject/Component/Prefab setup using Unity MCP tools
-- Scene construction tasks MUST specify the Unity MCP tools to be used in detail bullets:
-  - Example: "Build conveyor belt prefab (Unity_ManageGameObject, manage_components, manage_prefabs)"
+- Scene construction tasks MUST specify the Nyamu MCP tools or approach to be used in detail bullets:
+  - Example: "Build conveyor belt prefab (C# EditorScript + menu_items_execute + assets_refresh)"
 
 ### Prefab and ScriptableObject Sequencing
 - Prefab creation tasks: After scene construction, before integration tests
@@ -158,9 +158,9 @@ Document any intentionally deferred requirements with rationale.
 - Tasks involving Unity Editor operations MUST note the relevant MCP tools in detail bullets
 - This ensures the implementation agent knows which tools to invoke
 - Common patterns:
-  - Script creation: Unity_ManageScript
-  - Test execution: run_tests
-  - Scene setup: Unity_ManageGameObject, manage_components
-  - Prefab creation: manage_prefabs
-  - Visual verification: screenshot-game-view
-  - Console check: Unity_ReadConsole
+  - Script creation: `Write`/`Edit` + `assets_refresh`
+  - Test execution: `tests_run_all`/`tests_run_single` + `tests_run_status`
+  - Compilation: `scripts_compile` + `scripts_compile_status`
+  - Scene setup: C# EditorScript + `menu_items_execute` + `assets_refresh`
+  - Error diagnosis: `editor_log_tail`/`editor_log_grep`
+  - Visual verification: manual confirmation via `/kiro:scene-review`

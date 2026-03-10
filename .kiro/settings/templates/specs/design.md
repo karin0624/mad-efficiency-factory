@@ -251,19 +251,19 @@ Error tracking, logging, and health monitoring implementation.
 - Target: Calculation logic, state machines, data validation, POCO classes
 - Framework: NUnit (Unity Test Framework)
 - Test against POCO classes; no MonoBehaviour dependency required
-- Fully automated verification via run_tests
+- Fully automated verification via `tests_run_all`/`tests_run_single` + `tests_run_status`
 - List 3–5 specific test targets from this feature's core logic
 
 ### Layer 2: PlayMode Tests (Constraint Verification)
 - Target: Physics behavior range checks, UI layout, component integration, prefab validation
 - Tolerance-based assertions (Assert.AreEqual with delta, range checks)
-- screenshot-game-view for visual confirmation checkpoints
+- Visual confirmation via `/kiro:scene-review` (manual confirmation in Unity Editor)
 - List 3–5 constraint verification targets
 
 ### Layer 3: Human Review (Non-Testable)
 - Target: Visual quality, game feel, usability, art direction alignment
 - Review method and criteria for each item
-- Screenshots attached for human presentation
+- Manual visual confirmation in Unity Editor via `/kiro:scene-review`
 - List items requiring human judgment with specific review criteria
 
 ### Performance (if applicable)
