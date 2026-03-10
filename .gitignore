@@ -48,4 +48,6 @@ docs/plans
 
 
 # Unity cache file
-unity/Library
+unity/Library/
+unity/Temp/
+unity/Logs/

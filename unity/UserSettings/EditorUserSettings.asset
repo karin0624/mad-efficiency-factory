@@ -8,6 +8,9 @@ EditorUserSettings:
     RecentlyUsedSceneGuid-0:
       value: 5a08575f5207595a0f5d59741173094444164f7d7d2a23317c7a4465bbe1646d
       flags: 0
+    Trace.SinkConfigs:
+      value: 181341080c4110150e0102311f2f5a524c0c5a0e292e2725213d3136f4e5387ab8a521e8f5347d707b21ee2801390e2dfb0f1a49ac104806121ebf5453f61e151e87058958ee1610df1c0efcc81ec4f1c7dfdaed9ab1f3cacbdabdef
+      flags: 0
     vcSharedLogLevel:
       value: 0d5e400f0650
       flags: 0
