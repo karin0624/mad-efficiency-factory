@@ -48,3 +48,11 @@ docs/plans
 unity/Library/
 unity/Temp/
 unity/Logs/
+
+# Unity auto-generated IDE files
+*.csproj
+*.sln
+*.slnx
+
+# Unity user settings
+UserSettings/
