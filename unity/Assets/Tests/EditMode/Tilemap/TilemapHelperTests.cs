@@ -81,7 +81,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void IsOccupied_EmptyTile_ReturnsFalse()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var result = TilemapHelper.IsOccupied(tiles, new int2(0, 0), DefaultMapSize);
             Assert.IsFalse(result);
         }
@@ -89,7 +89,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void IsOccupied_OccupiedTile_ReturnsTrue()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var index = TilemapHelper.CoordToIndex(new int2(5, 5), DefaultMapSize);
             var tile = tiles[index];
             tile.OccupyingEntity = new Entity { Index = 1, Version = 1 };
@@ -102,7 +102,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void IsOccupied_OutOfBounds_ReturnsFalse()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var result = TilemapHelper.IsOccupied(tiles, new int2(-1, 0), DefaultMapSize);
             Assert.IsFalse(result);
         }
@@ -114,7 +114,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void GetResourceType_IronOreTile_ReturnsIronOre()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var index = TilemapHelper.CoordToIndex(new int2(10, 10), DefaultMapSize);
             var tile = tiles[index];
             tile.Resource = ResourceType.IronOre;
@@ -127,7 +127,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void GetResourceType_EmptyTile_ReturnsNone()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var result = TilemapHelper.GetResourceType(tiles, new int2(0, 0), DefaultMapSize);
             Assert.AreEqual(ResourceType.None, result);
         }
@@ -135,7 +135,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void GetResourceType_OutOfBounds_ReturnsNone()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var result = TilemapHelper.GetResourceType(tiles, new int2(100, 100), DefaultMapSize);
             Assert.AreEqual(ResourceType.None, result);
         }
@@ -147,7 +147,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void IsAreaFree_AllEmpty_ReturnsTrue()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var result = TilemapHelper.IsAreaFree(tiles, new int2(0, 0), new int2(2, 2), DefaultMapSize);
             Assert.IsTrue(result);
         }
@@ -155,7 +155,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void IsAreaFree_PartiallyOccupied_ReturnsFalse()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var index = TilemapHelper.CoordToIndex(new int2(1, 1), DefaultMapSize);
             var tile = tiles[index];
             tile.OccupyingEntity = new Entity { Index = 1, Version = 1 };
@@ -168,7 +168,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void IsAreaFree_ExceedsBounds_ReturnsFalse()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var result = TilemapHelper.IsAreaFree(tiles, new int2(63, 63), new int2(2, 2), DefaultMapSize);
             Assert.IsFalse(result);
         }
@@ -180,7 +180,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void TrySetOccupant_ValidCoord_ReturnsTrueAndUpdatesEntity()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var entity = new Entity { Index = 42, Version = 1 };
 
             var result = TilemapHelper.TrySetOccupant(tiles, new int2(5, 5), DefaultMapSize, entity);
@@ -193,7 +193,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void TrySetOccupant_OutOfBounds_ReturnsFalse()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var entity = new Entity { Index = 42, Version = 1 };
 
             var result = TilemapHelper.TrySetOccupant(tiles, new int2(-1, 0), DefaultMapSize, entity);
@@ -208,7 +208,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void TryClearOccupant_OccupiedTile_ReturnsTrueAndClearsEntity()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
             var index = TilemapHelper.CoordToIndex(new int2(5, 5), DefaultMapSize);
             var tile = tiles[index];
             tile.OccupyingEntity = new Entity { Index = 1, Version = 1 };
@@ -223,7 +223,7 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [Test]
         public void TryClearOccupant_OutOfBounds_ReturnsFalse()
         {
-            using var tiles = CreateDefaultTiles();
+            var tiles = CreateDefaultTiles();
 
             var result = TilemapHelper.TryClearOccupant(tiles, new int2(-1, 0), DefaultMapSize);
 
