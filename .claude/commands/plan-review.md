@@ -32,30 +32,28 @@ Review plan file using Codex CLI and incorporate feedback. Argument: **$ARGUMENT
 - If file not found: use Glob `docs/plans/*<identifier>*` to search
 - If still not found: list available plans in `docs/plans/` and stop
 
-### Step 3: Read Plan Content
-- Use Read tool to load the full plan file
-- Store the content for prompt construction
-
-### Step 4: Verify Codex Availability
+### Step 3: Verify Codex Availability
 - Run `which codex` via Bash
 - If not found, stop with error: "codex CLI is not installed. Install it with: npm install -g @openai/codex"
 
-### Step 5: Execute Codex Review
-- Construct the review prompt (see Review Prompt section below)
-- Write the prompt to a temporary file to avoid shell escaping issues
+### Step 4: Execute Codex Review
+- Construct the review prompt using the **resolved file path** (NOT the file content) — see Review Prompt section below
+- Write the prompt to a temporary file
 - Execute:
   ```bash
   codex exec --ephemeral -s read-only -C "$(pwd)" -o /tmp/codex-plan-review.txt - < /tmp/codex-plan-review-prompt.txt
   ```
 - Read the output from `/tmp/codex-plan-review.txt`
+- **Important**: Do NOT read the plan file at this stage — let Codex read it directly, saving context
 
-### Step 6: Present Review Results
+### Step 5: Present Review Results
 - Display the Codex review to the user with a header indicating:
   - Which plan was reviewed
   - Reviewer: Codex CLI
 
-### Step 7: Incorporate Feedback (default behavior)
+### Step 6: Incorporate Feedback (default behavior)
 - **Skip this step if `--dry-run` was specified** — just display results and stop
+- **Now** read the plan file using Read tool (first time reading it — needed to apply edits)
 - Analyze the Codex review feedback
 - Identify actionable improvements:
   - Missing steps or considerations to add
@@ -73,13 +71,10 @@ Review plan file using Codex CLI and incorporate feedback. Argument: **$ARGUMENT
 Use this prompt structure when sending to Codex:
 
 ```
-You are a senior technical reviewer. Review the following implementation plan and provide structured, actionable feedback.
+You are a senior technical reviewer. Review the implementation plan located at the following file path and provide structured, actionable feedback.
 
-## Plan to Review
-
-<plan>
-{PLAN_CONTENT}
-</plan>
+## Plan File
+Read and review: {PLAN_FILE_PATH}
 
 ## Review Criteria
 
@@ -120,16 +115,17 @@ Provide your review as structured Markdown:
 ```
 
 ## Important Constraints
-- Codex runs in **read-only sandbox** — it cannot modify the workspace
+- Codex runs in **read-only sandbox** — it cannot modify the workspace, but CAN read files
 - Session is **ephemeral** — no persistent state
-- Use a temp file for the prompt to avoid shell escaping issues with plan content
+- Use a temp file for the prompt to avoid shell escaping issues
 - Clean up temp files after execution
 - Default is to incorporate feedback; `--dry-run` skips modification
 - When incorporating feedback, preserve the plan's original structure and intent
+- **Context efficiency**: Only read the plan file in Claude's context when modification is needed (Step 6)
 </instructions>
 
 ## Tool Guidance
-- **Read**: Load plan file content and Codex output
+- **Read**: Load plan file content ONLY at Step 6 (for incorporating feedback), and Codex output
 - **Bash**: Execute `codex exec`, write temp files, verify codex installation
 - **Edit**: Modify plan file to incorporate review feedback
 - **Glob**: Find plan files when identifier doesn't match exactly
