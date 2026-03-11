@@ -1,7 +1,7 @@
 ---
 description: Generate comprehensive requirements for a specification
 allowed-tools: Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch, WebFetch
-argument-hint: <feature-name>
+argument-hint: <feature-name> [--plan <plan-file-path>]
 ---
 
 # Requirements Generation
@@ -21,9 +21,15 @@ Generate complete requirements for feature **$1** based on the project descripti
 
 ## Execution Steps
 
+0. **Parse Arguments**:
+   - Split `$ARGUMENTS` into feature name and flags
+   - Detect `--plan <path>` flag (if present, the specified plan file will be used as additional context)
+   - The first argument (before any flags) is the feature name
+
 1. **Load Context**:
    - Read `.kiro/specs/$1/spec.json` for language and metadata
    - Read `.kiro/specs/$1/requirements.md` for project description
+   - **Load plan context** (if `--plan` flag provided): Read the specified plan file and use its content as additional context for requirements generation. The plan provides high-level goals and constraints but should NOT be copied verbatim — extract WHAT the feature should do, not HOW it should be implemented.
    - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
      - Default files: `structure.md`, `tech.md`, `product.md`
      - All custom steering files (regardless of mode settings)
@@ -34,7 +40,8 @@ Generate complete requirements for feature **$1** based on the project descripti
    - Read `.kiro/settings/templates/specs/requirements.md` for document structure
 
 3. **Generate Requirements**:
-   - Create initial requirements based on project description
+   - Create initial requirements based on project description and plan context (if provided via `--plan` flag)
+   - When plan context is available, use it to inform requirement scope and priorities, but maintain focus on WHAT (not HOW)
    - Group related functionality into logical requirement areas
    - Apply EARS format to all acceptance criteria
    - Classify each requirement's Testability Layer:

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "nyamu": {
+      "command": "cmd.exe",
+      "args": ["/c", "unity\\.nyamu\\nyamu.bat"],
+      "timeout": 30000,
+      "env": {}
+    }
+  }
+}

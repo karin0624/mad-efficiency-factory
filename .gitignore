@@ -44,9 +44,6 @@ reports/stryker-incremental.json
 # Claude Plans
 docs/plans
 
-.mcp.json
-
-
 # Unity cache file
 unity/Library/
 unity/Temp/
