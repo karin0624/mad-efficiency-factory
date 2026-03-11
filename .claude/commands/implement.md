@@ -44,7 +44,7 @@ Execute the full cc-sdd pipeline for plan **$ARGUMENTS** in an isolated worktree
      b. If resumable: use existing worktree, skip to Step 3 at the appropriate phase
      c. If not resumable: append suffix (e.g., `feat/<plan-name>-2`)
 4. `git worktree add <worktree-path> -b <branch-name> origin/<base-branch>`
-   - Use `/tmp/worktrees/<branch-name>` as worktree path
+   - Use `/mnt/c/Users/karin0624/work/.worktrees/<branch-name>` as worktree path (Windows filesystem for Unity compatibility)
    - Store worktree path for all subsequent Agents
 
 ### Step 2: Plan File Resolution
@@ -130,7 +130,7 @@ Only execute if Agent A returned `requires_unity: true`. Skip otherwise.
    c. If neither works: warn and stop
 2. Check existence: `powershell.exe -Command 'Test-Path "<resolved-path>"'`
    - If not found: warn and stop
-3. Convert WSL worktree path to Windows path (`/mnt/c/` → `C:\`, `/tmp/` → appropriate Windows temp)
+3. Convert WSL worktree path to Windows path (`/mnt/c/` → `C:\`)
 4. Launch Unity Editor:
    ```bash
    powershell.exe -Command '$p = Start-Process "<resolved-path>" -ArgumentList "-projectPath","{WIN_WORKTREE}\unity" -PassThru; $p.Id'
