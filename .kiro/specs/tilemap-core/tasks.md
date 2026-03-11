@@ -109,8 +109,8 @@
   - テスト実行: `tests_run_all` (test_mode: "EditMode") + `tests_run_status` で Green 確認
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 8.1, 8.2_
 
-- [ ] 8. 全体統合検証
-- [ ] 8.1 全 EditMode テストを一括実行して Green を確認する
+- [x] 8. 全体統合検証
+- [x] 8.1 全 EditMode テストを一括実行して Green を確認する
   - `tests_run_all` (test_mode: "EditMode") + `tests_run_status` で全テストが通過することを確認する
   - テスト失敗がある場合はエラー内容を診断し修正する
   - `scripts_compile` + `scripts_compile_status` でコンパイルエラーがないことを最終確認する

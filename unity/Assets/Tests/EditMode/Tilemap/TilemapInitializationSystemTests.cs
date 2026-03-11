@@ -23,15 +23,9 @@ namespace MadFactory.Tests.EditMode.Tilemap
         [TearDown]
         public void TearDown()
         {
-            // Dispose any TilemapSingleton tiles before disposing world
-            using var query = _em.CreateEntityQuery(typeof(TilemapSingleton));
-            if (query.CalculateEntityCount() > 0)
-            {
-                var singleton = query.GetSingleton<TilemapSingleton>();
-                if (singleton.Tiles.IsCreated)
-                    singleton.Tiles.Dispose();
-            }
-            _world.Dispose();
+            // World.Dispose() triggers system OnDestroy which handles NativeArray cleanup
+            if (_world != null && _world.IsCreated)
+                _world.Dispose();
         }
 
         [Test]
