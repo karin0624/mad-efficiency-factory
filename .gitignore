@@ -43,16 +43,3 @@ reports/stryker-incremental.json
 
 # Claude Plans
 docs/plans
-
-# Unity cache file
-unity/Library/
-unity/Temp/
-unity/Logs/
-
-# Unity auto-generated IDE files
-*.csproj
-*.sln
-*.slnx
-
-# Unity user settings
-UserSettings/

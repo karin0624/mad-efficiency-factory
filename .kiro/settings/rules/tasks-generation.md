@@ -130,37 +130,3 @@ Use `N.M`-style numeric requirement IDs where `N` is the top-level requirement n
 
 Document any intentionally deferred requirements with rationale.
 
-## Unity-Specific Task Rules
-
-### Layer-Based Task Ordering
-- **Layer 1 tasks**: Test task MUST precede implementation task (TDD mandatory)
-  - Pattern: "Write EditMode test for [logic]" → "Implement [logic] in POCO class"
-- **Layer 2 tasks**: Include both PlayMode test and screenshot confirmation checkpoint
-  - Pattern: "Write PlayMode constraint test" → "Implement" → "Capture screenshot for constraint verification"
-- **Layer 3 tasks**: MUST end with a "Human Review" sub-task as the final item
-  - Pattern: "Implement [visual/feel feature]" → "Human review: [specific review criteria]"
-  - Mark the human review checkpoint clearly: `- [ ] X.Y Human review: [specific review criteria]`
-  - Human review tasks are NOT executed by spec-impl; they are handled by `/kiro:scene-review`
-
-### Logic and Scene Separation
-- Logic implementation tasks and scene construction tasks MUST be separate tasks
-- Logic tasks target Pure C# classes (POCO) in Core/ or ECS Systems
-- Scene tasks target GameObject/Component/Prefab setup using Unity MCP tools
-- Scene construction tasks MUST specify the Nyamu MCP tools or approach to be used in detail bullets:
-  - Example: "Build conveyor belt prefab (C# EditorScript + menu_items_execute + assets_refresh)"
-
-### Prefab and ScriptableObject Sequencing
-- Prefab creation tasks: After scene construction, before integration tests
-- ScriptableObject definition tasks: After data structure design, before logic implementation
-- Pattern: Data design → ScriptableObject → Logic (POCO) → MonoBehaviour adapter → Scene setup → Prefab → Integration test
-
-### Unity MCP Tool Annotation
-- Tasks involving Unity Editor operations MUST note the relevant MCP tools in detail bullets
-- This ensures the implementation agent knows which tools to invoke
-- Common patterns:
-  - Script creation: `Write`/`Edit` + `assets_refresh`
-  - Test execution: `tests_run_all`/`tests_run_single` + `tests_run_status`
-  - Compilation: `scripts_compile` + `scripts_compile_status`
-  - Scene setup: C# EditorScript + `menu_items_execute` + `assets_refresh`
-  - Error diagnosis: `editor_log_tail`/`editor_log_grep`
-  - Visual verification: manual confirmation via `/kiro:scene-review`

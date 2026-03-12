@@ -48,14 +48,6 @@
 - **Idempotency**: Design for retry safety
 - **Contract Visibility**: Surface API and event contracts in design.md while linking extended details from `research.md`
 
-### 8. Unity Testability Principles
-- **POCO Separation**: All game logic in Pure C# classes (POCO); MonoBehaviour is a thin adapter only
-- **Parameter Injection**: SerializeField-dependent logic must accept values as constructor/method parameters, not read fields directly
-- **No Update() Logic**: No branching logic in Update(); delegate to state machines or strategy patterns
-- **No Static Singletons**: Avoid static singleton pattern; use ScriptableObject or DI for dependency injection
-- **Event-Driven Communication**: Prefer UnityEvent / C# event / ScriptableObject Event Channel for cross-component communication
-- **Interface Decoupling**: No direct cross-component references; use interfaces for loose coupling
-
 ## Documentation Standards
 
 ### Language and Tone

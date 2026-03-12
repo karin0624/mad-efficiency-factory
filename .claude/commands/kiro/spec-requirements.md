@@ -45,8 +45,8 @@ Generate complete requirements for feature **$1** based on the project descripti
    - Group related functionality into logical requirement areas
    - Apply EARS format to all acceptance criteria
    - Classify each requirement's Testability Layer:
-     - **Layer 1 (Fully Testable)**: Pure logic verifiable with EditMode tests. No Unity runtime dependency.
-     - **Layer 2 (Range-Testable)**: Constraint/range verification possible via PlayMode tests. Document non-testable aspects separately.
+     - **Layer 1 (Fully Testable)**: Pure logic verifiable with unit tests. No engine/framework runtime dependency.
+     - **Layer 2 (Range-Testable)**: Constraint/range verification possible via integration tests. Document non-testable aspects separately.
      - **Layer 3 (Human Review)**: Not automatically testable. Specify review method, screenshots needed, and acceptance criteria for human judgment.
    - For Layer 2/3 requirements, include a "Non-Testable Aspects" subsection specifying what cannot be automatically verified and how it should be reviewed
    - Use language specified in spec.json

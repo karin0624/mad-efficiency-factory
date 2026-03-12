@@ -9,7 +9,7 @@
 <!-- Requirement headings MUST include a leading numeric ID only (for example: "Requirement 1: ...", "1. Overview", "2 Feature: ..."). Alphabetic IDs like "Requirement A" are not allowed. -->
 **Objective:** As a {{ROLE}}, I want {{CAPABILITY}}, so that {{BENEFIT}}
 **Testability:** Layer 1 (Fully Testable)
-<!-- Layer 1: Fully Testable - Pure logic, EditMode test verifiable -->
+<!-- Layer 1: Fully Testable - Pure logic, unit test verifiable -->
 <!-- Layer 2: Range-Testable - Constraint/range verification possible, non-testable aspects documented -->
 <!-- Layer 3: Human Review - Not automatically testable, review method and criteria required -->
 

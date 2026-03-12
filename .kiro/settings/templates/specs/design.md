@@ -247,27 +247,24 @@ Error tracking, logging, and health monitoring implementation.
 
 ## Testing Strategy
 
-### Layer 1: EditMode Tests (Pure Logic)
-- Target: Calculation logic, state machines, data validation, POCO classes
-- Framework: NUnit (Unity Test Framework)
-- Test against POCO classes; no MonoBehaviour dependency required
-- Fully automated verification via `tests_run_all`/`tests_run_single` + `tests_run_status`
+### Layer 1: Unit Tests (Pure Logic)
+- Target: Calculation logic, state machines, data validation, domain models
+- Framework: Appropriate test framework for the project's language/runtime
+- Test against pure logic classes with no engine/framework dependency
 - List 3–5 specific test targets from this feature's core logic
 
-### Layer 2: PlayMode Tests (Constraint Verification)
-- Target: Physics behavior range checks, UI layout, component integration, prefab validation
-- Tolerance-based assertions (Assert.AreEqual with delta, range checks)
-- Visual confirmation via `/kiro:scene-review` (manual confirmation in Unity Editor)
+### Layer 2: Integration Tests (Constraint Verification)
+- Target: Component integration, behavior range checks, layout/rendering validation
+- Tolerance-based assertions where applicable
 - List 3–5 constraint verification targets
 
 ### Layer 3: Human Review (Non-Testable)
-- Target: Visual quality, game feel, usability, art direction alignment
+- Target: Visual quality, usability, art direction alignment
 - Review method and criteria for each item
-- Manual visual confirmation in Unity Editor via `/kiro:scene-review`
 - List items requiring human judgment with specific review criteria
 
 ### Performance (if applicable)
-- Frame rate targets, memory budgets, entity count limits
+- Performance targets and measurement strategies
 - 3–4 specific performance verification items
 
 ## Optional Sections (include when relevant)

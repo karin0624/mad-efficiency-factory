@@ -26,9 +26,7 @@ Execute the full cc-sdd pipeline for plan **$ARGUMENTS** in an isolated worktree
 
 1. Verify GitHub CLI: `which gh` and `gh auth status`
    - If unavailable or not authenticated: report and stop
-2. Verify `.mcp.json` exists in workspace root
-   - If missing: warn and stop
-3. Detect base branch:
+2. Detect base branch:
    - Try: `git symbolic-ref refs/remotes/origin/HEAD` → extract branch name (e.g., `origin/master` → `master`)
    - Fallback: `git remote show origin | grep 'HEAD branch'`
    - If both fail: ask user and stop
@@ -44,7 +42,7 @@ Execute the full cc-sdd pipeline for plan **$ARGUMENTS** in an isolated worktree
      b. If resumable: use existing worktree, skip to Step 3 at the appropriate phase
      c. If not resumable: append suffix (e.g., `feat/<plan-name>-2`)
 4. `git worktree add <worktree-path> -b <branch-name> origin/<base-branch>`
-   - Use `/mnt/c/Users/karin0624/work/.worktrees/<branch-name>` as worktree path (Windows filesystem for Unity compatibility)
+   - Use `.claude/worktrees/<branch-name>` as worktree path
    - Store worktree path for all subsequent Agents
 
 ### Step 2: Plan File Resolution
@@ -109,39 +107,13 @@ Agent(
   - 作成されたspec名（feature name）
   - 完了したフェーズ一覧
   - ブランチ名
-  - requires_unity: タスク内容にUnity MCPツール（assets_refresh, scripts_compile等）の
-    使用が含まれるかどうかのboolean判定
   """
 )
 ```
 
-**Extract from Agent A result**: worktree path, branch name, feature name, requires_unity.
+**Extract from Agent A result**: worktree path, branch name, feature name.
 
-### Step 4: Unity Editor Launch (if requires_unity)
-
-Only execute if Agent A returned `requires_unity: true`. Skip otherwise.
-
-1. Resolve Unity EXE path dynamically (in priority order):
-   a. Environment variable: `powershell.exe -Command '$env:UNITY_EDITOR_PATH'`
-   b. Auto-detect from Unity Hub: find the latest installed editor version:
-      ```bash
-      powershell.exe -Command '(Get-ChildItem "C:\Program Files\Unity\Hub\Editor" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName + "\Editor\Unity.exe"'
-      ```
-   c. If neither works: warn and stop
-2. Check existence: `powershell.exe -Command 'Test-Path "<resolved-path>"'`
-   - If not found: warn and stop
-3. Convert WSL worktree path to Windows path (`/mnt/c/` → `C:\`)
-4. Launch Unity Editor:
-   ```bash
-   powershell.exe -Command '$p = Start-Process "<resolved-path>" -ArgumentList "-projectPath","{WIN_WORKTREE}\unity" -PassThru; $p.Id'
-   ```
-5. Wait for Unity ready (timeout: 300 seconds):
-   a. Wait for `{worktree}/unity/.nyamu/NyamuSettings.json` to appear
-   b. Read `serverPort` from the settings file
-   c. Poll `curl http://localhost:{port}/editor-status` until `{"isCompiling":false}` (5-second interval)
-   d. `-32603` errors (server initializing) → continue retrying
-
-### Step 5: Agent B — Implementation
+### Step 4: Agent B — Implementation
 
 Launch Agent B for Phase 5 in the same worktree. New agent (no resume), pass only feature name and worktree path.
 
@@ -176,14 +148,7 @@ Agent(
 )
 ```
 
-### Step 5.5: Unity Editor Cleanup
-
-After Agent B completes (success or failure), if Unity was launched in Step 4:
-```bash
-cmd.exe /c "taskkill /PID {pid} /F"
-```
-
-### Step 6: Agent C — Commit + Push + PR
+### Step 5: Agent C — Commit + Push + PR
 
 Launch Agent C for Phases 6-7 in the same worktree.
 
@@ -204,7 +169,6 @@ Agent(
   2. 未コミットの変更がある場合:
      - git diff --name-only で変更ファイル一覧を取得
      - .kiro/specs/ 配下、ソースコード、テストファイルなど意図した変更のみをステージング
-     - Unity自動生成ファイル（*.meta以外のLibrary/、Temp/等）は除外
      - 変更内容に基づいた適切なコミットメッセージで git commit
   3. すべてコミット済みの場合: このステップをスキップ
 
@@ -222,7 +186,7 @@ Agent(
 )
 ```
 
-### Step 7: Final Output
+### Step 6: Final Output
 
 Display combined results from all Agents:
 - Worktree branch name
@@ -244,8 +208,7 @@ Display combined results from all Agents:
 | Skill tool unavailable in Agent | Fallback to reading command files directly |
 | spec-init failure | Stop, report error details and retry command |
 | Mid-pipeline failure | Stop, report failed phase and feature name |
-| Unity launch timeout (300s) | Kill PID, report error |
-| spec-impl failure | Cleanup Unity → report failed task, worktree path, branch, manual retry command |
+| spec-impl failure | Report failed task, worktree path, branch, manual retry command |
 | Existing spec detected | Resume from interrupted phase (skip spec-init) |
 | Push/PR failure | Report error (preserve worktree and branch) |
 
@@ -261,7 +224,7 @@ Display combined results from all Agents:
 </instructions>
 
 ## Tool Guidance
-- **Bash**: Preflight checks, git operations, worktree management, Unity lifecycle
+- **Bash**: Preflight checks, git operations, worktree management
 - **Read**: Only for checking spec.json during resume detection
 - **Glob**: Plan file resolution
 - **Agent**: Launch subagents A, B, C sequentially (never use `isolation: "worktree"` — worktree is pre-created)
@@ -276,5 +239,4 @@ Concise final summary including:
 ## Safety & Fallback
 - **Plan not found**: List available plans in `docs/plans/` with full paths
 - **Git conflicts**: Never force-push; report conflicts for manual resolution
-- **Unity unavailable**: Skip Unity steps if EXE not found (warn but don't block non-Unity specs)
 - **Agent failure**: Report which agent failed, preserve worktree for manual recovery

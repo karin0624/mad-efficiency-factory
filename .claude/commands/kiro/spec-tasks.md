@@ -36,7 +36,7 @@ Generate implementation tasks for feature **$1** based on approved requirements 
 ### Step 2: Generate Implementation Tasks
 
 **Load generation rules and template**:
-- Read `.kiro/settings/rules/tasks-generation.md` for principles (includes Unity-specific task rules)
+- Read `.kiro/settings/rules/tasks-generation.md` for principles
 - Read requirement Testability Layers from `.kiro/specs/$1/requirements.md` for layer-aware task ordering
 - If `sequential` is **false**: Read `.kiro/settings/rules/tasks-parallel-analysis.md` for parallel judgement criteria
 - Read `.kiro/settings/templates/specs/tasks.md` for format (supports `(P)` markers)
@@ -56,8 +56,6 @@ Generate implementation tasks for feature **$1** based on approved requirements 
   - Layer 2 tasks: Include screenshot checkpoint sub-task after implementation
   - Layer 3 tasks: Final sub-task MUST be a human review checkpoint: `- [ ] X.Y Human review: [criteria]`
   - Human review sub-tasks are not executed by spec-impl; they are handled by `/kiro:scene-review`
-- **Logic/Scene separation**: Create separate tasks for POCO logic implementation and Unity scene construction
-- **Unity MCP tool annotation**: Scene construction tasks must note which MCP tools to use in detail bullets
 - If existing tasks.md found, merge with new content
 
 ### Step 3: Finalize

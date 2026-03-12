@@ -1,13 +1,13 @@
 ---
 description: Screenshot-based human review for Layer 3 tasks in tasks.md
-allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, editor_log_tail, editor_log_grep, editor_status, menu_items_execute
+allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: <feature-name>
 ---
 
 # Scene Review
 
 <background_information>
-- **Mission**: Process uncompleted Human Review sub-tasks from tasks.md by presenting review criteria, collecting human judgment via Unity Editor visual confirmation, and marking tasks complete upon human approval
+- **Mission**: Process uncompleted Human Review sub-tasks from tasks.md by presenting review criteria, collecting human judgment, and marking tasks complete upon human approval
 - **Success Criteria**:
   - All pending Human Review sub-tasks from tasks.md identified
   - Review criteria and confirmation steps presented to user
@@ -44,10 +44,8 @@ For each pending Human Review task, present to the user:
 - **Task ID and description** (from tasks.md)
 - **Review criteria** (from the task description and requirements.md Non-Testable Aspects)
 - **What to evaluate**: Specific visual/feel/usability criteria
-- **How to verify**: Steps the user should take in Unity Editor to visually confirm
+- **How to verify**: Steps the user should take to visually confirm
 - **Ask for judgment**: Pass or Fail, with optional feedback
-
-**Note**: Screenshot tools (screenshot-game-view, screenshot-scene-view) are not available via Nyamu MCP. The user must visually confirm in Unity Editor directly.
 
 Use AskUserQuestion to collect the user's pass/fail decision for each item.
 
@@ -70,21 +68,19 @@ Provide a summary of all review results.
 - **Human-centered**: This command facilitates human judgment, not automated testing
 - **Iterative**: Designed to be run multiple times during visual polish cycles
 - **No auto-pass**: Never mark Human Review tasks as complete without explicit user approval
-- **Manual verification**: User must verify in Unity Editor directly; no screenshot capture available
 </instructions>
 
 ## Tool Guidance
 - **Read for context**: Load spec requirements for review criteria
 - **Edit for updates**: Use Edit tool to update task checkboxes in tasks.md
 - **Interactive**: Use AskUserQuestion for each review item to collect pass/fail
-- **Nyamu MCP**: Use `editor_log_tail`/`editor_log_grep` for console checks, `editor_status` for editor state, `menu_items_execute` for Play Mode if needed
 
 ## Output Description
 
 Provide output in the language specified in spec.json:
 
 1. **Pending Reviews**: List of Human Review tasks found in tasks.md
-2. **Review Criteria**: What the user should verify in Unity Editor for each item
+2. **Review Criteria**: What the user should verify for each item
 3. **Review Results**: Pass/fail for each item with user feedback
 4. **Updated Tasks**: Which tasks were marked complete in tasks.md
 5. **Remaining Work**: Failed items with actionable next steps
@@ -96,15 +92,9 @@ Provide output in the language specified in spec.json:
 
 ### Error Scenarios
 
-**Nyamu MCP Not Available**:
-- Stop with guidance to configure Nyamu MCP in `.mcp.json`
-
 **No Human Review Tasks Found**:
 - Report that tasks.md has no pending Human Review sub-tasks
 - Suggest: "All Human Review tasks may already be complete, or tasks were not generated with Layer 3 classifications"
-
-**No Scene Open**:
-- Warn and ask user which scene to review
 
 **Missing Spec Files**:
 - Stop with guidance to complete earlier phases
@@ -115,8 +105,3 @@ Provide output in the language specified in spec.json:
 - `/kiro:spec-impl $1` - executes all auto-executable tasks, skips Human Review
 - `/kiro:scene-review $1` - picks up skipped Human Review tasks, gets human approval
 - Repeat as needed during visual polish
-
-**Relationship to validate-unity**:
-- `validate-unity` provides comprehensive automated validation + Layer 3 checklist generation
-- `scene-review` is the task-level review tool that actually marks Human Review tasks as done in tasks.md
-- Recommended flow: `spec-impl` - `scene-review` - `validate-unity` (final verification)
