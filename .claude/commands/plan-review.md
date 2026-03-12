@@ -136,7 +136,7 @@ Provide your review as structured Markdown:
 2. **Codex Review**: Full structured review from Codex
 3. **Changes Made** (unless `--dry-run`): Summary of modifications applied to the plan
 
-## Safety & Fallback
+## Safety & Fallback (test edit 1)
 
 ### Error Scenarios
 - **Plan not found**: Show resolved path, list available plans in `docs/plans/`

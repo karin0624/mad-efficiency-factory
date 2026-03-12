@@ -47,5 +47,6 @@
   "plansDirectory": "./docs/plans",
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true
-  }
+  },
+  "effortLevel": "max"
 }
