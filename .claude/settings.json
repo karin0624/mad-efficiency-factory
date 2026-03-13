@@ -35,11 +35,7 @@
       "Read(./**/*credentials*)"
     ],
     "ask": [
-      "Bash(git push:*)",
-      "Bash(sudo:*)",
-      "Bash(curl:*)",
-      "Bash(wget:*)",
-      "Bash(pip:*)"
+      "Bash(sudo:*)"
     ],
     "defaultMode": "default"
   },
