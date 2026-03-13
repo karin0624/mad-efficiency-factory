@@ -8,103 +8,228 @@ concurrency:
   group: ai-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-
 jobs:
-  codex-review:
+  # ─── Critic: read-only review ───────────────────────────────────────
+  critic-review:
     runs-on: ubuntu-latest
-    outputs:
-      review: ${{ steps.codex.outputs.final-message }}
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Codex review
-        id: codex
-        uses: openai/codex-action@v1
-        with:
-          api_key: ${{ secrets.OPENAI_API_KEY }}
-          sandbox: read-only
-          prompt: |
-            Review this PR diff focusing on:
-            - GDScript type safety (missing type hints, unsafe casts)
-            - Logic errors and off-by-one bugs
-            - SceneTree dependency leaking into pure-logic classes
-            - Test quality (missing edge cases, brittle assertions)
-            Provide specific, actionable feedback with file paths and line numbers.
+      - name: Build critic prompt
+        id: prompt
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          PROMPT=$(cat .github/agents/critic.md)
+          PROMPT="${PROMPT//\{\{PR_NUMBER\}\}/${PR_NUMBER}}"
+          PROMPT="${PROMPT//\{\{BASE_REF\}\}/${BASE_REF}}"
+          {
+            echo "value<<__CRITIC_PROMPT_EOF__"
+            echo "$PROMPT"
+            echo "__CRITIC_PROMPT_EOF__"
+          } >> "$GITHUB_OUTPUT"
 
-  claude-fix:
-    needs: codex-review
+      - name: Run critic
+        id: critic
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ steps.prompt.outputs.value }}
+          claude_args: '--model claude-sonnet-4-6 --allowedTools "Read,Glob,Grep,Bash(gh pr diff:*),Bash(gh pr view:*)"'
+
+      - name: Validate critic JSON
+        env:
+          CRITIC_OUTPUT: ${{ steps.critic.outputs.result }}
+        run: |
+          python3 << 'PYEOF'
+          import json, re, sys, os
+
+          raw = os.environ.get("CRITIC_OUTPUT", "")
+          fallback = {
+              "summary": "Failed to parse critic output",
+              "findings": [],
+              "stats": {"total": 0, "errors": 0, "warnings": 0, "info": 0}
+          }
+
+          # Try direct JSON parse
+          try:
+              d = json.loads(raw)
+              if "findings" in d:
+                  json.dump(d, open("findings.json", "w"), indent=2)
+                  sys.exit(0)
+          except (json.JSONDecodeError, TypeError):
+              pass
+
+          # Try extracting from markdown code blocks
+          for match in re.finditer(r'```(?:json)?\s*\n([\s\S]*?)\n```', raw):
+              try:
+                  d = json.loads(match.group(1))
+                  if "findings" in d:
+                      json.dump(d, open("findings.json", "w"), indent=2)
+                      sys.exit(0)
+              except json.JSONDecodeError:
+                  continue
+
+          # Fallback: empty findings
+          print("WARNING: Could not extract valid JSON from critic output", file=sys.stderr)
+          json.dump(fallback, open("findings.json", "w"), indent=2)
+          PYEOF
+
+          echo "::group::Findings JSON"
+          jq '.' findings.json
+          echo "::endgroup::"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: findings
+          path: findings.json
+
+  # ─── Fixer: verify findings & apply fixes ───────────────────────────
+  fixer:
+    needs: critic-review
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      verdict: ${{ steps.save.outputs.verdict }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Claude verify and fix
-        id: claude
+      - uses: actions/download-artifact@v4
+        with:
+          name: findings
+
+      - name: Check for findings
+        id: check
+        run: |
+          COUNT=$(jq '.findings | length' findings.json)
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Found $COUNT critic findings"
+
+      - name: Load fixer prompt
+        id: prompt
+        if: steps.check.outputs.count != '0'
+        run: |
+          {
+            echo "value<<__FIXER_PROMPT_EOF__"
+            cat .github/agents/fixer.md
+            echo "__FIXER_PROMPT_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run fixer
+        id: fixer
+        if: steps.check.outputs.count != '0'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: |
-            You are reviewing a PR for a Godot 4.3 GDScript project.
+          prompt: ${{ steps.prompt.outputs.value }}
+          claude_args: '--model claude-sonnet-4-6 --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git:*)"'
 
-            The following is a code review from Codex. Your job:
-            1. Verify each point — is the criticism correct?
-            2. For correct criticisms: apply the fix directly (edit files, commit, push).
-            3. For incorrect criticisms: explain why the criticism is wrong and skip it.
-            4. Output a structured summary as a JSON array:
-               [{"point": "...", "verdict": "accepted|rejected", "reason": "...", "fix": "description or null"}]
-
-            --- Codex Review ---
-            ${{ needs.codex-review.outputs.review }}
-          claude_args: '--allowedTools "Read,Write,Edit,Glob,Grep,Bash(godot:*),Bash(git:*)"'
-
-      - name: Save Claude output
+      - name: Save verdict
         id: save
+        env:
+          FIXER_OUTPUT: ${{ steps.fixer.outputs.result }}
+          FINDING_COUNT: ${{ steps.check.outputs.count }}
         run: |
-          cat <<'RESULT' > /tmp/claude-result.txt
-          ${{ steps.claude.outputs.result }}
-          RESULT
-          echo "result<<EOF" >> "$GITHUB_OUTPUT"
-          cat /tmp/claude-result.txt >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-    outputs:
-      result: ${{ steps.save.outputs.result }}
+          if [ "$FINDING_COUNT" = "0" ]; then
+            VERDICT="No findings to fix — critic found no issues."
+          else
+            VERDICT="${FIXER_OUTPUT:-Fixer produced no output.}"
+          fi
+          {
+            echo "verdict<<__VERDICT_EOF__"
+            echo "$VERDICT"
+            echo "__VERDICT_EOF__"
+          } >> "$GITHUB_OUTPUT"
 
+  # ─── Post summary: idempotent PR comment ────────────────────────────
   post-summary:
-    needs: [codex-review, claude-fix]
+    needs: [critic-review, fixer]
+    if: always() && needs.critic-review.result == 'success'
     runs-on: ubuntu-latest
-    if: always() && needs.claude-fix.result == 'success'
+    permissions:
+      pull-requests: write
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: findings
+
       - name: Post review summary
         uses: actions/github-script@v7
+        env:
+          VERDICT: ${{ needs.fixer.outputs.verdict }}
         with:
           script: |
-            const codexReview = `${{ needs.codex-review.outputs.review }}`;
-            const claudeResult = `${{ needs.claude-fix.outputs.result }}`;
+            const fs = require('fs');
+            const findings = JSON.parse(fs.readFileSync('findings.json', 'utf8'));
+            const verdict = process.env.VERDICT || '_Fixer did not run._';
+            const marker = '<!-- ai-review-summary -->';
+
+            // Build findings section
+            let findingsSection = '';
+            if (findings.findings.length === 0) {
+              findingsSection = '_No issues found._';
+            } else {
+              findingsSection = `**Summary**: ${findings.summary}\n\n`;
+              findingsSection += '| ID | File | Severity | Category | Description |\n';
+              findingsSection += '|----|------|----------|----------|-------------|\n';
+              for (const f of findings.findings) {
+                const desc = f.description.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+                findingsSection += `| ${f.id} | \`${f.file}:${f.line_start}\` | ${f.severity} | ${f.category} | ${desc} |\n`;
+              }
+              const s = findings.stats;
+              findingsSection += `\n**Stats**: ${s.errors || 0} errors, ${s.warnings || 0} warnings, ${s.info || 0} info`;
+            }
 
             const body = [
+              marker,
               '## AI Review Summary',
               '',
-              '### Codex Review',
-              codexReview || '_No review output_',
+              '### Critic Findings',
+              findingsSection,
               '',
-              '### Claude Verification & Fixes',
-              claudeResult || '_No verification output_',
+              '### Fixer Verdict',
+              verdict,
               '',
               '---',
-              '_Cross-model critic pattern: Codex reviewed → Claude verified and applied fixes._'
+              '_Dual-agent review: Critic analyzed → Fixer verified and applied fixes._'
             ].join('\n');
 
-            await github.rest.issues.createComment({
+            // Idempotent: find existing bot comment with marker, update or create
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body
+              per_page: 100
             });
+
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+              core.info(`Updated existing comment ${existing.id}`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+              core.info('Created new summary comment');
+            }
