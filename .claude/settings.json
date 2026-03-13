@@ -49,5 +49,5 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true
   },
-  "effortLevel": "max"
+  "effortLevel": "high"
 }
