@@ -1,0 +1,218 @@
+name: AI CI Fix
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+concurrency:
+  group: ai-pr-fix-${{ github.event.workflow_run.pull_requests[0].number }}
+  cancel-in-progress: true
+
+jobs:
+  ci-fix:
+    # Only run when CI failed on a PR (not on master push)
+    if: >-
+      github.event.workflow_run.conclusion == 'failure'
+      && github.event.workflow_run.pull_requests[0]
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+      id-token: write
+    steps:
+      - name: Get PR info
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.workflow_run.pull_requests[0];
+            core.setOutput('number', pr.number);
+            core.setOutput('head_ref', pr.head.ref);
+            core.info(`PR #${pr.number}, branch: ${pr.head.ref}`);
+
+      - name: Check retry limit
+        id: guard
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const MAX_RETRIES = 2;
+
+            // Count recent AI fix commits on this PR
+            const { data: commits } = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ steps.pr.outputs.number }},
+              per_page: 10
+            });
+
+            const aiFixCount = commits.filter(c =>
+              c.commit.message.includes('Auto-fix applied by AI CI Fixer')
+            ).length;
+
+            core.info(`AI fix attempts so far: ${aiFixCount} / ${MAX_RETRIES}`);
+
+            if (aiFixCount >= MAX_RETRIES) {
+              core.setOutput('skip', 'true');
+              core.warning('Max AI fix retries reached — skipping');
+            } else {
+              core.setOutput('skip', 'false');
+            }
+
+      - name: Post skip notice
+        if: steps.guard.outputs.skip == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- ai-ci-fix-limit -->';
+            const body = [
+              marker,
+              '## AI CI Fix — Retry Limit Reached',
+              '',
+              'Automatic CI fix has been attempted the maximum number of times (2) without success.',
+              'Manual intervention is required to resolve the remaining CI failure.',
+              '',
+              '---',
+              '_AI CI Fixer has stopped retrying to prevent infinite loops._'
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.pr.outputs.number }},
+              per_page: 100
+            });
+
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
+            if (!existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.pr.outputs.number }},
+                body
+              });
+            }
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Download CI failure logs
+        if: steps.guard.outputs.skip != 'true'
+        id: logs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const runId = context.payload.workflow_run.id;
+
+            // Get failed jobs
+            const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+              filter: 'latest'
+            });
+
+            const failedJobs = jobs.jobs.filter(j => j.conclusion === 'failure');
+            let allLogs = '';
+
+            for (const job of failedJobs) {
+              try {
+                const { data: log } = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  job_id: job.id
+                });
+                allLogs += `\n=== Job: ${job.name} ===\n${log}\n`;
+              } catch (e) {
+                allLogs += `\n=== Job: ${job.name} ===\n[Failed to download logs: ${e.message}]\n`;
+              }
+            }
+
+            // Truncate to avoid exceeding prompt limits (keep last 8000 chars)
+            const MAX_LOG_SIZE = 8000;
+            if (allLogs.length > MAX_LOG_SIZE) {
+              allLogs = '...(truncated)\n' + allLogs.slice(-MAX_LOG_SIZE);
+            }
+
+            fs.writeFileSync('ci-logs.txt', allLogs);
+            core.info(`Saved ${allLogs.length} chars of CI logs`);
+
+      - name: Build fixer prompt
+        if: steps.guard.outputs.skip != 'true'
+        id: prompt
+        run: |
+          AGENT_PROMPT=$(cat .github/agents/ci-fixer.md)
+          CI_LOGS=$(cat ci-logs.txt)
+          FULL_PROMPT="${AGENT_PROMPT}
+
+          ## CI Failure Log
+
+          \`\`\`
+          ${CI_LOGS}
+          \`\`\`"
+
+          {
+            echo "value<<__CI_FIXER_PROMPT_EOF__"
+            echo "$FULL_PROMPT"
+            echo "__CI_FIXER_PROMPT_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run CI fixer
+        if: steps.guard.outputs.skip != 'true'
+        id: fixer
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ steps.prompt.outputs.value }}
+          claude_args: '--model claude-sonnet-4-6 --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git:*)"'
+
+      - name: Post result comment
+        if: steps.guard.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        env:
+          FIXER_OUTPUT: ${{ steps.fixer.outputs.result }}
+        with:
+          script: |
+            const marker = '<!-- ai-ci-fix-result -->';
+            const verdict = process.env.FIXER_OUTPUT || '_CI Fixer produced no output._';
+
+            const body = [
+              marker,
+              '## AI CI Fix Result',
+              '',
+              verdict,
+              '',
+              '---',
+              '_Auto-fix attempted by AI CI Fixer._'
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.pr.outputs.number }},
+              per_page: 100
+            });
+
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.pr.outputs.number }},
+                body
+              });
+            }
