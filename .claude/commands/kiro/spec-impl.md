@@ -55,7 +55,7 @@ argument-hint: <feature-name> [task-numbers]
    - **Layer 1**: テスト対象をRefCounted/Resourceとして直接`new()`で生成。SceneTree APIは使わない
    - **Layer 2**: テスト内で`auto_free()`+`add_child()`を使い、シグナル検証は`await assert_signal().is_emitted()`。`after_test()`でリーク防止を確実に行う
    - テストファイル作成には `mcp__gopeak__script_create` を優先。GoPoakが利用できない場合は `Write` ツールにフォールバック
-   - Bashでテストを実行: `godot --headless --path <projectPath> -s addons/gdUnit4/bin/GdUnitCmdTool.gd`
+   - Bashでテストを実行: `xvfb-run --auto-servernum godot --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy --path <projectPath> -s addons/gdUnit4/bin/GdUnitCmdTool.gd`
    - テストは失敗するはず（コードがまだ存在しないため）
 
 2. **GREEN - 最小限のコードの記述**:
@@ -92,7 +92,7 @@ argument-hint: <feature-name> [task-numbers]
 - **テストカバレッジ**: すべての新規コードにテストが必要
 - **リグレッションなし**: 既存のテストは引き続きパスすること
 - **設計との整合性**: 実装はdesign.mdのスペックに従うこと
-- **レイヤー認識**: テストタイプを選択する前に要件のTestability Layerを確認。L1/L2共にTDD必須（テスト先行）。L2テストはSceneTree依存（`add_child`/シグナル）だがGdUnit4ヘッドレスで実行可能
+- **レイヤー認識**: テストタイプを選択する前に要件のTestability Layerを確認。L1/L2共にTDD必須（テスト先行）。L2テストはSceneTree依存（`add_child`/シグナル）だがxvfb-run経由のGdUnit4で実行（SceneRunner/InputEvent対応）
 - **Screenshotチェックポイントの実行**: `Screenshot checkpoint:` パターンに一致するサブタスクは異なるフローを使用 — TDDをスキップし、代わりに: `mcp__gopeak__editor_run`（フォールバック: Bash）でアプリケーションを実行、`mcp__gopeak__editor_debug_output` で出力をキャプチャ、結果を目視確認、クリーンアップのため `mcp__gopeak__editor_stop` を呼び出す。タイムアウト: 30秒。検証がパスした場合は完了としてマーク。
 - **ヒューマンレビューのスキップ**: `Human review:` パターンに一致するサブタスクはspec-implでは実行されない。タスク選択時に検出してスキップし、スキップされたタスクリストを出力に含める。これらのタスクの処理には `/kiro:scene-review` を使用する。
 </instructions>

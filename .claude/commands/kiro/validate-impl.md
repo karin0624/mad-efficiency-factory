@@ -59,7 +59,7 @@ argument-hint: [feature-name] [task-numbers]
 #### テストカバレッジチェック
 - タスク関連の機能に対するテストが存在すること
 - テストがパスすること（失敗やエラーがないこと）
-- GdUnit4テストをBashで実行: `godot --headless --path <projectPath> -s addons/gdUnit4/bin/GdUnitCmdTool.gd`
+- GdUnit4テストをBashで実行: `xvfb-run --auto-servernum godot --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy --path <projectPath> -s addons/gdUnit4/bin/GdUnitCmdTool.gd`
 - テストが失敗または存在しない場合、「テストカバレッジの問題」とフラグ
 
 #### LSP品質チェック（ベストエフォート）

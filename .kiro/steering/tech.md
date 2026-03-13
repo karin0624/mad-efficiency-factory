@@ -29,12 +29,12 @@
 
 ### コード品質
 - GDScript静的型付けを使用（`var x: int`, `func foo() -> void`）。`Variant`型の使用は意図的な場合のみ
-- ゲームロジックをSceneTree/Node APIから分離（テストはGdUnit4経由で`godot --headless`上で実行）
+- ゲームロジックをSceneTree/Node APIから分離（テストはGdUnit4経由で`xvfb-run`+X11仮想ディスプレイ上で実行）
 - ゲーム状態にグローバルシングルトンを使わない。依存性注入を使用。autoloadはイベントバス・設定管理等の横断的関心事のみ許可
 - シミュレーション内はティック順序で同期実行。シグナル/イベントバスはプレゼンテーション層↔ロジック層の通知に使用
 
 ### テスト
-- Layer 1（ユニット）: SceneTree非依存の純粋ロジッククラスをヘッドレステスト
+- Layer 1（ユニット）: SceneTree非依存の純粋ロジッククラスをCLIテスト（xvfb-run経由）
 - Layer 2（インテグレーション）: Godot内でのコンポーネント間テスト
 - Layer 3（ヒューマンレビュー）: ビジュアル品質とゲームフィールを手動検証
 
@@ -43,11 +43,12 @@
 ### 必要ツール
 - Godot 4.3+ エディタ
 - Git + GitHub CLI (`gh`)
+- xvfb (`sudo apt-get install -y xvfb`) — テスト実行用X11仮想ディスプレイ
 
 ### よく使うコマンド
 ```bash
 # プロジェクト実行: godot --path godot/
-# テスト実行: godot --headless --path godot/ -s addons/gdUnit4/bin/GdUnitCmdTool.gd
+# テスト実行: ./scripts/run-tests.sh
 # エクスポート: godot --headless --export-release "Linux" godot/build/game
 ```
 

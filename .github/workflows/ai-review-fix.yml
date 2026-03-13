@@ -1,0 +1,110 @@
+name: AI Review & Fix
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  codex-review:
+    runs-on: ubuntu-latest
+    outputs:
+      review: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Codex review
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          api_key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: read-only
+          prompt: |
+            Review this PR diff focusing on:
+            - GDScript type safety (missing type hints, unsafe casts)
+            - Logic errors and off-by-one bugs
+            - SceneTree dependency leaking into pure-logic classes
+            - Test quality (missing edge cases, brittle assertions)
+            Provide specific, actionable feedback with file paths and line numbers.
+
+  claude-fix:
+    needs: codex-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Claude verify and fix
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are reviewing a PR for a Godot 4.3 GDScript project.
+
+            The following is a code review from Codex. Your job:
+            1. Verify each point — is the criticism correct?
+            2. For correct criticisms: apply the fix directly (edit files, commit, push).
+            3. For incorrect criticisms: explain why the criticism is wrong and skip it.
+            4. Output a structured summary as a JSON array:
+               [{"point": "...", "verdict": "accepted|rejected", "reason": "...", "fix": "description or null"}]
+
+            --- Codex Review ---
+            ${{ needs.codex-review.outputs.review }}
+          claude_args: '--allowedTools "Read,Write,Edit,Glob,Grep,Bash(godot:*),Bash(git:*)"'
+
+      - name: Save Claude output
+        id: save
+        run: |
+          cat <<'RESULT' > /tmp/claude-result.txt
+          ${{ steps.claude.outputs.result }}
+          RESULT
+          echo "result<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/claude-result.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+    outputs:
+      result: ${{ steps.save.outputs.result }}
+
+  post-summary:
+    needs: [codex-review, claude-fix]
+    runs-on: ubuntu-latest
+    if: always() && needs.claude-fix.result == 'success'
+    steps:
+      - name: Post review summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const codexReview = `${{ needs.codex-review.outputs.review }}`;
+            const claudeResult = `${{ needs.claude-fix.outputs.result }}`;
+
+            const body = [
+              '## AI Review Summary',
+              '',
+              '### Codex Review',
+              codexReview || '_No review output_',
+              '',
+              '### Claude Verification & Fixes',
+              claudeResult || '_No verification output_',
+              '',
+              '---',
+              '_Cross-model critic pattern: Codex reviewed → Claude verified and applied fixes._'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
