@@ -1,6 +1,6 @@
 ---
 description: Create a requirements-optimized plan file for the cc-sdd pipeline
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: <plan-name>
 ---
 
@@ -156,10 +156,10 @@ argument-hint: <plan-name>
 ## 出力の説明
 1. **生成されたplanの概要**: 各セクションの簡潔な要約（5行以内）
 2. **情報の充足度**: 不足している可能性がある情報の指摘
-3. **次のステップ**:
-   - フィードバックで改善する場合: 具体的な改善ポイントの提案
-   - レビューする場合: `/plan-readiness <plan-name>` でCodexによる準備度レビューを実行
-   - 実装に進む場合: `/implement <plan-name>` でcc-sddパイプラインを開始
+3. **次のステップ**: AskUserQuestionツールで次のアクションをユーザーに選択させる。以下の選択肢を提示する:
+   - 「フィードバックで改善する」（具体的な改善ポイントも併せて提案する）
+   - 「`/plan-readiness <plan-name>` でCodexによる準備度レビューを実行する」
+   - 「`/implement <plan-name>` でcc-sddパイプラインを開始する」
 
 ## 安全策とフォールバック
 
