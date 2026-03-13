@@ -1,6 +1,6 @@
 ---
 description: Create a requirements-optimized plan file for the cc-sdd pipeline
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill
 argument-hint: <plan-name>
 ---
 
@@ -128,9 +128,13 @@ argument-hint: <plan-name>
 2. ユーザーに以下を提示:
    - 生成されたplanの概要（各セクションの要約）
    - 不足している可能性がある情報の指摘
-   - フィードバック待ちであることの明示
 
-### ステップ 6: イテレーション
+### ステップ 6: plan-readinessの自動実行
+
+planファイルの書き出し完了後、Skill toolを使用して `/plan-readiness <plan-name>` を自動実行する。
+これにより、Codex CLIによるrequirements準備度レビューが即座に行われ、フィードバックがplanに反映される。
+
+### ステップ 7: イテレーション
 
 ユーザーからフィードバックがあれば:
 1. Edit toolでplanを更新する
@@ -156,9 +160,9 @@ argument-hint: <plan-name>
 ## 出力の説明
 1. **生成されたplanの概要**: 各セクションの簡潔な要約（5行以内）
 2. **情報の充足度**: 不足している可能性がある情報の指摘
-3. **次のステップ**: AskUserQuestionツールで次のアクションをユーザーに選択させる。以下の選択肢を提示する:
+3. **plan-readiness結果**: Codex CLIによる準備度レビュー結果とplanへの反映内容
+4. **次のステップ**: AskUserQuestionツールで次のアクションをユーザーに選択させる。以下の選択肢を提示する:
    - 「フィードバックで改善する」（具体的な改善ポイントも併せて提案する）
-   - 「`/plan-readiness <plan-name>` でCodexによる準備度レビューを実行する」
    - 「`/implement <plan-name>` でcc-sddパイプラインを開始する」
 
 ## 安全策とフォールバック
