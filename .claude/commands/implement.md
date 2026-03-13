@@ -105,7 +105,6 @@ Agent(
 
   ### Phase 2: spec-requirements
   - Skill tool: skill="kiro:spec-requirements", args="<feature-name> --plan {PLAN_FILE_ABSOLUTE_PATH}"
-  - planの内容が追加コンテキストとしてrequirements生成に反映される
 
   ### Phase 3: spec-design
   - Skill tool: skill="kiro:spec-design", args="<feature-name> -y"
@@ -117,7 +116,6 @@ Agent(
   **Phase 4 (spec-tasks) が正常完了した直後に必ず実行すること。**
   spec.jsonを直接編集して以下を設定:
     - `approvals.tasks.approved: true`
-    - `source_plan_path: "{PLAN_FILE_ABSOLUTE_PATH}"`（トレーサビリティ用）
 
   ## エラー処理
   - いずれかのフェーズが失敗した場合、そのフェーズで停止し詳細を報告
