@@ -48,3 +48,8 @@ docs/plans
 tools/memory-mcp/memory.db
 tools/memory-mcp/memory.db-wal
 tools/memory-mcp/memory.db-shm
+
+# Godot
+.godot/
+*.import
+godot/reports/
