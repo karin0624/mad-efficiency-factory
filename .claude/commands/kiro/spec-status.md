@@ -1,85 +1,88 @@
 ---
 description: Show specification status and progress
-allowed-tools: Bash, Read, Glob, Write, Edit, MultiEdit, Update
-argument-hint: <feature-name>
+allowed-tools: Bash, Read, Glob
+argument-hint: [feature-name]
 ---
 
-# Specification Status
+# スペック ステータス
 
 <background_information>
-- **Mission**: Display comprehensive status and progress for a specification
-- **Success Criteria**:
-  - Show current phase and completion status
-  - Identify next actions and blockers
-  - Provide clear visibility into progress
+- **ミッション**: スペックの包括的なステータスと進捗を表示する
+- **成功基準**:
+  - 現在のフェーズと完了ステータスを表示
+  - 次のアクションとブロッカーを特定
+  - 進捗の明確な可視化を提供
 </background_information>
 
 <instructions>
-## Core Task
-Generate status report for feature **$1** showing progress across all phases.
+## コアタスク
+すべてのフェーズにわたる進捗を示す機能のステータスレポートを生成する。
 
-## Execution Steps
+## 実行ステップ
 
-### Step 1: Load Spec Context
-- Read `.kiro/specs/$1/spec.json` for metadata and phase status
-- Read existing files: `requirements.md`, `design.md`, `tasks.md` (if they exist)
-- Check `.kiro/specs/$1/` directory for available files
+### ステップ 0: 対象の検出
+- **`$1` が指定された場合**: 単一の機能 `$1` についてレポート
+- **引数なしの場合**: `.kiro/specs/` をスキャンしてすべての機能ディレクトリを検出し、それぞれをレポート
 
-### Step 2: Analyze Status
+### ステップ 1: スペックコンテキストの読み込み
+各対象機能について:
+- `.kiro/specs/<feature>/spec.json` を読み込んでメタデータとフェーズステータスを取得
+- 既存ファイルを読み込み: `requirements.md`, `design.md`, `tasks.md`（存在する場合）
+- `.kiro/specs/<feature>/` ディレクトリで利用可能なファイルを確認
 
-**Parse each phase**:
-- **Requirements**: Count requirements and acceptance criteria
-- **Design**: Check for architecture, components, diagrams
-- **Tasks**: Count completed vs total tasks (parse `- [x]` vs `- [ ]`)
-- **Approvals**: Check approval status in spec.json
+### ステップ 2: ステータスの分析
 
-### Step 3: Generate Report
+**各フェーズを解析**:
+- **要件**: 要件と受け入れ基準の数をカウント
+- **設計**: アーキテクチャ、コンポーネント、図の存在を確認
+- **タスク**: 完了済みタスクと全タスクの数をカウント（`- [x]` vs `- [ ]` を解析）
+- **承認**: spec.jsonの承認ステータスを確認
 
-Create report in the language specified in spec.json covering:
-1. **Current Phase & Progress**: Where the spec is in the workflow
-2. **Completion Status**: Percentage complete for each phase
-3. **Task Breakdown**: If tasks exist, show completed/remaining counts
-4. **Next Actions**: What needs to be done next
-5. **Blockers**: Any issues preventing progress
+### ステップ 3: レポートの生成
 
-## Critical Constraints
-- Use language from spec.json
-- Calculate accurate completion percentages
-- Identify specific next action commands
+spec.jsonで指定された言語で以下をカバーするレポートを作成:
+1. **現在のフェーズと進捗**: ワークフロー上のスペックの位置
+2. **完了ステータス**: 各フェーズの完了率
+3. **タスク内訳**: タスクが存在する場合、完了/残りの数を表示
+4. **次のアクション**: 次に行うべきこと
+5. **ブロッカー**: 進捗を妨げている問題
+
+## 重要な制約
+- spec.jsonの言語を使用
+- 正確な完了率を計算
+- 具体的な次のアクションコマンドを特定
 </instructions>
 
-## Tool Guidance
-- **Read**: Load spec.json first, then other spec files as needed
-- **Parse carefully**: Extract completion data from tasks.md checkboxes
-- Use **Glob** to check which spec files exist
+## ツールガイダンス
+- **Read**: まずspec.jsonを読み込み、次に必要に応じて他のスペックファイルを読み込む
+- **慎重に解析**: tasks.mdのチェックボックスから完了データを抽出
+- **Glob** を使用してどのスペックファイルが存在するか確認
 
-## Output Description
+## 出力の説明
 
-Provide status report in the language specified in spec.json:
+spec.jsonで指定された言語でステータスレポートを提供:
 
-**Report Structure**:
-1. **Feature Overview**: Name, phase, last updated
-2. **Phase Status**: Requirements, Design, Tasks with completion %
-3. **Task Progress**: If tasks exist, show X/Y completed
-4. **Next Action**: Specific command to run next
-5. **Issues**: Any blockers or missing elements
+**レポート構造**:
+1. **機能概要**: 名前、フェーズ、最終更新日
+2. **フェーズステータス**: 要件、設計、タスクの完了率
+3. **タスク進捗**: タスクが存在する場合、X/Y 完了を表示
+4. **次のアクション**: 次に実行すべき具体的なコマンド
+5. **問題**: ブロッカーまたは不足している要素
 
-**Format**: Clear, scannable format with emojis (✅/⏳/❌) for status
+**フォーマット**: ステータスマーカー付きの明確でスキャンしやすい形式: `[DONE]` / `[WIP]` / `[BLOCKED]`
 
-## Safety & Fallback
+## 安全対策とフォールバック
 
-### Error Scenarios
+### エラーシナリオ
 
-**Spec Not Found**:
-- **Message**: "No spec found for `$1`. Check available specs in `.kiro/specs/`"
-- **Action**: List available spec directories
+**スペックが見つからない場合**:
+- **メッセージ**: 「`$1` のスペックが見つかりません。`.kiro/specs/` で利用可能なスペックを確認してください」
+- **アクション**: 利用可能なスペックディレクトリを一覧表示
 
-**Incomplete Spec**:
-- **Warning**: Identify which files are missing
-- **Suggested Action**: Point to next phase command
+**不完全なスペックの場合**:
+- **警告**: 不足しているファイルを特定
+- **推奨アクション**: 次のフェーズコマンドを案内
 
-### List All Specs
-
-To see all available specs:
-- Run with no argument or use wildcard
-- Shows all specs in `.kiro/specs/` with their status
+**スペックが見つからない場合**（引数なしモード）:
+- **メッセージ**: 「`.kiro/specs/` にスペックが見つかりません。`/kiro:spec-init <feature-name>` を実行して作成してください。」
+</output>

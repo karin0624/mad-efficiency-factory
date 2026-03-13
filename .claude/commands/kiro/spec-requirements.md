@@ -1,111 +1,112 @@
 ---
 description: Generate comprehensive requirements for a specification
-allowed-tools: Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch, WebFetch
+allowed-tools: Bash, Glob, Grep, Read, Write, Edit, WebSearch, WebFetch
 argument-hint: <feature-name> [--plan <plan-file-path>]
 ---
 
-# Requirements Generation
+# 要件生成
 
 <background_information>
-- **Mission**: Generate comprehensive, testable requirements in EARS format based on the project description from spec initialization
-- **Success Criteria**:
-  - Create complete requirements document aligned with steering context
-  - Follow the project's EARS patterns and constraints for all acceptance criteria
-  - Focus on core functionality without implementation details
-  - Update metadata to track generation status
+- **ミッション**: specの初期化時に記述されたプロジェクト説明に基づき、EARS形式の包括的かつテスト可能な要件を生成する
+- **成功基準**:
+  - steering コンテキストに整合した完全な要件ドキュメントを作成する
+  - すべての受け入れ基準にプロジェクトのEARSパターンと制約を適用する
+  - 実装の詳細には踏み込まず、コア機能に集中する
+  - 生成状況を追跡するためメタデータを更新する
 </background_information>
 
 <instructions>
-## Core Task
-Generate complete requirements for feature **$1** based on the project description in requirements.md.
+## コアタスク
+requirements.md のプロジェクト説明に基づき、機能 **$1** の完全な要件を生成する。
 
-## Execution Steps
+## 実行ステップ
 
-0. **Parse Arguments**:
-   - Split `$ARGUMENTS` into feature name and flags
-   - Detect `--plan <path>` flag (if present, the specified plan file will be used as additional context)
-   - The first argument (before any flags) is the feature name
+0. **引数の解析**:
+   - `$ARGUMENTS` を機能名とフラグに分割する
+   - `--plan <path>` フラグを検出する（存在する場合、指定されたプランファイルを追加コンテキストとして使用する）
+   - 最初の引数（フラグの前）が機能名となる
 
-1. **Load Context**:
-   - Read `.kiro/specs/$1/spec.json` for language and metadata
-   - Read `.kiro/specs/$1/requirements.md` for project description
-   - **Load plan context** (if `--plan` flag provided): Read the specified plan file and use its content as additional context for requirements generation. The plan provides high-level goals and constraints but should NOT be copied verbatim — extract WHAT the feature should do, not HOW it should be implemented.
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+1. **コンテキストの読み込み**:
+   - `.kiro/specs/$1/spec.json` を読み込み、言語とメタデータを確認する
+   - `.kiro/specs/$1/requirements.md` を読み込み、プロジェクト説明を確認する
+   - **プランコンテキストの読み込み**（`--plan` フラグが指定された場合）: 指定されたプランファイルを読み込み、その内容を要件生成の追加コンテキストとして使用する。パスが欠落している、読み取り不可能、またはファイルが存在しない場合は、**エラーで停止する**: "Plan file not found or unreadable at `<path>`. Check the path and try again." プランは高レベルの目標と制約を提供するが、そのまま転記すべきではない — 機能が何をすべきか（WHAT）を抽出し、どう実装するか（HOW）は含めない。
+   - **すべてのsteeringコンテキストを読み込む**: `.kiro/steering/` ディレクトリ全体を読み込む。以下を含む:
+     - デフォルトファイル: `structure.md`, `tech.md`, `product.md`
+     - すべてのカスタムsteeringファイル（モード設定に関係なく）
+     - これによりプロジェクトの完全なメモリとコンテキストを取得する
 
-2. **Read Guidelines**:
-   - Read `.kiro/settings/rules/ears-format.md` for EARS syntax rules
-   - Read `.kiro/settings/templates/specs/requirements.md` for document structure
+2. **ガイドラインの読み込み**:
+   - `.kiro/settings/rules/ears-format.md` を読み込み、EARS構文ルールを確認する
+   - `.kiro/settings/templates/specs/requirements.md` を読み込み、ドキュメント構造を確認する
 
-3. **Generate Requirements**:
-   - Create initial requirements based on project description and plan context (if provided via `--plan` flag)
-   - When plan context is available, use it to inform requirement scope and priorities, but maintain focus on WHAT (not HOW)
-   - Group related functionality into logical requirement areas
-   - Apply EARS format to all acceptance criteria
-   - Classify each requirement's Testability Layer:
-     - **Layer 1 (Fully Testable)**: Pure logic verifiable with unit tests. No engine/framework runtime dependency.
-     - **Layer 2 (Range-Testable)**: Constraint/range verification possible via integration tests. Document non-testable aspects separately.
-     - **Layer 3 (Human Review)**: Not automatically testable. Specify review method, screenshots needed, and acceptance criteria for human judgment.
-   - For Layer 2/3 requirements, include a "Non-Testable Aspects" subsection specifying what cannot be automatically verified and how it should be reviewed
-   - Use language specified in spec.json
+3. **要件の生成**:
+   - プロジェクト説明とプランコンテキスト（`--plan` フラグで提供された場合）に基づき、初期要件を作成する
+   - プランコンテキストが利用可能な場合、要件のスコープと優先度の決定に活用するが、WHAT（何を）に集中し続ける（HOW（どう）ではない）
+   - 関連する機能を論理的な要件エリアにグループ化する
+   - すべての受け入れ基準にEARS形式を適用する
+   - 各要件のテスタビリティレイヤーを分類する:
+     - **Layer 1（完全テスト可能）**: ユニットテストで検証可能な純粋なロジック。エンジン/フレームワークのランタイム依存なし。
+     - **Layer 2（範囲テスト可能）**: インテグレーションテストで制約/範囲の検証が可能。テスト不可能な側面は別途ドキュメント化する。
+     - **Layer 3（人的レビュー）**: 自動テスト不可能。レビュー方法、必要なスクリーンショット、人的判断の受け入れ基準を明記する。
+   - Layer 2/3 の要件には、自動検証できない点とそのレビュー方法を指定する「テスト不可能な側面」サブセクションを含める
+   - spec.json で指定された言語を使用する
 
-4. **Update Metadata**:
-   - Set `phase: "requirements-generated"`
-   - Set `approvals.requirements.generated: true`
-   - Update `updated_at` timestamp
+4. **メタデータの更新**:
+   - `phase: "requirements-generated"` を設定する
+   - `approvals.requirements.generated: true` を設定する
+   - `updated_at` タイムスタンプを更新する
 
-## Important Constraints
-- Focus on WHAT, not HOW (no implementation details)
-- Requirements must be testable and verifiable
-- Choose appropriate subject for EARS statements (system/service name for software)
-- Generate initial version first, then iterate with user feedback (no sequential questions upfront)
-- Requirement headings in requirements.md MUST include a leading numeric ID only (for example: "Requirement 1", "1.", "2 Feature ..."); do not use alphabetic IDs like "Requirement A".
-- Each requirement MUST include a `**Testability:** Layer N (classification)` field immediately after the Objective line
-- Layer 2 and Layer 3 requirements MUST include a "Non-Testable Aspects" subsection with review method and acceptance threshold
-- When uncertain about testability, default to the higher layer number (more conservative)
+## 重要な制約
+- WHAT（何を）に集中し、HOW（どう）には踏み込まない（実装の詳細は含めない）
+- 要件はテスト可能かつ検証可能でなければならない
+- EARS文の主語には適切なものを選ぶ（ソフトウェアの場合はシステム名/サービス名）
+- まず初期バージョンを生成し、その後ユーザーのフィードバックで改善する（事前に順番に質問しない）
+- requirements.md の要件見出しには先頭に数字IDのみを含めること（例: "Requirement 1", "1.", "2 Feature ..."）。アルファベットID（例: "Requirement A"）は使用しない。
+- 各要件には、Objective行の直後に `**Testability:** Layer N (classification)` フィールドを含めなければならない
+- Layer 2 および Layer 3 の要件には、レビュー方法と受け入れ閾値を含む「テスト不可能な側面」サブセクションが必須
+- テスタビリティが不確実な場合は、より高いレイヤー番号（より保守的な方）をデフォルトとする
 </instructions>
 
-## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules, templates) before generation
-- **Write last**: Update requirements.md only after complete generation
-- Use **WebSearch/WebFetch** only if external domain knowledge needed
+## ツールガイダンス
+- **まず読み込む**: 生成前にすべてのコンテキスト（spec, steering, ルール, テンプレート）を読み込む
+- **最後に書き込む**: 完全な生成が終わってから requirements.md を更新する
+- **WebSearch/WebFetch** は外部のドメイン知識が必要な場合のみ使用する
 
-## Output Description
-Provide output in the language specified in spec.json with:
+## 出力の説明
+spec.json で指定された言語で以下を出力する:
 
-1. **Generated Requirements Summary**: Brief overview of major requirement areas (3-5 bullets), including Layer distribution (e.g., "4 Layer 1, 2 Layer 2, 1 Layer 3")
-2. **Document Status**: Confirm requirements.md updated and spec.json metadata updated
-3. **Next Steps**: Guide user on how to proceed (approve and continue, or modify)
+1. **生成された要件の概要**: 主要な要件エリアの簡潔な概要（3〜5項目）、レイヤー分布を含む（例: "Layer 1: 4件, Layer 2: 2件, Layer 3: 1件"）
+2. **ドキュメントステータス**: requirements.md と spec.json のメタデータが更新されたことを確認する
+3. **次のステップ**: 承認して進めるか、修正するかのガイダンスを提示する
 
-**Format Requirements**:
-- Use Markdown headings for clarity
-- Include file paths in code blocks
-- Keep summary concise (under 300 words)
+**フォーマット要件**:
+- Markdown見出しを使用して明確にする
+- ファイルパスはコードブロックで記載する
+- 概要は簡潔に（300語以内）
 
-## Safety & Fallback
+## 安全策とフォールバック
 
-### Error Scenarios
-- **Missing Project Description**: If requirements.md lacks project description, ask user for feature details
-- **Ambiguous Requirements**: Propose initial version and iterate with user rather than asking many upfront questions
-- **Template Missing**: If template files don't exist, use inline fallback structure with warning
-- **Language Undefined**: Default to English (`en`) if spec.json doesn't specify language
-- **Incomplete Requirements**: After generation, explicitly ask user if requirements cover all expected functionality
-- **Steering Directory Empty**: Warn user that project context is missing and may affect requirement quality
-- **Non-numeric Requirement Headings**: If existing headings do not include a leading numeric ID (for example, they use "Requirement A"), normalize them to numeric IDs and keep that mapping consistent (never mix numeric and alphabetic labels).
+### エラーシナリオ
+- **プロジェクト説明が不足している場合**: requirements.md にプロジェクト説明がなければ、ユーザーに機能の詳細を尋ねる
+- **要件が曖昧な場合**: 事前に多くの質問をするのではなく、初期バージョンを提示してユーザーと反復改善する
+- **テンプレートが見つからない場合**: テンプレートファイルが存在しなければ、警告付きでインラインフォールバック構造を使用する
+- **言語が未定義の場合**: spec.json に言語指定がなければ、英語（`en`）をデフォルトとする
+- **要件が不完全な場合**: 生成後、要件が期待される全機能をカバーしているかユーザーに明示的に確認する
+- **steeringディレクトリが空の場合**: プロジェクトコンテキストが不足しており、要件の品質に影響する可能性があることをユーザーに警告する
+- **要件見出しが数字でない場合**: 既存の見出しに先頭の数字IDがない場合（例: "Requirement A" を使用している場合）、数字IDに正規化し、そのマッピングを一貫して維持する（数字とアルファベットのラベルを混在させない）。
 
-### Next Phase: Design Generation
+### 次のフェーズ: 設計生成
 
-**If Requirements Approved**:
-- Review generated requirements at `.kiro/specs/$1/requirements.md`
-- **Optional Gap Analysis** (for existing codebases):
-  - Run `/kiro:validate-gap $1` to analyze implementation gap with current code
-  - Identifies existing components, integration points, and implementation strategy
-  - Recommended for brownfield projects; skip for greenfield
-- Then `/kiro:spec-design $1 -y` to proceed to design phase
+**要件が承認された場合**:
+- `.kiro/specs/$1/requirements.md` で生成された要件を確認する
+- **オプション: ギャップ分析**（既存コードベースがある場合）:
+  - `/kiro:validate-gap $1` を実行して、現在のコードとの実装ギャップを分析する
+  - 既存コンポーネント、連携ポイント、実装戦略を特定する
+  - ブラウンフィールドプロジェクトに推奨。グリーンフィールドの場合はスキップ
+- その後 `/kiro:spec-design $1 -y` で設計フェーズに進む
 
-**If Modifications Needed**:
-- Provide feedback and re-run `/kiro:spec-requirements $1`
+**修正が必要な場合**:
+- フィードバックを提供し、`/kiro:spec-requirements $1` を再実行する
 
-**Note**: Approval is mandatory before proceeding to design phase.
+**注意**: 設計フェーズに進む前に承認が必須です。
+</output>

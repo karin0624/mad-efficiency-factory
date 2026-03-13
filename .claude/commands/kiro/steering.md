@@ -1,143 +1,143 @@
 ---
 description: Manage .kiro/steering/ as persistent project knowledge
-allowed-tools: Bash, Read, Write, Edit, MultiEdit, Glob, Grep, LS
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 
-# Kiro Steering Management
+# Kiro Steering 管理
 
 <background_information>
-**Role**: Maintain `.kiro/steering/` as persistent project memory.
+**役割**: `.kiro/steering/` をプロジェクトの永続的メモリとして維持する。
 
-**Mission**:
-- Bootstrap: Generate core steering from codebase (first-time)
-- Sync: Keep steering and codebase aligned (maintenance)
-- Preserve: User customizations are sacred, updates are additive
+**ミッション**:
+- ブートストラップ: コードベースからコアSteeringを生成する（初回）
+- 同期: Steeringとコードベースの整合性を保つ（メンテナンス）
+- 保全: ユーザーのカスタマイズは神聖なものとして扱い、更新は追加的に行う
 
-**Success Criteria**:
-- Steering captures patterns and principles, not exhaustive lists
-- Code drift detected and reported
-- All `.kiro/steering/*.md` treated equally (core + custom)
+**成功基準**:
+- Steeringがパターンと原則を捉え、網羅的なリストではないこと
+- コードの乖離が検出・報告されること
+- すべての `.kiro/steering/*.md` が等しく扱われること（コア + カスタム）
 </background_information>
 
 <instructions>
-## Scenario Detection
+## シナリオ検出
 
-Check `.kiro/steering/` status:
+`.kiro/steering/` の状態を確認する:
 
-**Bootstrap Mode**: Empty OR missing core files (product.md, tech.md, structure.md)  
-**Sync Mode**: All core files exist
-
----
-
-## Bootstrap Flow
-
-1. Load templates from `.kiro/settings/templates/steering/`
-2. Analyze codebase (JIT):
-   - `glob_file_search` for source files
-   - `read_file` for README, package.json, etc.
-   - `grep` for patterns
-3. Extract patterns (not lists):
-   - Product: Purpose, value, core capabilities
-   - Tech: Frameworks, decisions, conventions
-   - Structure: Organization, naming, imports
-4. Generate steering files (follow templates)
-5. Load principles from `.kiro/settings/rules/steering-principles.md`
-6. Present summary for review
-
-**Focus**: Patterns that guide decisions, not catalogs of files/dependencies.
+**ブートストラップモード**: 空 または コアファイル（product.md, tech.md, structure.md）が欠落している場合
+**同期モード**: すべてのコアファイルが存在する場合
 
 ---
 
-## Sync Flow
+## ブートストラップフロー
 
-1. Load all existing steering (`.kiro/steering/*.md`)
-2. Analyze codebase for changes (JIT)
-3. Detect drift:
-   - **Steering → Code**: Missing elements → Warning
-   - **Code → Steering**: New patterns → Update candidate
-   - **Custom files**: Check relevance
-4. Propose updates (additive, preserve user content)
-5. Report: Updates, warnings, recommendations
+1. `.kiro/settings/templates/steering/` からテンプレートを読み込む
+2. コードベースを分析する（JIT）:
+   - `Glob` でソースファイルを検索
+   - `Read` で README, package.json 等を読み込む
+   - `Grep` でパターンを検索
+3. パターンを抽出する（リストではなくパターン）:
+   - Product: 目的、価値、コア機能
+   - Tech: フレームワーク、技術的判断、慣例
+   - Structure: 構成、命名規則、インポート
+4. Steeringファイルを生成する（テンプレートに従う）
+5. `.kiro/settings/rules/steering-principles.md` から原則を読み込む
+6. レビュー用にサマリーを提示する
 
-**Update Philosophy**: Add, don't replace. Preserve user sections.
+**重点**: ファイルや依存関係のカタログではなく、判断を導くパターンに焦点を当てる。
 
 ---
 
-## Granularity Principle
+## 同期フロー
 
-From `.kiro/settings/rules/steering-principles.md`:
+1. 既存のSteeringをすべて読み込む（`.kiro/steering/*.md`）
+2. コードベースの変更を分析する（JIT）
+3. 乖離を検出する:
+   - **Steering → コード**: 欠落要素 → 警告
+   - **コード → Steering**: 新しいパターン → 更新候補
+   - **カスタムファイル**: 関連性をチェック
+4. 更新を提案する（追加的に、ユーザーコンテンツを保全）
+5. レポート: 更新内容、警告、推奨事項
 
-> "If new code follows existing patterns, steering shouldn't need updating."
+**更新の哲学**: 置換ではなく追加。ユーザーのセクションを保全する。
 
-Document patterns and principles, not exhaustive lists.
+---
 
-**Bad**: List every file in directory tree  
-**Good**: Describe organization pattern with examples
+## 粒度の原則
+
+`.kiro/settings/rules/steering-principles.md` より:
+
+> 「新しいコードが既存のパターンに従っている場合、Steeringを更新する必要はないはずである。」
+
+網羅的なリストではなく、パターンと原則を文書化する。
+
+**悪い例**: ディレクトリツリー内のすべてのファイルをリスト化する
+**良い例**: 例を交えて構成パターンを説明する
 
 </instructions>
 
-## Tool guidance
+## ツールガイダンス
 
-- `glob_file_search`: Find source/config files
-- `read_file`: Read steering, docs, configs
-- `grep`: Search patterns
-- `list_dir`: Analyze structure
+- `Glob`: ソース/設定ファイルの検索
+- `Read`: Steering、ドキュメント、設定の読み込み
+- `Grep`: パターンの検索
+- `Bash` (ls): 構造の分析
 
-**JIT Strategy**: Fetch when needed, not upfront.
+**JIT戦略**: 事前にではなく、必要になった時に取得する。
 
-## Output description
+## 出力説明
 
-Chat summary only (files updated directly).
+チャットでのサマリーのみ（ファイルは直接更新される）。
 
-### Bootstrap:
+### ブートストラップ:
 ```
-✅ Steering Created
+✅ Steering 作成完了
 
-## Generated:
-- product.md: [Brief description]
-- tech.md: [Key stack]
-- structure.md: [Organization]
+## 生成されたファイル:
+- product.md: [簡単な説明]
+- tech.md: [主要な技術スタック]
+- structure.md: [構成]
 
-Review and approve as Source of Truth.
+レビューしてソース・オブ・トゥルースとして承認してください。
 ```
 
-### Sync:
+### 同期:
 ```
-✅ Steering Updated
+✅ Steering 更新完了
 
-## Changes:
+## 変更内容:
 - tech.md: React 18 → 19
-- structure.md: Added API pattern
+- structure.md: APIパターンを追加
 
-## Code Drift:
-- Components not following import conventions
+## コードの乖離:
+- コンポーネントがインポート規則に従っていない
 
-## Recommendations:
-- Consider api-standards.md
+## 推奨事項:
+- api-standards.md の作成を検討してください
 ```
 
-## Examples
+## 使用例
 
-### Bootstrap
-**Input**: Empty steering, React TypeScript project  
-**Output**: 3 files with patterns - "Feature-first", "TypeScript strict", "React 19"
+### ブートストラップ
+**入力**: 空のSteering、React TypeScriptプロジェクト
+**出力**: パターンを含む3ファイル — 「フィーチャーファースト」「TypeScript strict」「React 19」
 
-### Sync
-**Input**: Existing steering, new `/api` directory  
-**Output**: Updated structure.md, flagged non-compliant files, suggested api-standards.md
+### 同期
+**入力**: 既存のSteering、新しい `/api` ディレクトリ
+**出力**: structure.md を更新、非準拠ファイルをフラグ、api-standards.md を提案
 
-## Safety & Fallback
+## 安全策とフォールバック
 
-- **Security**: Never include keys, passwords, secrets (see principles)
-- **Uncertainty**: Report both states, ask user
-- **Preservation**: Add rather than replace when in doubt
+- **セキュリティ**: キー、パスワード、シークレットを絶対に含めないこと（原則を参照）
+- **不確実な場合**: 両方の状態を報告し、ユーザーに確認する
+- **保全**: 迷った場合は置換ではなく追加する
 
-## Notes
+## 備考
 
-- All `.kiro/steering/*.md` loaded as project memory
-- Templates and principles are external for customization
-- Focus on patterns, not catalogs
-- "Golden Rule": New code following patterns shouldn't require steering updates
-- Avoid documenting agent-specific tooling directories (e.g. `.cursor/`, `.gemini/`, `.claude/`)
-- `.kiro/settings/` content should NOT be documented in steering files (settings are metadata, not project knowledge)
-- Light references to `.kiro/specs/` and `.kiro/steering/` are acceptable; avoid other `.kiro/` directories
+- すべての `.kiro/steering/*.md` がプロジェクトメモリとして読み込まれる
+- テンプレートと原則はカスタマイズのために外部化されている
+- カタログではなくパターンに焦点を当てること
+- 「ゴールデンルール」: パターンに従う新しいコードはSteering更新を必要としないはずである
+- エージェント固有のツーリングディレクトリ（例: `.cursor/`, `.gemini/`, `.claude/`）のドキュメント化は避けること
+- `.kiro/settings/` の内容はSteeringファイルに記載しないこと（設定はメタデータであり、プロジェクト知識ではない）
+- `.kiro/specs/` と `.kiro/steering/` への軽い参照は許容される。他の `.kiro/` ディレクトリは避けること

@@ -1,127 +1,127 @@
 ---
 description: Create custom steering documents for specialized project contexts
-allowed-tools: Bash, Read, Write, Edit, MultiEdit, Glob, Grep, LS
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 
-# Kiro Custom Steering Creation
+# Kiro カスタムSteering 作成
 
 <background_information>
-**Role**: Create specialized steering documents beyond core files (product, tech, structure).
+**役割**: コアファイル（product, tech, structure）以外の専門的なSteeringドキュメントを作成する。
 
-**Mission**: Help users create domain-specific project memory for specialized areas.
+**ミッション**: 専門分野に特化したドメイン固有のプロジェクトメモリの作成を支援する。
 
-**Success Criteria**:
-- Custom steering captures specialized patterns
-- Follows same granularity principles as core steering
-- Provides clear value for specific domain
+**成功基準**:
+- カスタムSteeringが専門的なパターンを捉えていること
+- コアSteeringと同じ粒度の原則に従っていること
+- 特定のドメインに対して明確な価値を提供すること
 </background_information>
 
 <instructions>
-## Workflow
+## ワークフロー
 
-1. **Ask user** for custom steering needs:
-   - Domain/topic (e.g., "API standards", "testing approach")
-   - Specific requirements or patterns to document
+1. **ユーザーに確認する** — カスタムSteeringのニーズ:
+   - ドメイン/トピック（例: 「API標準」「テストアプローチ」）
+   - 文書化すべき具体的な要件やパターン
 
-2. **Check if template exists**:
-   - Load from `.kiro/settings/templates/steering-custom/{name}.md` if available
-   - Use as starting point, customize based on project
+2. **テンプレートの存在を確認する**:
+   - `.kiro/settings/templates/steering-custom/{name}.md` が利用可能な場合は読み込む
+   - 出発点として使用し、プロジェクトに合わせてカスタマイズする
 
-3. **Analyze codebase** (JIT) for relevant patterns:
-   - **Glob** for related files
-   - **Read** for existing implementations
-   - **Grep** for specific patterns
+3. **コードベースを分析する**（JIT）— 関連パターンの抽出:
+   - **Glob** で関連ファイルを検索
+   - **Read** で既存の実装を読み込む
+   - **Grep** で特定のパターンを検索
 
-4. **Generate custom steering**:
-   - Follow template structure if available
-   - Apply principles from `.kiro/settings/rules/steering-principles.md`
-   - Focus on patterns, not exhaustive lists
-   - Keep to 100-200 lines (2-3 minute read)
+4. **カスタムSteeringを生成する**:
+   - テンプレートが利用可能な場合はその構造に従う
+   - `.kiro/settings/rules/steering-principles.md` の原則を適用する
+   - 網羅的なリストではなくパターンに焦点を当てる
+   - 100〜200行に収める（2〜3分で読める分量）
 
-5. **Create file** in `.kiro/steering/{name}.md`
+5. **ファイルを作成する**: `.kiro/steering/{name}.md`
 
-## Available Templates
+## 利用可能なテンプレート
 
-Templates available in `.kiro/settings/templates/steering-custom/`:
+`.kiro/settings/templates/steering-custom/` にあるテンプレート:
 
-1. **api-standards.md** - REST/GraphQL conventions, error handling
-2. **testing.md** - Test organization, mocking, coverage
-3. **security.md** - Auth patterns, input validation, secrets
-4. **database.md** - Schema design, migrations, query patterns
-5. **error-handling.md** - Error types, logging, retry strategies
-6. **authentication.md** - Auth flows, permissions, session management
-7. **deployment.md** - CI/CD, environments, rollback procedures
+1. **api-standards.md** - REST/GraphQL の慣例、エラーハンドリング
+2. **testing.md** - テスト構成、モック、カバレッジ
+3. **security.md** - 認証パターン、入力バリデーション、シークレット
+4. **database.md** - スキーマ設計、マイグレーション、クエリパターン
+5. **error-handling.md** - エラー型、ロギング、リトライ戦略
+6. **authentication.md** - 認証フロー、パーミッション、セッション管理
+7. **deployment.md** - CI/CD、環境、ロールバック手順
 
-Load template when needed, customize for project.
+必要な時にテンプレートを読み込み、プロジェクトに合わせてカスタマイズする。
 
-## Steering Principles
+## Steeringの原則
 
-From `.kiro/settings/rules/steering-principles.md`:
+`.kiro/settings/rules/steering-principles.md` より:
 
-- **Patterns over lists**: Document patterns, not every file/component
-- **Single domain**: One topic per file
-- **Concrete examples**: Show patterns with code
-- **Maintainable size**: 100-200 lines typical
-- **Security first**: Never include secrets or sensitive data
+- **リストよりパターン**: すべてのファイル/コンポーネントではなく、パターンを文書化する
+- **単一ドメイン**: 1ファイルにつき1トピック
+- **具体的な例**: コードを使ってパターンを示す
+- **維持しやすいサイズ**: 通常100〜200行
+- **セキュリティ優先**: シークレットや機密データを絶対に含めないこと
 
 </instructions>
 
-## Tool guidance
+## ツールガイダンス
 
-- **Read**: Load template, analyze existing code
-- **Glob**: Find related files for pattern analysis
-- **Grep**: Search for specific patterns
-- **LS**: Understand relevant structure
+- **Read**: テンプレートの読み込み、既存コードの分析
+- **Glob**: パターン分析のための関連ファイル検索
+- **Grep**: 特定のパターンの検索
+- **Glob/Bash**: 関連する構造の把握
 
-**JIT Strategy**: Load template only when creating that type of steering.
+**JIT戦略**: そのタイプのSteeringを作成する時にのみテンプレートを読み込む。
 
-## Output description
+## 出力説明
 
-Chat summary with file location (file created directly).
+チャットでのサマリーとファイルの場所（ファイルは直接作成される）。
 
 ```
-✅ Custom Steering Created
+✅ カスタムSteering 作成完了
 
-## Created:
+## 作成されたファイル:
 - .kiro/steering/api-standards.md
 
-## Based On:
-- Template: api-standards.md
-- Analyzed: src/api/ directory patterns
-- Extracted: REST conventions, error format
+## 基づいた情報:
+- テンプレート: api-standards.md
+- 分析対象: src/api/ ディレクトリのパターン
+- 抽出内容: REST慣例、エラーフォーマット
 
-## Content:
-- Endpoint naming patterns
-- Request/response format
-- Error handling conventions
-- Authentication approach
+## 内容:
+- エンドポイントの命名パターン
+- リクエスト/レスポンスのフォーマット
+- エラーハンドリングの慣例
+- 認証アプローチ
 
-Review and customize as needed.
+必要に応じてレビュー・カスタマイズしてください。
 ```
 
-## Examples
+## 使用例
 
-### Success: API Standards
-**Input**: "Create API standards steering"  
-**Action**: Load template, analyze src/api/, extract patterns  
-**Output**: api-standards.md with project-specific REST conventions
+### 成功例: API標準
+**入力**: 「API標準のSteeringを作成」
+**アクション**: テンプレートを読み込み、src/api/ を分析し、パターンを抽出
+**出力**: プロジェクト固有のREST慣例を含む api-standards.md
 
-### Success: Testing Strategy
-**Input**: "Document our testing approach"  
-**Action**: Load template, analyze test files, extract patterns  
-**Output**: testing.md with test organization and mocking strategies
+### 成功例: テスト戦略
+**入力**: 「テストアプローチを文書化」
+**アクション**: テンプレートを読み込み、テストファイルを分析し、パターンを抽出
+**出力**: テスト構成とモック戦略を含む testing.md
 
-## Safety & Fallback
+## 安全策とフォールバック
 
-- **No template**: Generate from scratch based on domain knowledge
-- **Security**: Never include secrets (load principles)
-- **Validation**: Ensure doesn't duplicate core steering content
+- **テンプレートなし**: ドメイン知識に基づいてゼロから生成する
+- **セキュリティ**: シークレットを絶対に含めないこと（原則を読み込む）
+- **バリデーション**: コアSteeringの内容と重複しないことを確認する
 
-## Notes
+## 備考
 
-- Templates are starting points, customize for project
-- Follow same granularity principles as core steering
-- All steering files loaded as project memory
-- Custom files equally important as core files
-- Avoid documenting agent-specific tooling directories (e.g. `.cursor/`, `.gemini/`, `.claude/`)
-- Light references to `.kiro/specs/` and `.kiro/steering/` are acceptable; avoid other `.kiro/` directories
+- テンプレートは出発点であり、プロジェクトに合わせてカスタマイズすること
+- コアSteeringと同じ粒度の原則に従うこと
+- すべてのSteeringファイルがプロジェクトメモリとして読み込まれる
+- カスタムファイルはコアファイルと同等に重要である
+- エージェント固有のツーリングディレクトリ（例: `.cursor/`, `.gemini/`, `.claude/`）のドキュメント化は避けること
+- `.kiro/specs/` と `.kiro/steering/` への軽い参照は許容される。他の `.kiro/` ディレクトリは避けること

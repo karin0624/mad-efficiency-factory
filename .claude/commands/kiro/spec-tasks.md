@@ -1,145 +1,147 @@
 ---
 description: Generate implementation tasks for a specification
-allowed-tools: Read, Write, Edit, MultiEdit, Glob, Grep
+allowed-tools: Read, Write, Edit, Glob, Grep
 argument-hint: <feature-name> [-y] [--sequential]
 ---
 
-# Implementation Tasks Generator
+# 実装タスクジェネレーター
 
 <background_information>
-- **Mission**: Generate detailed, actionable implementation tasks that translate technical design into executable work items
-- **Success Criteria**:
-  - All requirements mapped to specific tasks
-  - Tasks properly sized (1-3 hours each)
-  - Clear task progression with proper hierarchy
-  - Natural language descriptions focused on capabilities
+- **ミッション**: 技術設計を実行可能な作業項目に変換する、詳細で実用的な実装タスクを生成する
+- **成功基準**:
+  - すべての要件が具体的なタスクにマッピングされている
+  - タスクが適切なサイズである（各1-3時間）
+  - 適切な階層構造を持つ明確なタスク進行
+  - 機能に焦点を当てた自然言語の説明
 </background_information>
 
 <instructions>
-## Core Task
-Generate implementation tasks for feature **$1** based on approved requirements and design.
+## コアタスク
+承認済みの要件と設計に基づき、機能 **$1** の実装タスクを生成する。
 
-## Execution Steps
+## 実行ステップ
 
-### Step 1: Load Context
+### ステップ 1: コンテキストの読み込み
 
-**Read all necessary context**:
+**必要なコンテキストをすべて読み込む**:
 - `.kiro/specs/$1/spec.json`, `requirements.md`, `design.md`
-- `.kiro/specs/$1/tasks.md` (if exists, for merge mode)
-- **Entire `.kiro/steering/` directory** for complete project memory
+- `.kiro/specs/$1/tasks.md`（存在する場合、マージモード用）
+- **`.kiro/steering/` ディレクトリ全体**（プロジェクトメモリとして）
 
-**Validate approvals**:
-- If `-y` flag provided ($2 == "-y"): Auto-approve requirements and design in spec.json
-- Otherwise: Verify both approved (stop if not, see Safety & Fallback)
-- Determine sequential mode based on presence of `--sequential`
+**引数のパースと承認の検証**:
+- `$ARGUMENTS` をパース: 最初のトークン = 機能名（`$1`）、残りのトークンからフラグを検出（順序不問）:
+  - `-y`: spec.jsonの要件と設計を自動承認
+  - `--sequential`: シーケンシャルモードを強制（`(P)` マーカーなし）
+- `-y` が未指定の場合: 要件と設計の両方が承認済みであることを確認（未承認の場合は停止、「安全対策とフォールバック」を参照）
 
-### Step 2: Generate Implementation Tasks
+### ステップ 2: 実装タスクの生成
 
-**Load generation rules and template**:
-- Read `.kiro/settings/rules/tasks-generation.md` for principles
-- Read requirement Testability Layers from `.kiro/specs/$1/requirements.md` for layer-aware task ordering
-- If `sequential` is **false**: Read `.kiro/settings/rules/tasks-parallel-analysis.md` for parallel judgement criteria
-- Read `.kiro/settings/templates/specs/tasks.md` for format (supports `(P)` markers)
+**生成ルールとテンプレートの読み込み**:
+- `.kiro/settings/rules/tasks-generation.md` の原則を読み込む
+- `.kiro/specs/$1/requirements.md` から要件のTestability Layerを読み込み、レイヤーを考慮したタスク順序付けに使用
+- `sequential` が **false** の場合: `.kiro/settings/rules/tasks-parallel-analysis.md` の並列判定基準を読み込む
+- `.kiro/settings/templates/specs/tasks.md` のフォーマットを読み込む（`(P)` マーカーをサポート）
 
-**Generate task list following all rules**:
-- Use language specified in spec.json
-- Map all requirements to tasks
-- When documenting requirement coverage, list numeric requirement IDs only (comma-separated) without descriptive suffixes, parentheses, translations, or free-form labels
-- Ensure all design components included
-- Verify task progression is logical and incremental
-- Collapse single-subtask structures by promoting them to major tasks and avoid duplicating details on container-only major tasks (use template patterns accordingly)
-- Apply `(P)` markers to tasks that satisfy parallel criteria (omit markers in sequential mode)
-- Mark optional test coverage subtasks with `- [ ]*` only when they strictly cover acceptance criteria already satisfied by core implementation and can be deferred post-MVP
-- **Layer-aware task ordering**:
-  - Group tasks by implementation layer when logical (Core Logic → Scene Construction → Integration → Human Review)
-  - Layer 1 tasks: Test sub-task MUST precede implementation sub-task (TDD enforced)
-  - Layer 2 tasks: Include screenshot checkpoint sub-task after implementation
-  - Layer 3 tasks: Final sub-task MUST be a human review checkpoint: `- [ ] X.Y Human review: [criteria]`
-  - Human review sub-tasks are not executed by spec-impl; they are handled by `/kiro:scene-review`
-- If existing tasks.md found, merge with new content
+**すべてのルールに従ってタスクリストを生成**:
+- spec.jsonで指定された言語を使用
+- すべての要件をタスクにマッピング
+- 要件カバレッジを文書化する際は、数値の要件IDのみをカンマ区切りで列挙し、説明的な接尾辞、括弧、翻訳、自由形式のラベルは付けない
+- すべての設計コンポーネントが含まれていることを確認
+- タスク進行が論理的で段階的であることを検証
+- サブタスクが1つだけの構造はメジャータスクに昇格させて折りたたみ、コンテナのみのメジャータスクで詳細を重複させない（テンプレートパターンに従って対応）
+- 並列基準を満たすタスクに `(P)` マーカーを適用（シーケンシャルモードではマーカーを省略）
+- コア実装で既に満たされている受け入れ基準を厳密にカバーし、MVP後に延期可能なオプションのテストカバレッジサブタスクにのみ `- [ ]*` をマーク
+- **レイヤーを考慮したタスク順序付け**:
+  - 論理的な場合はタスクを実装レイヤーごとにグループ化（コアロジック → シーン構築 → インテグレーション → ヒューマンレビュー）
+  - Layer 1タスク: テストサブタスクが実装サブタスクの前に来ること（TDD強制）。テスト対象はRefCounted/Resource等SceneTree非依存クラス
+  - Layer 2タスク: TDD強制（L1と同様にテスト先行）。テストはGdUnit4でSceneTree依存コード（`add_child`、シグナル通信等）を検証。実装後に `- [ ] X.Y Screenshot checkpoint: [検証内容]` サブタスクを追加してランタイム動作を目視確認
+  - Layer 3タスク: 最終サブタスクはヒューマンレビューチェックポイント: `- [ ] X.Y Human review: [criteria]`
+  - ヒューマンレビューサブタスクはspec-implでは実行されない。`/kiro:scene-review` で処理される
+- 既存のtasks.mdが見つかった場合、新しいコンテンツとマージ
 
-### Step 3: Finalize
+### ステップ 3: 最終化
 
-**Write and update**:
-- Create/update `.kiro/specs/$1/tasks.md`
-- Update spec.json metadata:
-  - Set `phase: "tasks-generated"`
-  - Set `approvals.tasks.generated: true, approved: false`
-  - Set `approvals.requirements.approved: true`
-  - Set `approvals.design.approved: true`
-  - Update `updated_at` timestamp
+**書き込みと更新**:
+- `.kiro/specs/$1/tasks.md` を作成/更新
+- spec.jsonのメタデータを更新:
+  - `phase: "tasks-generated"` を設定
+  - `approvals.tasks.generated: true, approved: false` を設定
+  - `approvals.requirements.approved: true` を設定
+  - `approvals.design.approved: true` を設定
+  - `updated_at` タイムスタンプを更新
 
-## Critical Constraints
-- **Follow rules strictly**: All principles in tasks-generation.md are mandatory
-- **Natural Language**: Describe what to do, not code structure details
-- **Complete Coverage**: ALL requirements must map to tasks
-- **Maximum 2 Levels**: Major tasks and sub-tasks only (no deeper nesting)
-- **Sequential Numbering**: Major tasks increment (1, 2, 3...), never repeat
-- **Task Integration**: Every task must connect to the system (no orphaned work)
+## 重要な制約
+- **ルールの厳守**: tasks-generation.mdのすべての原則は必須
+- **自然言語**: コード構造の詳細ではなく、何をすべきかを記述
+- **完全なカバレッジ**: すべての要件がタスクにマッピングされること
+- **最大2レベル**: メジャータスクとサブタスクのみ（それ以上のネストなし）
+- **連番**: メジャータスクは増加（1, 2, 3...）、繰り返さない
+- **タスクの統合**: すべてのタスクがシステムに接続されること（孤立した作業なし）
 </instructions>
 
-## Tool Guidance
-- **Read first**: Load all context, rules, and templates before generation
-- **Write last**: Generate tasks.md only after complete analysis and verification
+## ツールガイダンス
+- **まず読み込み**: 生成前にすべてのコンテキスト、ルール、テンプレートを読み込む
+- **最後に書き込み**: 完全な分析と検証の後にのみtasks.mdを生成
 
-## Output Description
+## 出力の説明
 
-Provide brief summary in the language specified in spec.json:
+spec.jsonで指定された言語で簡潔なサマリーを提供:
 
-1. **Status**: Confirm tasks generated at `.kiro/specs/$1/tasks.md`
-2. **Task Summary**: 
-   - Total: X major tasks, Y sub-tasks
-   - All Z requirements covered
-   - Average task size: 1-3 hours per sub-task
-3. **Quality Validation**:
-   - ✅ All requirements mapped to tasks
-   - ✅ Task dependencies verified
-   - ✅ Testing tasks included
-   - ✅ Layer-aware ordering verified (Layer 1 TDD, Layer 3 human review checkpoints)
-   - ✅ Logic and scene tasks separated
-4. **Next Action**: Review tasks and proceed when ready
+1. **ステータス**: `.kiro/specs/$1/tasks.md` にタスクが生成されたことを確認
+2. **タスクサマリー**:
+   - 合計: X メジャータスク、Y サブタスク
+   - すべてのZ要件がカバー済み
+   - 平均タスクサイズ: サブタスクあたり1-3時間
+3. **品質検証**:
+   - ✅ すべての要件がタスクにマッピング済み
+   - ✅ タスク依存関係の検証済み
+   - ✅ テストタスクが含まれている
+   - ✅ レイヤーを考慮した順序付けの検証済み（Layer 1 TDD、Layer 3 ヒューマンレビューチェックポイント）
+   - ✅ ロジックとシーンタスクが分離されている
+4. **次のアクション**: タスクをレビューし、準備ができたら次へ進む
 
-**Format**: Concise (under 200 words)
+**フォーマット**: 簡潔（200語以下）
 
-## Safety & Fallback
+## 安全対策とフォールバック
 
-### Error Scenarios
+### エラーシナリオ
 
-**Requirements or Design Not Approved**:
-- **Stop Execution**: Cannot proceed without approved requirements and design
-- **User Message**: "Requirements and design must be approved before task generation"
-- **Suggested Action**: "Run `/kiro:spec-tasks $1 -y` to auto-approve both and proceed"
+**要件または設計が未承認の場合**:
+- **実行停止**: 承認済みの要件と設計なしではタスク生成を続行できない
+- **ユーザーメッセージ**: 「タスク生成前に要件と設計の承認が必要です」
+- **推奨アクション**: 「`/kiro:spec-tasks $1 -y` を実行して両方を自動承認して続行してください」
 
-**Missing Requirements or Design**:
-- **Stop Execution**: Both documents must exist
-- **User Message**: "Missing requirements.md or design.md at `.kiro/specs/$1/`"
-- **Suggested Action**: "Complete requirements and design phases first"
+**要件または設計が存在しない場合**:
+- **実行停止**: 両方のドキュメントが存在する必要がある
+- **ユーザーメッセージ**: 「`.kiro/specs/$1/` にrequirements.mdまたはdesign.mdが見つかりません」
+- **推奨アクション**: 「要件と設計フェーズを先に完了してください」
 
-**Incomplete Requirements Coverage**:
-- **Warning**: "Not all requirements mapped to tasks. Review coverage."
-- **User Action Required**: Confirm intentional gaps or regenerate tasks
+**要件カバレッジが不完全な場合**:
+- **警告**: 「すべての要件がタスクにマッピングされていません。カバレッジを確認してください。」
+- **ユーザーアクション必要**: 意図的なギャップを確認するか、タスクを再生成
 
-**Template/Rules Missing**:
-- **User Message**: "Template or rules files missing in `.kiro/settings/`"
-- **Fallback**: Use inline basic structure with warning
-- **Suggested Action**: "Check repository setup or restore template files"
-- **Missing Numeric Requirement IDs**:
-  - **Stop Execution**: All requirements in requirements.md MUST have numeric IDs. If any requirement lacks a numeric ID, stop and request that requirements.md be fixed before generating tasks.
+**テンプレート/ルールが存在しない場合**:
+- **ユーザーメッセージ**: 「`.kiro/settings/` にテンプレートまたはルールファイルが見つかりません」
+- **フォールバック**: 警告付きのインライン基本構造を使用
+- **推奨アクション**: 「リポジトリのセットアップを確認するか、テンプレートファイルを復元してください」
+- **数値の要件IDが存在しない場合**:
+  - **実行停止**: requirements.mdのすべての要件には数値IDが必要。いずれかの要件に数値IDがない場合、停止してタスク生成前にrequirements.mdの修正を要求する。
 
-### Next Phase: Implementation
+### 次フェーズ: 実装
 
-**Before Starting Implementation**:
-- **IMPORTANT**: Clear conversation history and free up context before running `/kiro:spec-impl`
-- This applies when starting first task OR switching between tasks
-- Fresh context ensures clean state and proper task focus
+**実装を開始する前に**:
+- **重要**: `/kiro:spec-impl` を実行する前に会話履歴をクリアしてコンテキストを解放すること
+- これは最初のタスクの開始時またはタスク間の切り替え時に適用される
+- フレッシュなコンテキストによりクリーンな状態と適切なタスクフォーカスが確保される
 
-**If Tasks Approved**:
-- Execute specific task: `/kiro:spec-impl $1 1.1` (recommended: clear context between each task)
-- Execute multiple tasks: `/kiro:spec-impl $1 1.1,1.2` (use cautiously, clear context between tasks)
-- Without arguments: `/kiro:spec-impl $1` (executes all pending tasks - NOT recommended due to context bloat)
+**タスクが承認された場合**:
+- 特定のタスクを実行: `/kiro:spec-impl $1 1.1`（推奨: 各タスク間でコンテキストをクリア）
+- 複数のタスクを実行: `/kiro:spec-impl $1 1.1,1.2`（慎重に使用、タスク間でコンテキストをクリア）
+- 引数なし: `/kiro:spec-impl $1`（すべての保留タスクを実行 - コンテキスト肥大化のため非推奨）
 
-**If Modifications Needed**:
-- Provide feedback and re-run `/kiro:spec-tasks $1`
-- Existing tasks used as reference (merge mode)
+**修正が必要な場合**:
+- フィードバックを提供し、`/kiro:spec-tasks $1` を再実行
+- 既存のタスクが参照として使用される（マージモード）
 
-**Note**: The implementation phase will guide you through executing tasks with appropriate context and validation.
+**注意**: 実装フェーズでは、適切なコンテキストとバリデーションでタスクの実行をガイドします。
+</output>

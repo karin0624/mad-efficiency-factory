@@ -1,88 +1,90 @@
 ---
 description: Analyze implementation gap between requirements and existing codebase
-allowed-tools: Bash, Glob, Grep, Read, Write, Edit, MultiEdit, WebSearch, WebFetch
+allowed-tools: Bash, Glob, Grep, Read, Write, Edit, WebSearch, WebFetch
 argument-hint: <feature-name>
 ---
 
-# Implementation Gap Validation
+# 実装ギャップバリデーション
 
 <background_information>
-- **Mission**: Analyze the gap between requirements and existing codebase to inform implementation strategy
-- **Success Criteria**:
-  - Comprehensive understanding of existing codebase patterns and components
-  - Clear identification of missing capabilities and integration challenges
-  - Multiple viable implementation approaches evaluated
-  - Technical research needs identified for design phase
+- **ミッション**: 要件と既存コードベースのギャップを分析し、実装戦略の策定に役立てる
+- **成功基準**:
+  - 既存コードベースのパターンとコンポーネントを包括的に理解する
+  - 不足している機能と連携上の課題を明確に特定する
+  - 複数の実行可能な実装アプローチを評価する
+  - 設計フェーズで必要な技術調査事項を特定する
 </background_information>
 
 <instructions>
-## Core Task
-Analyze implementation gap for feature **$1** based on approved requirements and existing codebase.
+## コアタスク
+承認済みの要件と既存コードベースに基づき、機能 **$1** の実装ギャップを分析する。
 
-## Execution Steps
+## 実行ステップ
 
-1. **Load Context**:
-   - Read `.kiro/specs/$1/spec.json` for language and metadata
-   - Read `.kiro/specs/$1/requirements.md` for requirements
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+1. **コンテキストの読み込み**:
+   - `.kiro/specs/$1/spec.json` を読み込み、言語とメタデータを確認する
+   - `.kiro/specs/$1/requirements.md` を読み込み、要件を確認する
+   - **すべてのsteeringコンテキストを読み込む**: `.kiro/steering/` ディレクトリ全体を読み込む。以下を含む:
+     - デフォルトファイル: `structure.md`, `tech.md`, `product.md`
+     - すべてのカスタムsteeringファイル（モード設定に関係なく）
+     - これによりプロジェクトの完全なメモリとコンテキストを取得する
 
-2. **Read Analysis Guidelines**:
-   - Read `.kiro/settings/rules/gap-analysis.md` for comprehensive analysis framework
+2. **分析ガイドラインの読み込み**:
+   - `.kiro/settings/rules/gap-analysis.md` を読み込み、包括的な分析フレームワークを確認する
 
-3. **Execute Gap Analysis**:
-   - Follow gap-analysis.md framework for thorough investigation
-   - Analyze existing codebase using Grep and Read tools
-   - Use WebSearch/WebFetch for external dependency research if needed
-   - Evaluate multiple implementation approaches (extend/new/hybrid)
-   - Use language specified in spec.json for output
+3. **ギャップ分析の実行**:
+   - gap-analysis.md のフレームワークに従い徹底的な調査を行う
+   - Grep と Read ツールを使用して既存コードベースを分析する
+   - 必要に応じて WebSearch/WebFetch で外部依存関係を調査する
+   - 複数の実装アプローチ（拡張/新規/ハイブリッド）を評価する
+   - spec.json で指定された言語を出力に使用する
 
-4. **Generate Analysis Document**:
-   - Create comprehensive gap analysis following the output guidelines in gap-analysis.md
-   - Present multiple viable options with trade-offs
-   - Flag areas requiring further research
+4. **分析ドキュメントの生成**:
+   - gap-analysis.md の出力ガイドラインに従い、包括的なギャップ分析を作成する
+   - トレードオフを伴う複数の実行可能なオプションを提示する
+   - さらなる調査が必要な領域を明示する
 
-## Important Constraints
-- **Information over Decisions**: Provide analysis and options, not final implementation choices
-- **Multiple Options**: Present viable alternatives when applicable
-- **Thorough Investigation**: Use tools to deeply understand existing codebase
-- **Explicit Gaps**: Clearly flag areas needing research or investigation
+## 重要な制約
+- **判断よりも情報提供**: 最終的な実装の決定ではなく、分析とオプションを提供する
+- **複数オプションの提示**: 適用可能な場合は実行可能な代替案を提示する
+- **徹底的な調査**: ツールを使用して既存コードベースを深く理解する
+- **ギャップの明示**: 調査やさらなる検討が必要な領域を明確にフラグ付けする
 </instructions>
 
-## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules) before analysis
-- **Grep extensively**: Search codebase for patterns, conventions, and integration points
-- **WebSearch/WebFetch**: Research external dependencies and best practices when needed
-- **Write last**: Generate analysis only after complete investigation
+## ツールガイダンス
+- **まず読み込む**: 分析前にすべてのコンテキスト（spec, steering, ルール）を読み込む
+- **Grepを多用する**: パターン、規約、連携ポイントをコードベースで検索する
+- **WebSearch/WebFetch**: 必要に応じて外部依存関係やベストプラクティスを調査する
+- **最後に書き込む**: 完全な調査が終わってから分析を生成する
 
-## Output Description
-Provide output in the language specified in spec.json with:
+## 出力の説明
+spec.json で指定された言語で以下を出力する:
 
-1. **Analysis Summary**: Brief overview (3-5 bullets) of scope, challenges, and recommendations
-2. **Document Status**: Confirm analysis approach used
-3. **Next Steps**: Guide user on proceeding to design phase
+1. **分析概要**: スコープ、課題、推奨事項の簡潔な概要（3〜5項目）
+2. **ドキュメントステータス**: 使用した分析アプローチを確認する
+3. **次のステップ**: 設計フェーズへの進め方をガイドする
 
-**Format Requirements**:
-- Use Markdown headings for clarity
-- Keep summary concise (under 300 words)
-- Detailed analysis follows gap-analysis.md output guidelines
+**フォーマット要件**:
+- Markdown見出しを使用して明確にする
+- 概要は簡潔に（300語以内）
+- 詳細な分析は gap-analysis.md の出力ガイドラインに従う
 
-## Safety & Fallback
+## 安全策とフォールバック
 
-### Error Scenarios
-- **Missing Requirements**: If requirements.md doesn't exist, stop with message: "Run `/kiro:spec-requirements $1` first to generate requirements"
-- **Requirements Not Approved**: If requirements not approved, warn user but proceed (gap analysis can inform requirement revisions)
-- **Empty Steering Directory**: Warn user that project context is missing and may affect analysis quality
-- **Complex Integration Unclear**: Flag for comprehensive research in design phase rather than blocking
-- **Language Undefined**: Default to English (`en`) if spec.json doesn't specify language
+### エラーシナリオ
+- **要件が見つからない場合**: requirements.md が存在しなければ、次のメッセージで停止する: "`/kiro:spec-requirements $1` を先に実行して要件を生成してください"
+- **要件が未承認の場合**: 要件が承認されていなければ、警告を出すが続行する（ギャップ分析は要件の改訂に役立つ場合がある）
+- **分析ルールが見つからない場合**: `.kiro/settings/rules/gap-analysis.md` が存在しなければ、**実行を停止**しエラーを出す: "必須ルールファイル `.kiro/settings/rules/gap-analysis.md` が見つかりません。ギャップ分析を実行する前にファイルを復元してください。"
+- **steeringディレクトリが空の場合**: プロジェクトコンテキストが不足しており、分析品質に影響する可能性があることをユーザーに警告する
+- **複雑な連携が不明確な場合**: ブロックするのではなく、設計フェーズでの包括的な調査としてフラグ付けする
+- **言語が未定義の場合**: spec.json に言語指定がなければ、英語（`en`）をデフォルトとする
 
-### Next Phase: Design Generation
+### 次のフェーズ: 設計生成
 
-**If Gap Analysis Complete**:
-- Review gap analysis insights
-- Run `/kiro:spec-design $1` to create technical design document
-- Or `/kiro:spec-design $1 -y` to auto-approve requirements and proceed directly
+**ギャップ分析が完了した場合**:
+- ギャップ分析の知見を確認する
+- `/kiro:spec-design $1` を実行して技術設計ドキュメントを作成する
+- または `/kiro:spec-design $1 -y` で要件を自動承認して直接進める
 
-**Note**: Gap analysis is optional but recommended for brownfield projects to inform design decisions.
+**注意**: ギャップ分析は任意ですが、ブラウンフィールドプロジェクトでは設計判断に役立つため推奨されます。
+</output>

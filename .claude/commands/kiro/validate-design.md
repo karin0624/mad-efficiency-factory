@@ -4,89 +4,91 @@ allowed-tools: Read, Glob, Grep
 argument-hint: <feature-name>
 ---
 
-# Technical Design Validation
+# 技術設計バリデーション
 
 <background_information>
-- **Mission**: Conduct interactive quality review of technical design to ensure readiness for implementation
-- **Success Criteria**:
-  - Critical issues identified (maximum 3 most important concerns)
-  - Balanced assessment with strengths recognized
-  - Clear GO/NO-GO decision with rationale
-  - Actionable feedback for improvements if needed
+- **ミッション**: 実装への準備状況を確認するため、技術設計のインタラクティブな品質レビューを実施する
+- **成功基準**:
+  - 重大な問題を特定する（最も重要な懸念事項を最大3件）
+  - 強みを認識したバランスの取れた評価
+  - 根拠を伴う明確なGO/NO-GO判定
+  - 改善が必要な場合は実行可能なフィードバック
 </background_information>
 
 <instructions>
-## Core Task
-Interactive design quality review for feature **$1** based on approved requirements and design document.
+## コアタスク
+承認済みの要件と設計ドキュメントに基づき、機能 **$1** のインタラクティブな設計品質レビューを実施する。
 
-## Execution Steps
+## 実行ステップ
 
-1. **Load Context**:
-   - Read `.kiro/specs/$1/spec.json` for language and metadata
-   - Read `.kiro/specs/$1/requirements.md` for requirements
-   - Read `.kiro/specs/$1/design.md` for design document
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+1. **コンテキストの読み込み**:
+   - `.kiro/specs/$1/spec.json` を読み込み、言語とメタデータを確認する
+   - `.kiro/specs/$1/requirements.md` を読み込み、要件を確認する
+   - `.kiro/specs/$1/design.md` を読み込み、設計ドキュメントを確認する
+   - **すべてのsteeringコンテキストを読み込む**: `.kiro/steering/` ディレクトリ全体を読み込む。以下を含む:
+     - デフォルトファイル: `structure.md`, `tech.md`, `product.md`
+     - すべてのカスタムsteeringファイル（モード設定に関係なく）
+     - これによりプロジェクトの完全なメモリとコンテキストを取得する
 
-2. **Read Review Guidelines**:
-   - Read `.kiro/settings/rules/design-review.md` for review criteria and process
+2. **レビューガイドラインの読み込み**:
+   - `.kiro/settings/rules/design-review.md` を読み込み、レビュー基準とプロセスを確認する
 
-3. **Execute Design Review**:
-   - Follow design-review.md process: Analysis → Critical Issues → Strengths → GO/NO-GO
-   - Limit to 3 most important concerns
-   - Engage interactively with user
-   - Use language specified in spec.json for output
+3. **設計レビューの実行**:
+   - design-review.md のプロセスに従う: 分析 → 重大な問題 → 強み → GO/NO-GO
+   - 最も重要な懸念事項を最大3件に絞る
+   - ユーザーとインタラクティブに進める
+   - spec.json で指定された言語を出力に使用する
 
-4. **Provide Decision and Next Steps**:
-   - Clear GO/NO-GO decision with rationale
-   - Guide user on proceeding based on decision
+4. **判定と次のステップの提示**:
+   - 根拠を伴う明確なGO/NO-GO判定
+   - 判定に基づく進め方のガイダンスをユーザーに提示する
 
-## Important Constraints
-- **Quality assurance, not perfection seeking**: Accept acceptable risk
-- **Critical focus only**: Maximum 3 issues, only those significantly impacting success
-- **Interactive approach**: Engage in dialogue, not one-way evaluation
-- **Balanced assessment**: Recognize both strengths and weaknesses
-- **Actionable feedback**: All suggestions must be implementable
+## 重要な制約
+- **品質保証であり、完璧主義ではない**: 許容可能なリスクは受け入れる
+- **重大な問題のみに集中する**: 最大3件、成功に重大な影響を与えるもののみ
+- **インタラクティブなアプローチ**: 一方的な評価ではなく、対話的に進める
+- **バランスの取れた評価**: 強みと弱みの両方を認識する
+- **実行可能なフィードバック**: すべての提案は実装可能でなければならない
 </instructions>
 
-## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules) before review
-- **Grep if needed**: Search codebase for pattern validation or integration checks
-- **Interactive**: Engage with user throughout the review process
+## ツールガイダンス
+- **まず読み込む**: レビュー前にすべてのコンテキスト（spec, steering, ルール）を読み込む
+- **必要に応じてGrep**: パターン検証や連携チェックのためにコードベースを検索する
+- **インタラクティブ**: レビュープロセス全体を通じてユーザーと対話する
 
-## Output Description
-Provide output in the language specified in spec.json with:
+## 出力の説明
+spec.json で指定された言語で以下を出力する:
 
-1. **Review Summary**: Brief overview (2-3 sentences) of design quality and readiness
-2. **Critical Issues**: Maximum 3, following design-review.md format
-3. **Design Strengths**: 1-2 positive aspects
-4. **Final Assessment**: GO/NO-GO decision with rationale and next steps
+1. **レビュー概要**: 設計品質と準備状況の簡潔な概要（2〜3文）
+2. **重大な問題**: 最大3件、design-review.md のフォーマットに従う
+3. **設計の強み**: 1〜2点のポジティブな側面
+4. **最終評価**: 根拠と次のステップを伴うGO/NO-GO判定
 
-**Format Requirements**:
-- Use Markdown headings for clarity
-- Follow design-review.md output format
-- Keep summary concise
+**フォーマット要件**:
+- Markdown見出しを使用して明確にする
+- design-review.md の出力フォーマットに従う
+- 概要は簡潔に
 
-## Safety & Fallback
+## 安全策とフォールバック
 
-### Error Scenarios
-- **Missing Design**: If design.md doesn't exist, stop with message: "Run `/kiro:spec-design $1` first to generate design document"
-- **Design Not Generated**: If design phase not marked as generated in spec.json, warn but proceed with review
-- **Empty Steering Directory**: Warn user that project context is missing and may affect review quality
-- **Language Undefined**: Default to English (`en`) if spec.json doesn't specify language
+### エラーシナリオ
+- **設計が見つからない場合**: design.md が存在しなければ、次のメッセージで停止する: "`/kiro:spec-design $1` を先に実行して設計ドキュメントを生成してください"
+- **設計が未生成の場合**: spec.json で設計フェーズが生成済みとマークされていなければ、警告を出すがレビューは続行する
+- **レビュールールが見つからない場合**: `.kiro/settings/rules/design-review.md` が存在しなければ、**実行を停止**しエラーを出す: "必須ルールファイル `.kiro/settings/rules/design-review.md` が見つかりません。設計バリデーションを実行する前にファイルを復元してください。"
+- **steeringディレクトリが空の場合**: プロジェクトコンテキストが不足しており、レビュー品質に影響する可能性があることをユーザーに警告する
+- **言語が未定義の場合**: spec.json に言語指定がなければ、英語（`en`）をデフォルトとする
 
-### Next Phase: Task Generation
+### 次のフェーズ: タスク生成
 
-**If Design Passes Validation (GO Decision)**:
-- Review feedback and apply changes if needed
-- Run `/kiro:spec-tasks $1` to generate implementation tasks
-- Or `/kiro:spec-tasks $1 -y` to auto-approve and proceed directly
+**設計がバリデーションを通過した場合（GO判定）**:
+- フィードバックを確認し、必要に応じて変更を適用する
+- `/kiro:spec-tasks $1` を実行して実装タスクを生成する
+- または `/kiro:spec-tasks $1 -y` で自動承認して直接進める
 
-**If Design Needs Revision (NO-GO Decision)**:
-- Address critical issues identified
-- Re-run `/kiro:spec-design $1` with improvements
-- Re-validate with `/kiro:validate-design $1`
+**設計の修正が必要な場合（NO-GO判定）**:
+- 特定された重大な問題に対処する
+- `/kiro:spec-design $1` を改善を加えて再実行する
+- `/kiro:validate-design $1` で再バリデーションする
 
-**Note**: Design validation is recommended but optional. Quality review helps catch issues early.
+**注意**: 設計バリデーションは推奨ですが必須ではありません。品質レビューは問題の早期発見に役立ちます。
+</output>

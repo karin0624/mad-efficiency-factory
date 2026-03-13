@@ -4,78 +4,80 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent
 argument-hint: <plan-file-or-name>
 ---
 
-# Implement: Plan → cc-sdd Auto-Execution
+# 実装: Plan → cc-sdd 自動実行
 
 <background_information>
-- **Mission**: Execute the full cc-sdd pipeline (spec-init → requirements → design → tasks → spec-impl) from a plan file in an isolated worktree
-- **Success Criteria**:
-  - Plan file resolved and validated
-  - Worktree created on a feature branch
-  - Spec generated (Agent A) and implemented (Agent B) in isolated subagents
-  - Changes committed, pushed, and PR created (Agent C)
-  - Main session context remains minimal (orchestrator only)
+- **ミッション**: planファイルから隔離されたworktreeでcc-sddパイプライン全体（spec-init → requirements → design → tasks → spec-impl）を実行する
+- **成功基準**:
+  - planファイルが解決・検証済みであること
+  - フィーチャーブランチ上にworktreeが作成されていること
+  - spec生成（Agent A）と実装（Agent B）が隔離されたサブエージェントで完了していること
+  - 変更がコミットされていること（Agent C）
+  - Human Reviewタスクがない場合: プッシュされ、PRが作成されていること（Agent D）
+  - Human Reviewタスクがある場合: scene-reviewが実行され、worktreeが保持されていること
+  - メインセッションのコンテキストが最小限に保たれていること（オーケストレーターのみ）
 </background_information>
 
 <instructions>
-## Core Task
-Execute the full cc-sdd pipeline for plan **$ARGUMENTS** in an isolated worktree.
+## コアタスク
+plan **$ARGUMENTS** に対してcc-sddパイプライン全体を隔離されたworktreeで実行する。
 
-## Execution Steps
+## 実行ステップ
 
-### Step 0: Preflight Checks
+### ステップ 0: プリフライトチェック
 
-1. Verify GitHub CLI: `which gh` and `gh auth status`
-   - If unavailable or not authenticated: report and stop
-2. Detect base branch:
-   - Try: `git symbolic-ref refs/remotes/origin/HEAD` → extract branch name (e.g., `origin/master` → `master`)
-   - Fallback: `git remote show origin | grep 'HEAD branch'`
-   - If both fail: ask user and stop
-3. Confirm current branch matches the detected base branch
-   - If on a different branch: warn user and stop
-4. `git fetch origin` to sync with remote (do NOT git pull)
+1. GitHub CLIの確認: `which gh` および `gh auth status`
+   - 利用不可または未認証の場合: 報告して停止
+2. ベースブランチの検出:
+   - 試行: `git symbolic-ref refs/remotes/origin/HEAD` → ブランチ名を抽出（例: `origin/master` → `master`）
+   - フォールバック: `git remote show origin | grep 'HEAD branch'`
+   - 両方失敗した場合: ユーザーに確認して停止
+3. 現在のブランチが検出されたベースブランチと一致することを確認
+   - 別のブランチにいる場合: ユーザーに警告して停止
+4. `git fetch origin` でリモートと同期（git pullはしない）
 
-### Step 1: Plan File Resolution
+### ステップ 1: planファイルの解決
 
-Resolve `$ARGUMENTS` to a plan file **absolute path**:
-- If contains `/` or ends with `.md`: use as-is (relative to workspace root)
-- Otherwise: resolve to `docs/plans/<identifier>.md`
-- If not found: Glob `docs/plans/*<identifier>*` to search
-  - Multiple candidates: show list and stop (ask user to choose)
-- If still not found: list available plans in `docs/plans/` and stop
-- **Convert to absolute path**: `PLAN_FILE_ABSOLUTE_PATH="$(pwd)/<resolved-relative-path>"`
-- Extract plan name (filename without extension) for branch naming
-  - Sanitize for branch name: lowercase, replace spaces/special chars with hyphens
+`$ARGUMENTS` をplanファイルの**絶対パス**に解決する:
+- `/` を含むか `.md` で終わる場合: そのまま使用（ワークスペースルートからの相対パス）
+- それ以外: `docs/plans/<identifier>.md` に解決
+- 見つからない場合: Glob `docs/plans/*<identifier>*` で検索
+  - 候補が複数ある場合: 一覧を表示して停止（ユーザーに選択を依頼）
+- それでも見つからない場合: `docs/plans/` 内の利用可能なplanを一覧表示して停止
+- **絶対パスに変換**: `PLAN_FILE_ABSOLUTE_PATH="$(pwd)/<resolved-relative-path>"`
+- ブランチ名用にplan名を抽出（拡張子なしのファイル名）
+  - ブランチ名用にサニタイズ: 小文字化、スペースや特殊文字をハイフンに置換
 
-**Important**: Only resolve the path here. Do NOT read the plan content (token conservation). Pass the absolute path to Agent A.
+**重要**: ここではパスの解決のみ行う。planの内容は読まない（トークン節約）。絶対パスをAgent Aに渡す。
 
-### Step 2: Resume Detection + Worktree Creation
+### ステップ 2: 再開検出 + worktree作成
 
-1. Generate feature branch name: `feat/<sanitized-plan-name>`
-2. Check if branch/worktree already exists:
-   - If worktree exists at `.claude/worktrees/feat/<sanitized-plan-name>`:
-     a. Read `<worktree-path>/.kiro/specs/*/spec.json` to find existing spec
-     b. Check `spec.json.phase` to determine resume point:
-        - `tasks-generated` + `approvals.tasks.approved: true` → Skip Agent A, start from Agent B
-        - `design-generated` or `tasks-generated` (unapproved) → Launch Agent A with resume instructions (Phase 4 onward)
-        - `requirements-generated` → Launch Agent A with resume (Phase 3 onward)
-        - `initialized` → Launch Agent A from Phase 2 onward
-     c. Extract feature name from `spec.json.feature_name`
-     d. Use existing worktree, skip to appropriate Agent
-   - If branch exists but no worktree: create worktree for existing branch
-   - If neither exists: create new branch + worktree
-3. Create worktree (if needed):
+1. フィーチャーブランチ名を生成: `feat/<sanitized-plan-name>`
+2. ブランチ/worktreeが既に存在するか確認:
+   - `.claude/worktrees/feat/<sanitized-plan-name>` にworktreeが存在する場合:
+     a. `<worktree-path>/.kiro/specs/*/spec.json` を読んで既存specを検索
+     b. `spec.json.phase` で再開ポイントを判定:
+        - `tasks-generated` + `approvals.tasks.approved: true` → Agent Aをスキップ、Agent Bから開始
+        - `design-generated` または `tasks-generated`（未承認） → Agent Aを再開指示付きで起動（Phase 4以降）
+        - `requirements-generated` → Agent Aを再開（Phase 3以降）
+        - `initialized` → Agent AをPhase 2以降から起動
+     c. `spec.json.feature_name` からフィーチャー名を抽出
+     d. 既存のworktreeを使用し、適切なAgentにスキップ
+   - ブランチは存在するがworktreeがない場合: 既存ブランチ用にworktreeを作成
+   - どちらも存在しない場合: 新しいブランチ + worktreeを作成
+3. worktreeを作成（必要な場合）:
    ```
    git worktree add -b feat/<sanitized-plan-name> .claude/worktrees/feat/<sanitized-plan-name> origin/<base-branch>
    ```
-   - If branch already exists (from resume): `git worktree add .claude/worktrees/feat/<sanitized-plan-name> feat/<sanitized-plan-name>`
-   - If branch name conflicts with unrelated work: append suffix (e.g., `feat/<plan-name>-2`)
-4. Store worktree absolute path and branch name for all subsequent Agents
+   - ブランチが既に存在する場合（再開時）: `git worktree add .claude/worktrees/feat/<sanitized-plan-name> feat/<sanitized-plan-name>`
+   - ブランチ名が無関係の作業と競合する場合: サフィックスを付加（例: `feat/<plan-name>-2`）
+4. 以降のすべてのAgentのためにworktreeの絶対パスとブランチ名を保持
 
-### Step 3: Agent A — Spec Generation
+### ステップ 3: Agent A — spec生成
 
-Launch Agent A to handle Phases 1-4.5 in the worktree. Pass the plan file absolute path and worktree path. Do NOT use `isolation: "worktree"` — the worktree is already created.
+Agent Aを起動してworktree内でPhase 1-4.5を処理する。planファイルの絶対パスとworktreeパスを渡す。`isolation: "worktree"` は使用しない — worktreeは既に作成済み。
 
-If resuming from a later phase (detected in Step 2), include the resume phase and feature name in the prompt.
+後のフェーズからの再開（ステップ2で検出）の場合、プロンプトに再開フェーズとフィーチャー名を含める。
 
 ```
 Agent(
@@ -132,11 +134,11 @@ Agent(
 )
 ```
 
-**Extract from Agent A result**: worktree path, branch name, feature name.
+**Agent Aの結果から抽出する情報**: worktreeパス、ブランチ名、フィーチャー名。
 
-### Step 4: Agent B — Implementation
+### ステップ 4: Agent B — 実装
 
-Launch Agent B for Phase 5 in the same worktree. New agent (no resume), pass only feature name and worktree path.
+Agent Bを起動して同じworktree内でPhase 5を実行する。新しいエージェント（再開ではない）で、フィーチャー名とworktreeパスのみを渡す。
 
 ```
 Agent(
@@ -173,15 +175,15 @@ Agent(
 )
 ```
 
-### Step 5: Agent C — Commit + Push + PR
+### ステップ 5: Agent C — コミット
 
-Launch Agent C for Phases 6-7 in the same worktree.
+Agent Cを起動して同じworktree内でPhase 6（コミットのみ）を実行する。
 
 ```
 Agent(
-  description: "commit-push-pr <feature-name>",
+  description: "commit <feature-name>",
   prompt: """
-  以下のworktreeブランチで、未コミットの変更を確認し、Push・PR作成を行ってください。
+  以下のworktreeブランチで、未コミットの変更を確認し、コミットしてください。
 
   ## cwd強制
   最初に必ず以下を実行してください:
@@ -205,6 +207,56 @@ Agent(
      - 変更内容に基づいた適切なコミットメッセージで git commit
   3. すべてコミット済みの場合: このステップをスキップ
 
+  ## 完了報告
+  - コミットの有無と内容
+  """
+)
+```
+
+### ステップ 5.5: Human Review 分岐判定
+
+Agent C完了後、worktree内の `tasks.md` を確認してHuman Reviewタスクの有無を判定する:
+1. `{WORKTREE_PATH}/.kiro/specs/{FEATURE_NAME}/tasks.md` を読み込む
+2. 未チェックのHuman Reviewサブタスク（パターン: `- [ ] X.Y Human review:`）を検索
+3. 結果に応じて次のステップを分岐:
+   - **Human Reviewタスクあり** → ステップ 6A へ
+   - **Human Reviewタスクなし** → ステップ 6B へ
+
+### ステップ 6A: scene-review（Human Reviewタスクがある場合）
+
+Human Reviewタスクが存在する場合、PR作成の前にscene-reviewを実行する。
+
+1. Skill toolで scene-review を起動:
+   - `Skill(skill="kiro:scene-review", args="{FEATURE_NAME}")`
+   - **注意**: scene-reviewはインタラクティブ（AskUserQuestionでユーザーの合格/不合格判断を収集する）
+2. scene-review完了後の分岐:
+   - **不合格の項目がある場合**: worktreeを保持し、修正→再実行の案内をして停止（ステップ 7A へ）
+   - **全項目合格の場合**: ステップ 6B に進む（Push + PR + クリーンアップ）
+
+### ステップ 6B: Agent D — Push + PR + クリーンアップ
+
+ステップ 5.5 でHuman Reviewタスクがなかった場合、またはステップ 6A で全項目合格の場合にAgent Dを起動してPush・PR作成を行う。
+
+```
+Agent(
+  description: "push-pr <feature-name>",
+  prompt: """
+  以下のworktreeブランチで、Push・PR作成を行ってください。
+
+  ## cwd強制
+  最初に必ず以下を実行してください:
+  1. cd {WORKTREE_PATH}
+  2. git rev-parse --show-toplevel で {WORKTREE_PATH} にいることを確認
+  すべてのBashコマンドは {WORKTREE_PATH} で実行すること。
+
+  ## ブランチ
+  {BRANCH_NAME}
+
+  ## Feature
+  {FEATURE_NAME}
+
+  ## 実行手順
+
   ### Phase 7: Push + PR作成
   1. gh pr list --head {BRANCH_NAME} で既存PRを確認
      - 既にPRが存在する場合: PR URLを報告してスキップ
@@ -215,49 +267,73 @@ Agent(
      - base: {BASE_BRANCH}
 
   ## 完了報告
-  - コミットの有無と内容
   - PR URL
   """
 )
 ```
 
-### Step 6: Final Output
+Agent DがPR作成に成功した場合、worktreeを削除する:
+1. `git worktree remove {WORKTREE_PATH}` を実行
+   - 未コミットの変更がある場合（Agent Dが失敗した場合など）: `--force` は使わず、警告を表示してスキップ
+2. worktree削除後、空になった親ディレクトリも整理: `rmdir --ignore-fail-on-non-empty .claude/worktrees/feat/`
+3. ブランチはPRに紐付いているため削除しない
 
-Display combined results from all Agents:
-- Worktree branch name
-- Created spec name
-- Task completion status
-- Skipped Human Review tasks (if any, guide to `/kiro:scene-review`)
+**注意**: Agent Dが失敗した場合はworktreeを保持し、手動リカバリ用にパスを報告する。
+
+### ステップ 7A: 最終出力（scene-reviewで不合格あり）
+
+scene-reviewで不合格項目がある場合の出力:
+- ブランチ名
+- 作成されたspec名
+- タスク完了状況
+- scene-reviewの結果（合格/不合格の項目）
+- worktreeパス（保持中）
+- 次のステップの案内:
+  - **通常**: worktreeで直接修正 → `/kiro:scene-review` で再レビュー
+  - **specに問題がある場合**（tasks/design/requirementsの誤り）: 該当フェーズから再生成（例: `/kiro:spec-design` → `/kiro:spec-tasks` → `/kiro:spec-impl`）
+
+### ステップ 7B: 最終出力（PR作成完了）
+
+scene-reviewが全項目合格だった場合、またはHuman Reviewタスクがなかった場合の出力:
+- ブランチ名
+- 作成されたspec名
+- タスク完了状況
 - PR URL
-- Worktree cleanup guidance (delete after merge)
+- worktreeが削除済みであること（または失敗時は保持パス）
 
-## Important Design Decisions
+## 重要な設計判断
 
-1. **Always worktree-isolated**: Every invocation uses a worktree regardless of plan size. Main session stays minimal.
-2. **Subagent split for token optimization**: Spec generation (A) and implementation (B) use separate agents to avoid context carryover.
-3. **Steering auto-loaded**: Each spec command automatically reads `.kiro/steering/`. No need to pass steering in Agent prompts.
-4. **Feature name from spec.json**: After spec-init, always read spec.json for the actual feature name (may differ from plan name).
-5. **Phase-based resume**: Existing specs are detected via `spec.json.phase`, allowing deterministic mid-pipeline resume.
-6. **Auto-approve with `-y`**: Plan serves as the approved source, so approval gates are skipped. Tasks are auto-approved in Phase 4.5.
-7. **Plan content via `--plan` flag**: Passed to spec-requirements for context-aware requirement generation without polluting requirements.md.
-8. **Absolute paths for plan files**: Plan files are resolved to absolute paths so they remain accessible from worktree context.
-9. **cwd enforcement**: Each Agent starts with `cd` + `git rev-parse --show-toplevel` verification to ensure worktree isolation.
+1. **常にworktreeで隔離**: planのサイズに関わらず、すべての呼び出しでworktreeを使用する。メインセッションは最小限に保つ。
+2. **トークン最適化のためのサブエージェント分割**: spec生成（A）と実装（B）は別々のエージェントを使用し、コンテキストの持ち越しを避ける。
+3. **steeringの自動読み込み**: 各specコマンドは自動的に `.kiro/steering/` を読み込む。Agentプロンプトにsteeringを渡す必要はない。
+4. **フィーチャー名はspec.jsonから取得**: spec-init後、常にspec.jsonから実際のフィーチャー名を読む（plan名と異なる場合がある）。
+5. **フェーズベースの再開**: 既存specは `spec.json.phase` で検出され、パイプラインの途中から決定論的に再開できる。
+6. **`-y` による自動承認**: planが承認済みソースとして機能するため、承認ゲートはスキップされる。タスクはPhase 4.5で自動承認される。
+7. **`--plan` フラグでplan内容を渡す**: requirements.mdを汚染せずにコンテキスト対応のrequirements生成を行うため、spec-requirementsに渡される。
+8. **planファイルの絶対パス**: planファイルは絶対パスに解決され、worktreeコンテキストからもアクセス可能にする。
+9. **cwd強制**: 各Agentは `cd` + `git rev-parse --show-toplevel` の検証で開始し、worktreeの隔離を保証する。
 </instructions>
 
-## Tool Guidance
-- **Bash**: Preflight checks, git operations, worktree management
-- **Read**: Checking spec.json during resume detection
-- **Glob**: Plan file resolution
-- **Agent**: Launch subagents A, B, C sequentially (never use `isolation: "worktree"` — worktree is pre-created)
+## ツールガイド
+- **Bash**: プリフライトチェック、git操作、worktree管理
+- **Read**: 再開検出時のspec.json確認
+- **Glob**: planファイルの解決
+- **Agent**: サブエージェントA、B、C（、D）を順次起動（`isolation: "worktree"` は使用しない — worktreeは事前作成済み）
+- **Skill**: scene-reviewの起動（Human Reviewタスクがある場合）
 
-## Output Description
-Concise final summary including:
-1. Branch and worktree info
-2. Spec name and completion status
-3. PR URL
-4. Next steps (Human Review tasks, worktree cleanup)
+## 出力内容
+以下を含む簡潔な最終サマリ:
+1. ブランチ名
+2. spec名と完了状況
+3. Human Reviewなし: PR URL + worktree削除済み
+4. Human Reviewあり: scene-review結果 + worktreeパス（保持中）+ 次のステップ案内
 
-## Safety & Fallback
-- **Plan not found**: List available plans in `docs/plans/` with full paths
-- **Git conflicts**: Never force-push; report conflicts for manual resolution
-- **Agent failure**: Report which agent failed, preserve worktree for manual recovery
+## 安全性とフォールバック
+- **planが見つからない場合**: `docs/plans/` 内の利用可能なplanをフルパスで一覧表示
+- **gitコンフリクト**: 強制プッシュはしない。コンフリクトを報告し手動解決を依頼
+- **Agent A/B失敗**: どのAgentが失敗したか報告し、手動リカバリのためにworktreeを保持
+- **Agent C失敗**: worktreeを保持し、パスを報告（手動コミット後にリカバリ可能）
+- **Agent D失敗**: worktreeを保持し、パスを報告（手動でPR作成後に `git worktree remove` で削除可能）
+- **Agent D成功**: worktreeを自動削除（ブランチはPR用に保持）
+- **Human Reviewあり**: worktreeを保持（scene-review後の追加修正に備える）
+</output>

@@ -3,6 +3,10 @@
     "memory": {
       "command": "node",
       "args": ["tools/memory-mcp/server.mjs"]
+    },
+    "gopeak": {
+      "command": "npx",
+      "args": ["gopeak"]
     }
   }
 }

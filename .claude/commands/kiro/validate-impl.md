@@ -1,138 +1,164 @@
 ---
 description: Validate implementation against requirements, design, and tasks
-allowed-tools: Bash, Glob, Grep, Read, LS
+allowed-tools: Bash, Glob, Grep, Read, mcp__gopeak__lsp_diagnostics, mcp__gopeak__editor_run, mcp__gopeak__editor_stop, mcp__gopeak__runtime_status, mcp__gopeak__editor_debug_output, mcp__gopeak__dap_output, mcp__gopeak__tool_groups
 argument-hint: [feature-name] [task-numbers]
 ---
 
-# Implementation Validation
+# 実装バリデーション
 
 <background_information>
-- **Mission**: Verify that implementation aligns with approved requirements, design, and tasks
-- **Success Criteria**:
-  - All specified tasks marked as completed
-  - Tests exist and pass for implemented functionality
-  - Requirements traceability confirmed (EARS requirements covered)
-  - Design structure reflected in implementation
-  - No regressions in existing functionality
+- **ミッション**: 実装が承認済みの要件、設計、タスクと整合していることを検証する
+- **成功基準**:
+  - 指定されたすべてのタスクが完了としてマークされている
+  - 実装された機能に対するテストが存在し、パスしている
+  - 要件トレーサビリティが確認されている（EARS要件がカバーされている）
+  - 設計構造が実装に反映されている
+  - 既存機能にリグレッションがない
 </background_information>
 
 <instructions>
-## Core Task
-Validate implementation for feature(s) and task(s) based on approved specifications.
+## コアタスク
+承認済みスペックに基づき、機能とタスクの実装を検証する。
 
-## Execution Steps
+## 実行ステップ
 
-### 1. Detect Validation Target
+### 1. バリデーション対象の検出
 
-**If no arguments provided** (`$1` empty):
-- Parse conversation history for `/kiro:spec-impl <feature> [tasks]` commands
-- Extract feature names and task numbers from each execution
-- Aggregate all implemented tasks by feature
-- Report detected implementations (e.g., "user-auth: 1.1, 1.2, 1.3")
-- If no history found, scan `.kiro/specs/` for features with completed tasks `[x]`
+**引数が指定されていない場合**（`$1` が空）:
+- `.kiro/specs/` をスキャンしてすべての機能ディレクトリを検出
+- 各機能の `tasks.md` を読み込み、完了済みタスク `[x]` を検出
+- すべての実装済みタスクを機能ごとに集約
+- 検出された実装を報告（例: "user-auth: 1.1, 1.2, 1.3"）
 
-**If feature provided** (`$1` present, `$2` empty):
-- Use specified feature
-- Detect all completed tasks `[x]` in `.kiro/specs/$1/tasks.md`
+**機能が指定された場合**（`$1` あり、`$2` なし）:
+- 指定された機能を使用
+- `.kiro/specs/$1/tasks.md` のすべての完了済みタスク `[x]` を検出
 
-**If both feature and tasks provided** (`$1` and `$2` present):
-- Validate specified feature and tasks only (e.g., `user-auth 1.1,1.2`)
+**機能とタスクの両方が指定された場合**（`$1` と `$2` あり）:
+- 指定された機能とタスクのみを検証（例: `user-auth 1.1,1.2`）
 
-### 2. Load Context
+### 2. コンテキストの読み込み
 
-For each detected feature:
-- Read `.kiro/specs/<feature>/spec.json` for metadata
-- Read `.kiro/specs/<feature>/requirements.md` for requirements
-- Read `.kiro/specs/<feature>/design.md` for design structure
-- Read `.kiro/specs/<feature>/tasks.md` for task list
-- **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-  - Default files: `structure.md`, `tech.md`, `product.md`
-  - All custom steering files (regardless of mode settings)
+検出された各機能について:
+- `.kiro/specs/<feature>/spec.json` を読み込んでメタデータを取得
+- `.kiro/specs/<feature>/requirements.md` を読み込んで要件を取得
+- `.kiro/specs/<feature>/design.md` を読み込んで設計構造を取得
+- `.kiro/specs/<feature>/tasks.md` を読み込んでタスクリストを取得
+- **すべてのsteeringコンテキストを読み込む**: `.kiro/steering/` ディレクトリ全体を読み込む:
+  - デフォルトファイル: `structure.md`, `tech.md`, `product.md`
+  - すべてのカスタムsteeringファイル（モード設定に関係なく）
 
-### 3. Execute Validation
+### 3. バリデーションの実行
 
-For each task, verify:
+各タスクについて以下を検証:
 
-#### Task Completion Check
-- Checkbox is `[x]` in tasks.md
-- If not completed, flag as "Task not marked complete"
+#### タスク完了チェック
+- tasks.mdでチェックボックスが `[x]` であること
+- 完了していない場合、「タスクが完了としてマークされていません」とフラグ
 
-#### Test Coverage Check
-- Tests exist for task-related functionality
-- Tests pass (no failures or errors)
-- Use Bash to run test commands (e.g., `npm test`, `pytest`)
-- If tests fail or don't exist, flag as "Test coverage issue"
+#### テストカバレッジチェック
+- タスク関連の機能に対するテストが存在すること
+- テストがパスすること（失敗やエラーがないこと）
+- GdUnit4テストをBashで実行: `godot --headless --path <projectPath> -s addons/gdUnit4/bin/GdUnitCmdTool.gd`
+- テストが失敗または存在しない場合、「テストカバレッジの問題」とフラグ
 
-#### Requirements Traceability
-- Identify EARS requirements related to the task
-- Use Grep to search implementation for evidence of requirement coverage
-- If requirement not traceable to code, flag as "Requirement not implemented"
+#### LSP品質チェック（ベストエフォート）
+- `mcp__gopeak__lsp_diagnostics` を実行して静的解析のエラー/警告を確認
+- エディタが起動していないかGoPoakが利用できない場合: スキップして **「LSPチェックスキップ: エディタ未起動」** を出力
+- LSP結果は参考情報であり、GO/NO-GO判定には影響しない
 
-#### Design Alignment
-- Check if design.md structure is reflected in implementation
-- Verify key interfaces, components, and modules exist
-- Use Grep/LS to confirm file structure matches design
-- If misalignment found, flag as "Design deviation"
+#### ランタイムスモークチェック（Layer 2タスクのみ）
+- Layer 2（インテグレーション）スコープのタスクについて、`mcp__gopeak__editor_run` でランタイム検証を実行
+- `mcp__gopeak__editor_debug_output` と `mcp__gopeak__runtime_status` で監視
+- タイムアウト: 30秒。検証後またはタイムアウト時にクリーンアップのため `mcp__gopeak__editor_stop` を呼び出す
+- フォールバック: GoPoakが利用できない場合はBashで `godot --path <projectPath>` を実行
+- ランタイムエラーは「ランタイムスモークチェック失敗」としてフラグ（警告レベル）
 
-#### Regression Check
-- Run full test suite (if available)
-- Verify no existing tests are broken
-- If regressions detected, flag as "Regression detected"
+#### 要件トレーサビリティ
+- タスクに関連するEARS要件を特定
+- Grepを使用して実装内に要件カバレッジの証拠を検索
+- 要件がコードにトレースできない場合、「要件が未実装」とフラグ
 
-### 4. Generate Report
+#### 設計整合性
+- design.mdの構造が実装に反映されているか確認
+- 主要なインターフェース、コンポーネント、モジュールが存在することを検証
+- Grep/LSを使用してファイル構造が設計と一致していることを確認
+- 不整合が見つかった場合、「設計からの逸脱」とフラグ
 
-Provide summary in the language specified in spec.json:
-- Validation summary by feature
-- Coverage report (tasks, requirements, design)
-- Issues and deviations with severity (Critical/Warning)
-- GO/NO-GO decision
+#### リグレッションチェック
+- フルテストスイートを実行（利用可能な場合）
+- 既存のテストが壊れていないことを検証
+- リグレッションが検出された場合、「リグレッション検出」とフラグ
 
-## Important Constraints
-- **Conversation-aware**: Prioritize conversation history for auto-detection
-- **Non-blocking warnings**: Design deviations are warnings unless critical
-- **Test-first focus**: Test coverage is mandatory for GO decision
-- **Traceability required**: All requirements must be traceable to implementation
+### 4. レポートの生成
+
+spec.jsonで指定された言語でサマリーを提供:
+- **機能別セクション**: 各機能に対してバリデーションサマリー、カバレッジレポート、問題リスト、GO/NO-GO/CONDITIONAL GO判定を提供
+- 機能ごとのカバレッジレポート（タスク、要件、設計）
+- 重大度付きの問題と逸脱（Critical/Warning）
+- 複数機能の場合: 最後に全体サマリーを含める
+
+## 重要な制約
+- **ファイル駆動検出**: 自動検出のソースオブトゥルースとして `.kiro/specs/*/tasks.md` のチェックボックスを使用
+- **非ブロッキング警告**: 設計からの逸脱は重大でない限り警告扱い
+- **テストファースト重視**: GO判定にはテストカバレッジが必須。テストコマンドが不明な場合、判定は必ず `CONDITIONAL GO`（ユーザーによる手動テスト検証が必要）
+- **トレーサビリティ必須**: すべての要件が実装にトレース可能でなければならない
 </instructions>
 
-## Tool Guidance
-- **Conversation parsing**: Extract `/kiro:spec-impl` patterns from history
-- **Read context**: Load all specs and steering before validation
-- **Bash for tests**: Execute test commands to verify pass status
-- **Grep for traceability**: Search codebase for requirement evidence
-- **LS/Glob for structure**: Verify file structure matches design
+## ツールガイダンス
 
-## Output Description
+### 標準ツール
+- **コンテキストの読み込み**: バリデーション前にすべてのスペックとsteeringを読み込む
+- **テスト実行にBash**: GdUnit4テストコマンドを実行してパスステータスを検証
+- **トレーサビリティにGrep**: コードベース内で要件の証拠を検索
+- **構造確認にGlob**: ファイル構造が設計と一致していることを検証
 
-Provide output in the language specified in spec.json with:
+### GoPoakツール（ベストエフォート — すべてBashにフォールバック）
 
-1. **Detected Target**: Features and tasks being validated (if auto-detected)
-2. **Validation Summary**: Brief overview per feature (pass/fail counts)
-3. **Issues**: List of validation failures with severity and location
-4. **Coverage Report**: Requirements/design/task coverage percentages
-5. **Decision**: GO (ready for next phase) / NO-GO (needs fixes)
+**診断**:
+- `mcp__gopeak__lsp_diagnostics` — 静的解析（エディタ起動時のみ、GO/NO-GO非影響）
+- `mcp__gopeak__tool_groups` — ツールグループの有効化
 
-**Format Requirements**:
-- Use Markdown headings and tables for clarity
-- Flag critical issues with ⚠️ or 🔴
-- Keep summary concise (under 400 words)
+**ランタイム検証**:
+- `mcp__gopeak__editor_run` — ランタイム実行（Layer 2タスクのスモークテスト用）
+- `mcp__gopeak__editor_debug_output` — デバッグ出力取得
+- `mcp__gopeak__editor_stop` — ランタイム停止・クリーンアップ（検証後またはタイムアウト時に必ず呼ぶ）
+- `mcp__gopeak__runtime_status` — ランタイム状態確認
+- `mcp__gopeak__dap_output` — DAPデバッグ出力
 
-## Safety & Fallback
+## 出力の説明
 
-### Error Scenarios
-- **No Implementation Found**: If no `/kiro:spec-impl` in history and no `[x]` tasks, report "No implementations detected"
-- **Test Command Unknown**: If test framework unclear, warn and skip test validation (manual verification required)
-- **Missing Spec Files**: If spec.json/requirements.md/design.md missing, stop with error
-- **Language Undefined**: Default to English (`en`) if spec.json doesn't specify language
+spec.jsonで指定された言語で以下を含む出力を提供:
 
-### Next Steps Guidance
+1. **検出された対象**: 検証対象の機能とタスク（自動検出の場合）
+2. **バリデーションサマリー**: 機能ごとの概要（パス/失敗の件数）
+3. **問題**: 重大度と場所を含むバリデーション失敗のリスト
+4. **カバレッジレポート**: 要件/設計/タスクのカバレッジ率
+5. **判定**: GO（次のフェーズに進む準備完了）/ CONDITIONAL GO（テストコマンド不明 — ユーザーによる手動テスト検証が必要）/ NO-GO（修正が必要）
 
-**If GO Decision**:
-- Implementation validated and ready
-- Proceed to deployment or next feature
+**フォーマット要件**:
+- 明確性のためにMarkdownの見出しと表を使用
+- 重大な問題には ⚠️ または 🔴 でフラグ付け
+- サマリーは簡潔に（400語以下）
 
-**If NO-GO Decision**:
-- Address critical issues listed
-- Re-run `/kiro:spec-impl <feature> [tasks]` for fixes
-- Re-validate with `/kiro:validate-impl [feature] [tasks]`
+## 安全対策とフォールバック
 
-**Note**: Validation is recommended after implementation to ensure spec alignment and quality.
+### エラーシナリオ
+- **実装が見つからない場合**: いずれの `.kiro/specs/*/tasks.md` にも `[x]` タスクが見つからない場合、「実装が検出されませんでした」と報告
+- **テストコマンドが不明な場合**: テストフレームワークが不明な場合、`CONDITIONAL GO` を発行 — 自動テストバリデーションはスキップするが、続行前にユーザーが手動でテストのパスを確認する必要がある。これは完全なGOではない。
+- **スペックファイルが不足している場合**: spec.json/requirements.md/design.mdが不足している場合、エラーで停止
+- **言語が未定義の場合**: spec.jsonに言語が指定されていない場合、英語（`en`）をデフォルトとする
+
+### 次のステップのガイダンス
+
+**GO判定の場合**:
+- 実装が検証され、準備完了
+- デプロイまたは次の機能に進む
+
+**NO-GO判定の場合**:
+- リストされた重大な問題に対処する
+- 修正のため `/kiro:spec-impl <feature> [tasks]` を再実行
+- `/kiro:validate-impl [feature] [tasks]` で再検証
+
+**注意**: スペックの整合性と品質を確保するため、実装後のバリデーションを推奨します。
+</output>

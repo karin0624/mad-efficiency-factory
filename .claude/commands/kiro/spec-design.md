@@ -1,176 +1,181 @@
 ---
 description: Create comprehensive technical design for a specification
-allowed-tools: Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch, WebFetch
+allowed-tools: Bash, Glob, Grep, Read, Write, Edit, WebSearch, WebFetch
 argument-hint: <feature-name> [-y]
 ---
 
-# Technical Design Generator
+# 技術設計ジェネレーター
 
 <background_information>
-- **Mission**: Generate comprehensive technical design document that translates requirements (WHAT) into architectural design (HOW)
-- **Success Criteria**:
-  - All requirements mapped to technical components with clear interfaces
-  - Appropriate architecture discovery and research completed
-  - Design aligns with steering context and existing patterns
-  - Visual diagrams included for complex architectures
+- **ミッション**: 要件（WHAT）をアーキテクチャ設計（HOW）に変換する包括的な技術設計ドキュメントを生成する
+- **成功基準**:
+  - すべての要件が明確なインターフェースを持つ技術コンポーネントにマッピングされている
+  - 適切なアーキテクチャ調査とリサーチが完了している
+  - 設計がsteeringコンテキストおよび既存パターンと整合している
+  - 複雑なアーキテクチャにはビジュアル図が含まれている
 </background_information>
 
 <instructions>
-## Core Task
-Generate technical design document for feature **$1** based on approved requirements.
+## コアタスク
+承認済み要件に基づき、機能 **$1** の技術設計ドキュメントを生成する。
 
-## Execution Steps
+## 実行ステップ
 
-### Step 1: Load Context
+### ステップ 1: コンテキストの読み込み
 
-**Read all necessary context**:
-- `.kiro/specs/$1/spec.json`, `requirements.md`, `design.md` (if exists)
-- **Entire `.kiro/steering/` directory** for complete project memory
-- `.kiro/settings/templates/specs/design.md` for document structure
-- `.kiro/settings/rules/design-principles.md` for design principles
-- `.kiro/settings/templates/specs/research.md` for discovery log structure
+**必要なコンテキストをすべて読み込む**:
+- `.kiro/specs/$1/spec.json`, `requirements.md`, `design.md`（存在する場合）
+- **`.kiro/steering/` ディレクトリ全体**（プロジェクトメモリとして）
+- `.kiro/settings/templates/specs/design.md`（ドキュメント構造用）
+- `.kiro/settings/rules/design-principles.md`（設計原則用）
+- `.kiro/settings/templates/specs/research.md`（ディスカバリーログ構造用）
 
-**Validate requirements approval**:
-- If `-y` flag provided ($2 == "-y"): Auto-approve requirements in spec.json
-- Otherwise: Verify approval status (stop if unapproved, see Safety & Fallback)
+**要件の承認を検証する**:
+- `$ARGUMENTS` をパース: 最初のトークン = 機能名（`$1`）、残りのトークンから `-y` フラグを検出（順序不問）
+- `-y` フラグが検出された場合: spec.json内の要件を自動承認
+- それ以外: 承認ステータスを確認（未承認の場合は停止、「安全対策とフォールバック」を参照）
 
-### Step 2: Discovery & Analysis
+### ステップ 2: ディスカバリーと分析
 
-**Critical: This phase ensures design is based on complete, accurate information.**
+**重要: このフェーズにより、設計が完全かつ正確な情報に基づくことを保証する。**
 
-1. **Classify Feature Type**:
-   - **New Feature** (greenfield) → Full discovery required
-   - **Extension** (existing system) → Integration-focused discovery
-   - **Simple Addition** (CRUD/UI) → Minimal or no discovery
-   - **Complex Integration** → Comprehensive analysis required
+1. **機能タイプの分類**:
+   - **新規機能**（グリーンフィールド）→ フルディスカバリーが必要
+   - **拡張**（既存システム）→ インテグレーション重視のディスカバリー
+   - **単純な追加**（CRUD/UI）→ 最小限またはディスカバリー不要
+   - **複雑なインテグレーション** → 包括的な分析が必要
 
-2. **Execute Appropriate Discovery Process**:
-   
-   **For Complex/New Features**:
-   - Read and execute `.kiro/settings/rules/design-discovery-full.md`
-   - Conduct thorough research using WebSearch/WebFetch:
-     - Latest architectural patterns and best practices
-     - External dependency verification (APIs, libraries, versions, compatibility)
-     - Official documentation, migration guides, known issues
-     - Performance benchmarks and security considerations
-   
-   **For Extensions**:
-   - Read and execute `.kiro/settings/rules/design-discovery-light.md`
-   - Focus on integration points, existing patterns, compatibility
-   - Use Grep to analyze existing codebase patterns
-   
-   **For Simple Additions**:
-   - Skip formal discovery, quick pattern check only
+2. **適切なディスカバリープロセスの実行**:
 
-3. **Retain Discovery Findings for Step 3**:
-- External API contracts and constraints
-- Technology decisions with rationale
-- Existing patterns to follow or extend
-- Integration points and dependencies
-- Identified risks and mitigation strategies
-- Potential architecture patterns and boundary options (note details in `research.md`)
-- Parallelization considerations for future tasks (capture dependencies in `research.md`)
+   **複雑/新規機能の場合**:
+   - `.kiro/settings/rules/design-discovery-full.md` を読み込んで実行
+   - WebSearch/WebFetchを使用した徹底的なリサーチ:
+     - 最新のアーキテクチャパターンとベストプラクティス
+     - 外部依存関係の検証（API、ライブラリ、バージョン、互換性）
+     - 公式ドキュメント、マイグレーションガイド、既知の問題
+     - パフォーマンスベンチマークとセキュリティの考慮事項
 
-4. **Persist Findings to Research Log**:
-- Create or update `.kiro/specs/$1/research.md` using the shared template
-- Summarize discovery scope and key findings (Summary section)
-- Record investigations in Research Log topics with sources and implications
-- Document architecture pattern evaluation, design decisions, and risks using the template sections
-- Use the language specified in spec.json when writing or updating `research.md`
+   **拡張の場合**:
+   - `.kiro/settings/rules/design-discovery-light.md` を読み込んで実行
+   - インテグレーションポイント、既存パターン、互換性に注力
+   - Grepを使用して既存コードベースのパターンを分析
 
-### Step 3: Generate Design Document
+   **単純な追加の場合**:
+   - 正式なディスカバリーはスキップ、クイックパターンチェックのみ
 
-1. **Load Design Template and Rules**:
-- Read `.kiro/settings/templates/specs/design.md` for structure
-- Read `.kiro/settings/rules/design-principles.md` for principles
+3. **ステップ 3 のためにディスカバリー結果を保持**:
+- 外部APIの契約と制約
+- 根拠付きの技術的決定
+- 従うまたは拡張すべき既存パターン
+- インテグレーションポイントと依存関係
+- 特定されたリスクと緩和戦略
+- 潜在的なアーキテクチャパターンと境界オプション（詳細は `research.md` に記録）
+- 将来のタスクの並列化に関する考慮事項（依存関係は `research.md` に記録）
 
-2. **Generate Design Document**:
-- **Follow specs/design.md template structure and generation instructions strictly**
-- **Integrate all discovery findings**: Use researched information (APIs, patterns, technologies) throughout component definitions, architecture decisions, and integration points
-- If existing design.md found in Step 1, use it as reference context (merge mode)
-- Apply design rules: Type Safety, Visual Communication, Formal Tone
-- Use language specified in spec.json
-- Ensure sections reflect updated headings ("Architecture Pattern & Boundary Map", "Technology Stack & Alignment", "Components & Interface Contracts") and reference supporting details from `research.md`
+4. **リサーチログへの結果の永続化**:
+- 共有テンプレートを使用して `.kiro/specs/$1/research.md` を作成または更新
+- ディスカバリーの範囲と主要な発見を要約（Summaryセクション）
+- ソースと影響を含むリサーチログトピックに調査結果を記録
+- テンプレートセクションを使用して、アーキテクチャパターンの評価、設計決定、リスクを文書化
+- `research.md` の記述にはspec.jsonで指定された言語を使用
 
-3. **Update Metadata** in spec.json:
-- Set `phase: "design-generated"`
-- Set `approvals.design.generated: true, approved: false`
-- Set `approvals.requirements.approved: true`
-- Update `updated_at` timestamp
+### ステップ 3: 設計ドキュメントの生成
 
-## Critical Constraints
- - **Type Safety**:
-   - Enforce strong typing aligned with the project's technology stack.
-   - For statically typed languages, define explicit types/interfaces and avoid unsafe casts (e.g., C#: no `object` or untyped collections; use generics with constraints).
-   - For dynamically typed languages, provide type hints/annotations where available (e.g., Python type hints) and validate inputs at boundaries.
-   - Document public interfaces and contracts clearly to ensure cross-component type safety.
-- **Latest Information**: Use WebSearch/WebFetch for external dependencies and best practices
-- **Steering Alignment**: Respect existing architecture patterns from steering context
-- **Template Adherence**: Follow specs/design.md template structure and generation instructions strictly
-- **Design Focus**: Architecture and interfaces ONLY, no implementation code
-- **Requirements Traceability IDs**: Use numeric requirement IDs only (e.g. "1.1", "1.2", "3.1", "3.3") exactly as defined in requirements.md. Do not invent new IDs or use alphabetic labels.
+1. **設計テンプレートとルールの読み込み**:
+- `.kiro/settings/templates/specs/design.md` の構造を読み込む
+- `.kiro/settings/rules/design-principles.md` の原則を読み込む
+
+2. **設計ドキュメントの生成**:
+- **specs/design.mdテンプレートの構造と生成指示に厳密に従う**
+- **すべてのディスカバリー結果を統合**: リサーチ済み情報（API、パターン、技術）をコンポーネント定義、アーキテクチャ決定、インテグレーションポイント全体に活用
+- ステップ 1 で既存のdesign.mdが見つかった場合、参照コンテキストとして使用（マージモード）
+- 設計ルールを適用: 型安全性、ビジュアルコミュニケーション、フォーマルなトーン
+- spec.jsonで指定された言語を使用
+- セクションが更新された見出し（「Architecture Pattern & Boundary Map」「Technology Stack & Alignment」「Components & Interface Contracts」）を反映し、`research.md` の補足詳細を参照すること
+
+3. **spec.jsonのメタデータ更新**:
+- `phase: "design-generated"` を設定
+- `approvals.design.generated: true, approved: false` を設定
+- `approvals.requirements.approved: true` を設定
+- `updated_at` タイムスタンプを更新
+
+## 重要な制約
+ - **型安全性**:
+   - プロジェクトの技術スタックに合わせた強い型付けを適用する。
+   - 静的型付け言語では、明示的な型/インターフェースを定義し、安全でないキャストを避ける（例: 型なしコレクションは使わない。制約付きジェネリクスを使用する）。
+   - 動的型付け言語では、利用可能な場合は型ヒント/アノテーションを提供し（例: Python型ヒント）、境界で入力を検証する。
+   - クロスコンポーネントの型安全性を確保するため、パブリックインターフェースと契約を明確に文書化する。
+- **最新情報**: 外部依存関係とベストプラクティスにはWebSearch/WebFetchを使用
+- **steeringとの整合性**: steeringコンテキストの既存アーキテクチャパターンを尊重
+- **テンプレート準拠**: specs/design.mdテンプレートの構造と生成指示に厳密に従う
+- **設計に集中**: アーキテクチャとインターフェースのみ、実装コードは含めない
+- **要件トレーサビリティID**: 数値の要件IDのみ使用（例: "1.1", "1.2", "3.1", "3.3"）、requirements.mdで定義された通りに正確に使用する。新しいIDを作成したり、アルファベットのラベルを使用しないこと。
 </instructions>
 
-## Tool Guidance
-- **Read first**: Load all context before taking action (specs, steering, templates, rules)
-- **Research when uncertain**: Use WebSearch/WebFetch for external dependencies, APIs, and latest best practices
-- **Analyze existing code**: Use Grep to find patterns and integration points in codebase
-- **Write last**: Generate design.md only after all research and analysis complete
+## ツールガイダンス
+- **まず読み込み**: アクションを取る前にすべてのコンテキストを読み込む（specs、steering、テンプレート、ルール）
+- **不確かな場合はリサーチ**: 外部依存関係、API、最新のベストプラクティスにはWebSearch/WebFetchを使用
+- **既存コードの分析**: Grepを使用してコードベースのパターンやインテグレーションポイントを検索
+- **最後に書き込み**: すべてのリサーチと分析が完了してからdesign.mdを生成
 
-## Output Description
+## 出力の説明
 
-**Command execution output** (separate from design.md content):
+**コマンド実行の出力**（design.mdの内容とは別）:
 
-Provide brief summary in the language specified in spec.json:
+spec.jsonで指定された言語で簡潔なサマリーを提供:
 
-1. **Status**: Confirm design document generated at `.kiro/specs/$1/design.md`
-2. **Discovery Type**: Which discovery process was executed (full/light/minimal)
-3. **Key Findings**: 2-3 critical insights from `research.md` that shaped the design
-4. **Next Action**: Approval workflow guidance (see Safety & Fallback)
-5. **Research Log**: Confirm `research.md` updated with latest decisions
+1. **ステータス**: `.kiro/specs/$1/design.md` に設計ドキュメントが生成されたことを確認
+2. **ディスカバリータイプ**: 実行されたディスカバリープロセス（フル/ライト/最小）
+3. **主要な発見**: 設計に影響を与えた `research.md` からの2-3の重要な知見
+4. **次のアクション**: 承認ワークフローのガイダンス（「安全対策とフォールバック」を参照）
+5. **リサーチログ**: `research.md` が最新の決定で更新されたことを確認
 
-**Format**: Concise Markdown (under 200 words) - this is the command output, NOT the design document itself
+**フォーマット**: 簡潔なMarkdown（200語以下） - これはコマンドの出力であり、設計ドキュメント自体ではない
 
-**Note**: The actual design document follows `.kiro/settings/templates/specs/design.md` structure.
+**注意**: 実際の設計ドキュメントは `.kiro/settings/templates/specs/design.md` の構造に従う。
 
-## Safety & Fallback
+## 安全対策とフォールバック
 
-### Error Scenarios
+### エラーシナリオ
 
-**Requirements Not Approved**:
-- **Stop Execution**: Cannot proceed without approved requirements
-- **User Message**: "Requirements not yet approved. Approval required before design generation."
-- **Suggested Action**: "Run `/kiro:spec-design $1 -y` to auto-approve requirements and proceed"
+**要件が未承認の場合**:
+- **実行停止**: 承認済み要件なしでは続行できない
+- **ユーザーメッセージ**: 「要件がまだ承認されていません。設計生成前に承認が必要です。」
+- **推奨アクション**: 「`/kiro:spec-design $1 -y` を実行して要件を自動承認して続行してください」
 
-**Missing Requirements**:
-- **Stop Execution**: Requirements document must exist
-- **User Message**: "No requirements.md found at `.kiro/specs/$1/requirements.md`"
-- **Suggested Action**: "Run `/kiro:spec-requirements $1` to generate requirements first"
+**要件が存在しない場合**:
+- **実行停止**: 要件ドキュメントが存在する必要がある
+- **ユーザーメッセージ**: 「`.kiro/specs/$1/requirements.md` にrequirements.mdが見つかりません」
+- **推奨アクション**: 「`/kiro:spec-requirements $1` を実行して先に要件を生成してください」
 
-**Template Missing**:
-- **User Message**: "Template file missing at `.kiro/settings/templates/specs/design.md`"
-- **Suggested Action**: "Check repository setup or restore template file"
-- **Fallback**: Use inline basic structure with warning
+**テンプレートまたはルールファイルが存在しない場合**:
+- **実行停止**: 以下のいずれかが不足している場合、停止して不足ファイルを一覧表示:
+  - `.kiro/settings/templates/specs/design.md`
+  - `.kiro/settings/rules/design-principles.md`
+  - `.kiro/settings/rules/design-discovery-full.md`（複雑/新規機能の場合）
+  - `.kiro/settings/rules/design-discovery-light.md`（拡張の場合）
+- **ユーザーメッセージ**: 「必要なファイルが不足しています: `<リスト>`。設計生成を実行する前に復元してください。」
 
-**Steering Context Missing**:
-- **Warning**: "Steering directory empty or missing - design may not align with project standards"
-- **Proceed**: Continue with generation but note limitation in output
+**steeringコンテキストが存在しない場合**:
+- **警告**: 「steeringディレクトリが空または不足しています - 設計がプロジェクト標準と整合しない可能性があります」
+- **続行**: 生成を続行するが、出力にこの制限を記載
 
-**Discovery Complexity Unclear**:
-- **Default**: Use full discovery process (`.kiro/settings/rules/design-discovery-full.md`)
-- **Rationale**: Better to over-research than miss critical context
-- **Invalid Requirement IDs**:
-  - **Stop Execution**: If requirements.md is missing numeric IDs or uses non-numeric headings (for example, "Requirement A"), stop and instruct the user to fix requirements.md before continuing.
+**ディスカバリーの複雑さが不明な場合**:
+- **デフォルト**: フルディスカバリープロセスを使用（`.kiro/settings/rules/design-discovery-full.md`）
+- **理由**: 重要なコンテキストを見逃すよりも、過剰にリサーチする方が良い
+- **無効な要件ID**:
+  - **実行停止**: requirements.mdに数値IDがない場合、または非数値の見出し（例: 「Requirement A」）が使用されている場合、停止して続行前にrequirements.mdの修正をユーザーに指示する。
 
-### Next Phase: Task Generation
+### 次フェーズ: タスク生成
 
-**If Design Approved**:
-- Review generated design at `.kiro/specs/$1/design.md`
-- **Optional**: Run `/kiro:validate-design $1` for interactive quality review
-- Then `/kiro:spec-tasks $1 -y` to generate implementation tasks
+**設計が承認された場合**:
+- `.kiro/specs/$1/design.md` で生成された設計をレビュー
+- **オプション**: `/kiro:validate-design $1` を実行してインタラクティブな品質レビューを実施
+- その後 `/kiro:spec-tasks $1 -y` を実行して実装タスクを生成
 
-**If Modifications Needed**:
-- Provide feedback and re-run `/kiro:spec-design $1`
-- Existing design used as reference (merge mode)
+**修正が必要な場合**:
+- フィードバックを提供し、`/kiro:spec-design $1` を再実行
+- 既存の設計が参照として使用される（マージモード）
 
-**Note**: Design approval is mandatory before proceeding to task generation.
+**注意**: タスク生成に進む前に設計の承認が必須です。
+</output>

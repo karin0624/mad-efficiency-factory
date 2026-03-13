@@ -4,104 +4,104 @@ allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: <feature-name>
 ---
 
-# Scene Review
+# シーンレビュー
 
 <background_information>
-- **Mission**: Process uncompleted Human Review sub-tasks from tasks.md by presenting review criteria, collecting human judgment, and marking tasks complete upon human approval
-- **Success Criteria**:
-  - All pending Human Review sub-tasks from tasks.md identified
-  - Review criteria and confirmation steps presented to user
-  - Human pass/fail judgment collected for each item
-  - Passed tasks marked as `[x]` in tasks.md
-  - Failed tasks reported with actionable feedback
+- **ミッション**: tasks.md の未完了のヒューマンレビューサブタスクを処理し、レビュー基準を提示し、人間の判断を収集し、承認されたタスクを完了としてマークする
+- **成功基準**:
+  - tasks.md の保留中のヒューマンレビューサブタスクをすべて特定する
+  - レビュー基準と確認ステップをユーザーに提示する
+  - 各項目について人間の合格/不合格の判断を収集する
+  - 合格したタスクを tasks.md で `[x]` としてマークする
+  - 不合格のタスクを実行可能なフィードバックとともに報告する
 </background_information>
 
 <instructions>
-## Core Task
-Process Human Review sub-tasks for feature **$1** from tasks.md.
+## コアタスク
+フィーチャー **$1** の tasks.md からヒューマンレビューサブタスクを処理する。
 
-## Execution Steps
+## 実行ステップ
 
-### Step 1: Load Context
+### ステップ 1: コンテキストの読み込み
 
-**Read all necessary context**:
-- `.kiro/specs/$1/spec.json` for language and metadata
-- `.kiro/specs/$1/tasks.md` for pending Human Review sub-tasks
-- `.kiro/specs/$1/requirements.md` for Layer 2/3 review criteria
-- `.kiro/specs/$1/design.md` for visual design specifications
-- **Entire `.kiro/steering/` directory** for project context
+**必要なコンテキストをすべて読み込む**:
+- `.kiro/specs/$1/spec.json` — 言語とメタデータ
+- `.kiro/specs/$1/tasks.md` — 保留中のヒューマンレビューサブタスク
+- `.kiro/specs/$1/requirements.md` — レイヤー2/3のレビュー基準
+- `.kiro/specs/$1/design.md` — ビジュアルデザイン仕様
+- **`.kiro/steering/` ディレクトリ全体** — プロジェクトコンテキスト
 
-### Step 2: Extract Pending Human Review Tasks
+### ステップ 2: 保留中のヒューマンレビュータスクの抽出
 
-**Parse tasks.md** for unchecked Human Review sub-tasks:
-- Match pattern: `- [ ] X.Y Human review: [criteria]`
-- Collect task number, review criteria, and associated requirement IDs
-- If no Human Review tasks found, report and exit
+**tasks.md を解析**して未チェックのヒューマンレビューサブタスクを抽出する:
+- パターン `- [ ] X.Y Human review: [criteria]` にマッチさせる
+- タスク番号、レビュー基準、関連する要件IDを収集する
+- ヒューマンレビュータスクが見つからない場合は報告して終了する
 
-### Step 3: Present Review Items
+### ステップ 3: レビュー項目の提示
 
-For each pending Human Review task, present to the user:
-- **Task ID and description** (from tasks.md)
-- **Review criteria** (from the task description and requirements.md Non-Testable Aspects)
-- **What to evaluate**: Specific visual/feel/usability criteria
-- **How to verify**: Steps the user should take to visually confirm
-- **Ask for judgment**: Pass or Fail, with optional feedback
+保留中の各ヒューマンレビュータスクについて、ユーザーに以下を提示する:
+- **タスクIDと説明**（tasks.md から）
+- **レビュー基準**（タスクの説明と requirements.md の非テスト可能な側面から）
+- **評価対象**: 具体的なビジュアル/感触/ユーザビリティの基準
+- **確認方法**: ユーザーが視覚的に確認するための手順
+- **判断の依頼**: 合格または不合格（任意でフィードバックを追加）
 
-Use AskUserQuestion to collect the user's pass/fail decision for each item.
+AskUserQuestion を使用して各項目についてユーザーの合格/不合格の判断を収集する。
 
-### Step 4: Update tasks.md
+### ステップ 4: tasks.md の更新
 
-**For passed items**:
-- Update checkbox from `- [ ]` to `- [x]` in tasks.md
+**合格した項目**:
+- tasks.md でチェックボックスを `- [ ]` から `- [x]` に更新する
 
-**For failed items**:
-- Keep checkbox as `- [ ]`
-- Record user feedback as actionable items
-- Report which tasks need rework and what changes are needed
+**不合格の項目**:
+- チェックボックスは `- [ ]` のまま維持する
+- ユーザーのフィードバックを実行可能な項目として記録する
+- 再作業が必要なタスクと必要な変更内容を報告する
 
-### Step 5: Summary
+### ステップ 5: サマリー
 
-Provide a summary of all review results.
+すべてのレビュー結果のサマリーを提供する。
 
-## Important Constraints
-- **tasks.md driven**: Only process tasks that exist as unchecked Human Review items in tasks.md
-- **Human-centered**: This command facilitates human judgment, not automated testing
-- **Iterative**: Designed to be run multiple times during visual polish cycles
-- **No auto-pass**: Never mark Human Review tasks as complete without explicit user approval
+## 重要な制約
+- **tasks.md 駆動**: tasks.md に未チェックのヒューマンレビュー項目として存在するタスクのみを処理する
+- **人間中心**: このコマンドは自動テストではなく、人間の判断を支援するものである
+- **反復的**: ビジュアルポリッシュサイクル中に複数回実行されることを想定している
+- **自動合格なし**: 明示的なユーザー承認なしにヒューマンレビュータスクを完了としてマークしないこと
 </instructions>
 
-## Tool Guidance
-- **Read for context**: Load spec requirements for review criteria
-- **Edit for updates**: Use Edit tool to update task checkboxes in tasks.md
-- **Interactive**: Use AskUserQuestion for each review item to collect pass/fail
+## ツールガイダンス
+- **Read でコンテキスト取得**: レビュー基準のためにSpec要件を読み込む
+- **Edit で更新**: Edit ツールを使用して tasks.md のタスクチェックボックスを更新する
+- **インタラクティブ**: 各レビュー項目について AskUserQuestion を使用して合格/不合格を収集する
 
-## Output Description
+## 出力説明
 
-Provide output in the language specified in spec.json:
+spec.json で指定された言語で出力する:
 
-1. **Pending Reviews**: List of Human Review tasks found in tasks.md
-2. **Review Criteria**: What the user should verify for each item
-3. **Review Results**: Pass/fail for each item with user feedback
-4. **Updated Tasks**: Which tasks were marked complete in tasks.md
-5. **Remaining Work**: Failed items with actionable next steps
-6. **Next Action**: If all passed, feature review complete. If failures, iterate with `/kiro:spec-impl` to fix, then re-run `/kiro:scene-review`
+1. **保留中のレビュー**: tasks.md で見つかったヒューマンレビュータスクの一覧
+2. **レビュー基準**: 各項目についてユーザーが確認すべき内容
+3. **レビュー結果**: 各項目の合格/不合格とユーザーフィードバック
+4. **更新されたタスク**: tasks.md で完了としてマークされたタスク
+5. **残作業**: 不合格の項目と実行可能な次のステップ
+6. **次のアクション**: すべて合格の場合はフィーチャーレビュー完了。不合格がある場合は `/kiro:spec-impl` で修正後、`/kiro:scene-review` を再実行
 
-**Format**: Concise. Under 300 words of text.
+**フォーマット**: 簡潔に。テキストは300語以内。
 
-## Safety & Fallback
+## 安全策とフォールバック
 
-### Error Scenarios
+### エラーシナリオ
 
-**No Human Review Tasks Found**:
-- Report that tasks.md has no pending Human Review sub-tasks
-- Suggest: "All Human Review tasks may already be complete, or tasks were not generated with Layer 3 classifications"
+**ヒューマンレビュータスクが見つからない場合**:
+- tasks.md に保留中のヒューマンレビューサブタスクがないことを報告する
+- 提案: 「すべてのヒューマンレビュータスクが既に完了しているか、レイヤー3分類でタスクが生成されていない可能性があります」
 
-**Missing Spec Files**:
-- Stop with guidance to complete earlier phases
+**Specファイルが見つからない場合**:
+- 処理を停止し、先行フェーズを完了するよう案内する
 
-### Integration
+### 統合
 
-**Workflow position**: Run after `/kiro:spec-impl` completes (which skips Human Review tasks)
-- `/kiro:spec-impl $1` - executes all auto-executable tasks, skips Human Review
-- `/kiro:scene-review $1` - picks up skipped Human Review tasks, gets human approval
-- Repeat as needed during visual polish
+**ワークフロー上の位置**: `/kiro:spec-impl` 完了後に実行する（spec-impl はヒューマンレビュータスクをスキップする）
+- `/kiro:spec-impl $1` - 自動実行可能なすべてのタスクを実行し、ヒューマンレビューをスキップ
+- `/kiro:scene-review $1` - スキップされたヒューマンレビュータスクを拾い上げ、人間の承認を得る
+- ビジュアルポリッシュ中に必要に応じて繰り返す
