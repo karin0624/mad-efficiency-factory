@@ -17,6 +17,7 @@
       "Bash(git worktree:*)",
       "Bash(rm:*)",
       "Bash(sqlite3:*)",
+      "mcp__memory__*",
       "Bash(npm:*)",
       "Bash(npx:*)",
       "Bash(cd frontend && npm:*)",
