@@ -1,55 +1,61 @@
-# Technology Stack
+# 技術スタック
 
-## Architecture
+## アーキテクチャ
 
-Hybrid ECS approach:
-- **Core simulation** runs on an ECS-like tick system (resource flow, belt transport, machine processing)
-- **Rendering & input** handled by Godot's scene tree (Camera, Input, ECS-to-graphics bridge)
-- **UI** via Godot's Control nodes (device palette, delivery counter, HUD)
+ハイブリッドECSアプローチ:
+- **コアシミュレーション**: ECSライクなティックシステムで動作（資源フロー、ベルト輸送、機械加工）
+- **レンダリング＆入力**: Godotのシーンツリーで処理（Camera、Input、ECS-グラフィックスブリッジ）
+- **UI**: GodotのControlノード経由（デバイスパレット、納品カウンター、HUD）
 
-Separation principle: game logic is pure data + systems with no Godot dependency; Godot nodes are thin adapters for rendering and input.
+分離原則: ゲームロジックはSceneTree/Node APIに依存しない純粋なデータ＋システム。Godotノードはレンダリングと入力用の薄いアダプター。
 
-## Core Technologies
+シミュレーション制約:
+- **固定ティック**: `_physics_process`（デフォルト60Hz）でシミュレーション更新。可変フレームレートの`_process`はプレゼンテーション専用
+- **決定性**: 同一入力で同一結果を保証。乱数使用時はシード管理必須
+- **セーブ/ロード**: ゲーム状態はResourceベースでシリアライズ。シーンツリー状態に依存しない
 
-- **Engine**: Godot 4.x
-- **Language**: GDScript (primary), C# (optional for performance-critical systems)
-- **Platform**: Linux/WSL2 native development, cross-platform export
+## コア技術
 
-## Key Libraries
+- **エンジン**: Godot 4.3+
+- **言語**: GDScript
+- **プラットフォーム**: Linux/WSL2ネイティブ開発、クロスプラットフォームエクスポート
 
-- Godot built-in tilemap system for grid-based world
-- Godot signals for event-driven communication between systems
+## 主要ライブラリ
 
-## Development Standards
+- Godot組み込みのTileMapLayerシステム（グリッドベースのワールド用。Godot 4.3+推奨）
+- Godotシグナル（システム間のイベント駆動通信用）
 
-### Code Quality
-- Game logic separated from engine code (testable without Godot runtime)
-- No global singletons for game state; use dependency injection or autoload sparingly
-- Event-driven communication between systems (Godot signals / custom event bus)
+## 開発標準
 
-### Testing
-- Layer 1 (Unit): Pure logic classes tested without engine dependency
-- Layer 2 (Integration): Component interaction tests within Godot
-- Layer 3 (Human Review): Visual quality and game feel verified manually
+### コード品質
+- GDScript静的型付けを使用（`var x: int`, `func foo() -> void`）。`Variant`型の使用は意図的な場合のみ
+- ゲームロジックをSceneTree/Node APIから分離（テストはGdUnit4経由で`godot --headless`上で実行）
+- ゲーム状態にグローバルシングルトンを使わない。依存性注入を使用。autoloadはイベントバス・設定管理等の横断的関心事のみ許可
+- シミュレーション内はティック順序で同期実行。シグナル/イベントバスはプレゼンテーション層↔ロジック層の通知に使用
 
-## Development Environment
+### テスト
+- Layer 1（ユニット）: SceneTree非依存の純粋ロジッククラスをヘッドレステスト
+- Layer 2（インテグレーション）: Godot内でのコンポーネント間テスト
+- Layer 3（ヒューマンレビュー）: ビジュアル品質とゲームフィールを手動検証
 
-### Required Tools
-- Godot 4.x editor
+## 開発環境
+
+### 必要ツール
+- Godot 4.3+ エディタ
 - Git + GitHub CLI (`gh`)
 
-### Common Commands
+### よく使うコマンド
 ```bash
-# Run project: godot --path godot/
-# Run tests: (TBD based on test framework choice)
-# Export: godot --headless --export-release
+# プロジェクト実行: godot --path godot/
+# テスト実行: godot --headless --path godot/ -s addons/gdUnit4/bin/GdUnitCmdTool.gd
+# エクスポート: godot --headless --export-release "Linux" godot/build/game
 ```
 
-## Key Technical Decisions
+## 主要な技術的意思決定
 
-- **Godot over Unity**: Native Linux/WSL2 support eliminates complex bind-mount and MCP bridge workarounds
-- **Hybrid ECS**: Pure data+systems for simulation tick; Godot scene tree only for presentation
-- **Tile-based world**: Grid coordinates for factory layout; tilemap for rendering
+- **GodotをUnityより優先**: ネイティブLinux/WSL2サポートにより、複雑なbind-mountやMCPブリッジの回避策が不要
+- **ハイブリッドECS**: シミュレーションティックには純粋なデータ＋システム（GDScript）。Godotシーンツリーはプレゼンテーション専用
+- **タイルベースワールド**: 工場レイアウトにグリッド座標を使用。レンダリングにはTileMapLayer
 
 ---
-_Document standards and patterns, not every dependency_
+_すべての依存関係ではなく、標準とパターンを文書化すること_

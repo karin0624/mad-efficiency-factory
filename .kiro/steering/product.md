@@ -1,23 +1,29 @@
-# Product Overview
+# プロダクト概要
 
-Mad Efficiency Factory is a 2D factory automation game inspired by Factorio and Satisfactory. Players mine resources, transport them via conveyor belts, process them through machines, and deliver finished goods.
+Mad Efficiency Factory は、Factorio や Satisfactory にインスパイアされた2Dファクトリーオートメーションゲームです。プレイヤーは資源を採掘し、コンベアベルトで輸送し、機械で加工し、完成品を納品します。
 
-## Core Capabilities
+## コア機能
 
-- **Resource Mining & Processing**: Extract raw materials and refine them through multi-stage production chains
-- **Belt Transport System**: Conveyor belt networks for automated item movement between machines
-- **Factory Layout**: Tile-based factory construction with spatial planning and optimization
-- **Delivery & Progression**: Complete delivery orders to unlock new machines and recipes
+- **資源採掘・加工**: 原材料を採取し、多段階の生産チェーンで精製する
+- **ベルト輸送システム**: 機械間の自動アイテム移動を実現するコンベアベルトネットワーク
+- **工場レイアウト**: タイルベースの工場建設と空間的な配置最適化
+- **納品・進行**: 納品注文を完了して新しい機械やレシピをアンロック
 
-## Target Use Cases
+## 想定ユースケース
 
-- Single-player factory-building gameplay
-- Incremental complexity: simple chains → complex logistics networks
-- Optimization-focused players who enjoy throughput puzzles
+- シングルプレイヤーの工場建設ゲームプレイ
+- 段階的な複雑性: シンプルなチェーン → 複雑な物流ネットワーク
+- スループットパズルを楽しむ最適化志向のプレイヤー
 
-## Value Proposition
+## 提供価値
 
-A streamlined 2D factory builder focused on the core loop of resource flow optimization, built with Godot for native cross-platform support and rapid iteration.
+資源フロー最適化のコアループに特化したシンプルな2Dファクトリービルダー。クロスプラットフォーム対応と迅速なイテレーションを重視。
+
+## スコープ外
+
+- マルチプレイヤー
+- 3D表現
+- ストーリー/ナラティブ駆動の進行
 
 ---
-_Focus on patterns and purpose, not exhaustive feature lists_
+_網羅的な機能リストではなく、パターンと目的に焦点を当てること_

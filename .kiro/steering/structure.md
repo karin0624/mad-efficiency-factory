@@ -1,51 +1,57 @@
-# Project Structure
+# プロジェクト構造
 
-## Organization Philosophy
+## 編成方針
 
-Feature-layered approach: core game logic is engine-agnostic, with Godot-specific code in a separate layer. This enables unit testing without the engine and keeps simulation deterministic.
+機能レイヤードアプローチ: コアゲームロジックはSceneTree/Node APIに非依存とし、Godot固有のコードは別レイヤーに配置。これによりヘッドレスでのユニットテストが可能になり、シミュレーションの決定性を維持。
 
-## Directory Patterns
+## ディレクトリパターン
 
-### Core Logic (`godot/scripts/core/`)
-**Purpose**: Pure game logic — resource types, tile data, belt simulation, machine processing
-**Rules**: No `extends Node` or Godot-specific imports. Plain GDScript classes or C# POCOs.
-**Example**: `resource_type.gd`, `tile_data.gd`, `tilemap_helper.gd`
+### コアロジック (`godot/scripts/core/`)
+**目的**: 純粋なゲームロジック — 資源タイプ、グリッドデータ、ベルトシミュレーション、機械加工
+**ルール**: `extends Node` やSceneTree APIは禁止。ランタイム状態は`extends RefCounted`、編集用定義データは`extends Resource`。
+**例**: `resource_type.gd`, `recipe.gd`, `grid_coord.gd`
 
-### ECS / Systems (`godot/scripts/systems/`)
-**Purpose**: Tick-driven simulation systems (belt transport, machine processing, resource flow)
-**Rules**: Operate on data components, no direct scene tree access
-**Example**: `belt_transport_system.gd`, `machine_process_system.gd`
+### ECS / システム (`godot/scripts/systems/`)
+**目的**: ティック駆動のシミュレーションシステム（ベルト輸送、機械加工、資源フロー）
+**ルール**: データコンポーネントを操作し、シーンツリーへの直接アクセスは禁止。ティック受信のために`extends Node`で`_physics_process`を使うことは許可
+**例**: `belt_transport_system.gd`, `machine_process_system.gd`
 
-### Scenes & Nodes (`godot/scenes/`)
-**Purpose**: Godot scene files (.tscn) and their attached scripts
-**Rules**: Thin adapters — delegate logic to core/systems, handle rendering and input
-**Example**: `main.tscn`, `factory_grid.tscn`, `conveyor_belt.tscn`
+### シーン＆ノード (`godot/scenes/`)
+**目的**: Godotシーンファイル(.tscn)とアタッチされたスクリプト
+**ルール**: 薄いアダプター — ロジックはcore/systemsに委譲し、レンダリングと入力を処理
+**例**: `main.tscn`, `factory_grid.tscn`, `conveyor_belt.tscn`
 
 ### UI (`godot/scenes/ui/`)
-**Purpose**: HUD, menus, palettes using Godot Control nodes
-**Example**: `hud.tscn`, `device_palette.tscn`, `delivery_counter.tscn`
+**目的**: HUD、メニュー、パレット（Godot Controlノード使用）
+**例**: `hud.tscn`, `device_palette.tscn`, `delivery_counter.tscn`
 
-### Tests (`godot/tests/`)
-**Purpose**: GdUnit4 or compatible test framework
-**Pattern**: Mirror source structure — `tests/core/test_tilemap_helper.gd`
+### リソース定義 (`godot/resources/`)
+**目的**: `extends Resource`のデータ定義（アイテム、レシピ、機械スペック等の`.tres`ファイル）
+**ルール**: ゲームデザインデータのみ。ランタイム状態は含めない
+**例**: `items/iron_ore.tres`, `recipes/iron_plate.tres`
 
-### Specs (`.kiro/specs/`)
-**Purpose**: Per-feature specification documents (requirements, design, tasks)
-**Pattern**: One directory per feature, managed by cc-sdd pipeline
+### テスト (`godot/tests/`)
+**目的**: GdUnit4によるテスト
+**パターン**: ソース構造をミラー — `tests/core/test_grid_coord.gd`
 
-## Naming Conventions
+### スペック (`.kiro/specs/`)
+**目的**: 機能ごとの仕様書（要件、設計、タスク）
+**パターン**: 機能ごとに1ディレクトリ、cc-sddパイプラインで管理
 
-- **GDScript files**: snake_case (`belt_transport_system.gd`)
-- **Scene files**: snake_case (`factory_grid.tscn`)
-- **Classes**: PascalCase (`class_name BeltTransportSystem`)
-- **Signals**: snake_case past tense (`item_delivered`, `machine_started`)
-- **Constants**: UPPER_SNAKE_CASE
+## 命名規則
 
-## Code Organization Principles
+- **GDScriptファイル**: snake_case (`belt_transport_system.gd`)
+- **シーンファイル**: snake_case (`factory_grid.tscn`)
+- **クラス**: PascalCase (`class_name BeltTransportSystem`)
+- **シグナル**: snake_case 過去形 (`item_delivered`, `machine_started`)
+- **定数**: UPPER_SNAKE_CASE
+- **インポート**: 同一モジュール内は`class_name`参照を優先。外部リソースの動的読み込みは`load()`、静的参照は`preload()`
 
-- **Logic ≠ Presentation**: Core logic must not reference Godot nodes. Godot scripts bridge data to visuals.
-- **Signal-driven**: Cross-system communication uses Godot signals or a custom event bus, not direct references.
-- **No deep inheritance**: Prefer composition over inheritance. Scenes compose behaviors via child nodes.
+## コード編成原則
+
+- **ロジック ≠ プレゼンテーション**: コアロジックはGodotノードを参照してはならない。Godotスクリプトがデータとビジュアルをブリッジする。
+- **シグナル駆動**: プレゼンテーション層↔ロジック層の通知にGodotシグナルまたはイベントバスを使用。シミュレーション内部はティック順序で同期実行し、シグナルに頼らない。（autoload方針はtech.mdを参照）
+- **深い継承を避ける**: 継承より合成を優先。シーンは子ノードで動作を構成する。
 
 ---
-_Document patterns, not file trees. New files following patterns shouldn't require updates_
+_ファイルツリーではなく、パターンを文書化すること。パターンに従う新しいファイルは更新を必要としない_
