@@ -15,6 +15,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,6 +99,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write
     outputs:
       verdict: ${{ steps.save.outputs.verdict }}
     steps:
