@@ -19,6 +19,12 @@ var _belt_grid: BeltGrid
 var _belt_transport: BeltTransportSystem
 var _belt_visual: BeltVisualSystem
 
+## 機械ポートシステム
+var _port_catalog: MachinePortCatalog
+var _port_grid: MachinePortGrid
+var _port_transfer: MachinePortTransfer
+var _port_system: MachinePortSystemNode
+
 func _ready() -> void:
 	# Core Logicの初期化
 	_grid = CoreGrid.new()
@@ -37,6 +43,12 @@ func _ready() -> void:
 	_belt_visual.belt_grid = _belt_grid
 	add_child(_belt_visual)
 
+	# MachinePortSystem の初期化
+	_port_catalog = MachinePortCatalog.create_default()
+	_port_grid = MachinePortGrid.new(_port_catalog)
+	_port_transfer = MachinePortTransfer.new()
+	_port_system = MachinePortSystemNode.new(_port_grid, _belt_grid, _port_transfer)
+
 	# TickEngineのtick_firedシグナルをBeltTransportSystem.tick()に接続
 	_tick_engine.tick_fired.connect(_on_tick_fired)
 
@@ -50,19 +62,25 @@ func _ready() -> void:
 	_input_handler.ghost_preview = _ghost
 	add_child(_input_handler)
 
-	# PlacementInputNodeの配置・撤去シグナルをBeltTransportSystemに接続
+	# PlacementInputNodeの配置・撤去シグナルをBeltTransportSystemとMachinePortSystemNodeに接続
 	_input_handler.entity_placed.connect(_belt_transport.on_entity_placed)
 	_input_handler.entity_removed.connect(_belt_transport.on_entity_removed)
+	_input_handler.entity_placed.connect(_port_system.on_entity_placed)
+	_input_handler.entity_removed.connect(_port_system.on_entity_removed)
 
 	# Belt(ID=3)をデフォルト選択
 	_input_handler.select_entity(3)
 
 	print("FactoryPlacement ready: grid=64x64, entities=", _registry.size())
+	print("MachinePortSystem initialized: catalog=", _port_catalog.has_config(1), "/", _port_catalog.has_config(2), "/", _port_catalog.has_config(4))
 
 
-## TickEngine tick_fired ハンドラ（tick引数を無視してBeltTransportSystem.tick()を呼ぶ）
+## TickEngine tick_fired ハンドラ
+## 処理順: 出力ポート → ベルト搬送 → 入力ポート
 func _on_tick_fired(_tick: int) -> void:
-	_belt_transport.tick()
+	_port_system.tick_output()   # 機械出力ポート → ベルト
+	_belt_transport.tick()        # ベルト搬送処理
+	_port_system.tick_input()    # ベルト → 機械入力ポート
 
 
 ## 入力イベント処理（エンティティ切替・デバッグ用アイテム投入）
