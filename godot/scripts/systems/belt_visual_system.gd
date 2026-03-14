@@ -1,51 +1,57 @@
 class_name BeltVisualSystem
 extends Node2D
 
-## BeltVisualSystem — BeltGridの状態を読み取り、ベルト上アイテムの視覚表現を更新する
+## BeltVisualSystem — BeltGridの状態を読み取り、ベルトタイルとアイテムの視覚表現を描画する
 ##
-## BeltGridのアイテム位置と進行度に基づいて視覚表現を更新。
-## `_process(delta)`で毎フレーム呼び出し（ティック間のアニメーション補間）。
-## ベルト上アイテムはスプライトプールまたはMultiMeshInstance2Dで描画（tech.md方針）。
+## BeltGridのタイル配置とアイテム位置・進行度に基づいて視覚表現を更新。
+## `_process(delta)`で毎フレーム`queue_redraw()`を呼び、`_draw()`で描画。
+## ベルトタイルは背景矩形+方向矢印、アイテムは色付き円で描画。
 ## Node2Dベース。
 
-## タイルサイズ（ピクセル）
-const TILE_SIZE: int = 32
+## タイルサイズ（ピクセル）— GhostPreviewNode / PlacementInputNode と同じ64px
+const TILE_SIZE: int = 64
+
+## ベルトタイルの背景色
+const BELT_BG_COLOR := Color(0.55, 0.60, 0.70, 0.85)
+
+## ベルトタイルの境界線色
+const BELT_BORDER_COLOR := Color(0.35, 0.40, 0.50, 1.0)
+
+## 方向矢印の色
+const ARROW_COLOR := Color(0.90, 0.90, 0.95, 0.9)
+
+## アイテム通常色
+const ITEM_COLOR := Color.ORANGE
+
+## アイテムバックプレッシャー色（progress >= 1.0 で停止中）
+const ITEM_BLOCKED_COLOR := Color.RED
+
+## アイテム描画の半径（ピクセル）
+const ITEM_RADIUS: float = 10.0
 
 ## ベルトグリッドへの参照
 var belt_grid: BeltGrid = null
 
-## アイテム描画用スプライトプール
-var _item_sprites: Array[Sprite2D] = []
 
-## プール最大サイズ
-const MAX_SPRITES: int = 2000
-
-
-func _ready() -> void:
-	# スプライトプールの初期化
-	for i in range(MAX_SPRITES):
-		var sprite := Sprite2D.new()
-		sprite.visible = false
-		sprite.modulate = Color.ORANGE  # デフォルトアイテム色
-		add_child(sprite)
-		_item_sprites.append(sprite)
-
-
-## 毎フレーム呼び出し: BeltGridの状態を読み取り視覚を更新する
+## 毎フレーム呼び出し: 再描画をリクエストする
 func _process(_delta: float) -> void:
 	if belt_grid == null:
 		return
-	_update_visuals()
+	queue_redraw()
 
 
-## BeltGridの状態に基づいてアイテムの視覚表現を更新する
+## 公開API: テストやコードからの明示的な視覚更新
 ## Req 9.1: ベルト上のアイテムをベルトの向き方向に視覚的に移動表示
 ## Req 9.2: バックプレッシャー発生時のアイテム停止状態を視覚的に表現
 func update_visuals() -> void:
-	_update_visuals()
+	queue_redraw()
 
 
-func _update_visuals() -> void:
+## ベルトタイルとアイテムを描画する
+func _draw() -> void:
+	if belt_grid == null:
+		return
+
 	var positions := belt_grid.get_all_positions()
 
 	# 方向ベクトルのマッピング（N=0, E=1, S=2, W=3）
@@ -56,41 +62,69 @@ func _update_visuals() -> void:
 		Vector2(-1.0, 0.0),   # W
 	]
 
-	var sprite_index := 0
-
 	for pos: Vector2i in positions:
 		var tile: BeltTileData = belt_grid.get_tile(pos)
-		if tile == null or not tile.has_item():
+		if tile == null:
 			continue
 
-		if sprite_index >= MAX_SPRITES:
-			break
+		var pixel_pos := Vector2(pos.x * TILE_SIZE, pos.y * TILE_SIZE)
+		var tile_rect := Rect2(pixel_pos, Vector2(TILE_SIZE, TILE_SIZE))
 
-		var sprite := _item_sprites[sprite_index]
-		sprite.visible = true
+		# --- ベルトタイル背景 ---
+		draw_rect(tile_rect, BELT_BG_COLOR)
+		# 境界線（1px内側）
+		draw_rect(tile_rect, BELT_BORDER_COLOR, false, 1.5)
 
-		# タイル中心座標（ピクセル）
-		var tile_center := Vector2(
-			pos.x * TILE_SIZE + TILE_SIZE / 2.0,
-			pos.y * TILE_SIZE + TILE_SIZE / 2.0
-		)
+		# --- 方向矢印（三角形） ---
+		var center := pixel_pos + Vector2(TILE_SIZE / 2.0, TILE_SIZE / 2.0)
+		_draw_direction_arrow(center, tile.direction)
 
-		# 進行度に基づいてアイテム位置を補間
-		# progress=0.0: タイル入口、progress=1.0: タイル出口
-		var dir_offset := dir_offsets[tile.direction]
-		var item_offset := dir_offset * (tile.progress - 0.5) * TILE_SIZE
+		# --- アイテム描画 ---
+		if tile.has_item():
+			var dir_offset := dir_offsets[tile.direction]
+			var item_offset := dir_offset * (tile.progress - 0.5) * TILE_SIZE
+			var item_pos := center + item_offset
 
-		sprite.position = tile_center + item_offset
+			var color := ITEM_BLOCKED_COLOR if tile.progress >= 1.0 else ITEM_COLOR
+			draw_circle(item_pos, ITEM_RADIUS, color)
+			# アイテムの輪郭
+			draw_arc(item_pos, ITEM_RADIUS, 0.0, TAU, 16, Color.BLACK, 1.5)
 
-		# バックプレッシャー状態の視覚表現（Req 9.2）
-		# 進行度が1.0に達して停止中 = バックプレッシャー → 赤みがかった色
-		if tile.progress >= 1.0:
-			sprite.modulate = Color.RED
-		else:
-			sprite.modulate = Color.ORANGE
 
-		sprite_index += 1
+## 方向矢印を描画する（三角形ポリゴン）
+func _draw_direction_arrow(center: Vector2, direction: int) -> void:
+	var arrow_size: float = TILE_SIZE * 0.25
+	var points: PackedVector2Array
 
-	# 使用されなかったスプライトを非表示
-	for i in range(sprite_index, _item_sprites.size()):
-		_item_sprites[i].visible = false
+	match direction:
+		Enums.Direction.N:
+			# 上向き三角形
+			points = PackedVector2Array([
+				center + Vector2(0, -arrow_size),
+				center + Vector2(-arrow_size * 0.7, arrow_size * 0.5),
+				center + Vector2(arrow_size * 0.7, arrow_size * 0.5),
+			])
+		Enums.Direction.E:
+			# 右向き三角形
+			points = PackedVector2Array([
+				center + Vector2(arrow_size, 0),
+				center + Vector2(-arrow_size * 0.5, -arrow_size * 0.7),
+				center + Vector2(-arrow_size * 0.5, arrow_size * 0.7),
+			])
+		Enums.Direction.S:
+			# 下向き三角形
+			points = PackedVector2Array([
+				center + Vector2(0, arrow_size),
+				center + Vector2(-arrow_size * 0.7, -arrow_size * 0.5),
+				center + Vector2(arrow_size * 0.7, -arrow_size * 0.5),
+			])
+		Enums.Direction.W:
+			# 左向き三角形
+			points = PackedVector2Array([
+				center + Vector2(-arrow_size, 0),
+				center + Vector2(arrow_size * 0.5, -arrow_size * 0.7),
+				center + Vector2(arrow_size * 0.5, arrow_size * 0.7),
+			])
+
+	if points.size() == 3:
+		draw_colored_polygon(points, ARROW_COLOR)
