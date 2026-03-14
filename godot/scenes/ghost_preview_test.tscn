@@ -1,0 +1,33 @@
+[gd_scene load_steps=3 format=3 uid="uid://ghost_preview_test"]
+
+[ext_resource type="Script" path="res://scenes/ghost_preview_node.gd" id="1_preview"]
+
+[sub_resource type="GDScript" id="GDScript_1"]
+script/source = "extends Node2D
+
+var _grid: CoreGrid
+var _registry: EntityRegistry
+var _system: PlacementSystem
+var _ghost: GhostPreviewNode
+
+func _ready() -> void:
+	_grid = CoreGrid.new()
+	_registry = EntityRegistry.create_default()
+	_system = PlacementSystem.new(_grid, _registry)
+
+	_ghost = GhostPreviewNode.new()
+	_ghost.placement_system = _system
+	add_child(_ghost)
+
+	# Miner(2x2)を選択
+	var miner_def := _registry.get_definition(1)
+	_ghost.set_entity_type(1, miner_def.footprint)
+
+	# 有効な位置(0,0)にゴーストを表示
+	_ghost.update_target_cell(Vector2i(2, 2))
+	print('Ghost preview test scene ready')
+	print('Valid placement at (2,2): ', _system.can_place(1, Vector2i(2, 2)))
+"
+
+[node name="GhostPreviewTest" type="Node2D"]
+script = SubResource("GDScript_1")
