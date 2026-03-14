@@ -93,6 +93,25 @@ argument-hint: <feature-name> [task-numbers]
 6. **完了マーク**:
    - tasks.mdのチェックボックスを `- [ ]` から `- [x]` に更新
 
+7. **設計ジャーナル記録**:
+   - タスク実装中に design.md との乖離や新たな発見があった場合、`.kiro/specs/$1/impl-journal.md` に記録する
+   - 乖離がなければスキップ（記録不要）
+   - ジャーナルが存在しない場合は以下のヘッダーで新規作成:
+     ```markdown
+     # Implementation Journal — $1
+     _Design deviations captured during implementation. Run `/kiro:design-reconcile $1` to reconcile._
+     ```
+   - エントリを末尾に追記（フォーマット）:
+     ```markdown
+     ## Task X.Y — [CATEGORY]
+     - **Date**: YYYY-MM-DD
+     - **Design says**: design.mdの記載内容（セクション名・引用）
+     - **Actually implemented**: 実際の実装（ファイルパス付き）
+     - **Reason**: 乖離の理由（技術的制約、パフォーマンス、フレームワーク制限等）
+     ```
+   - カテゴリ: `[INTERFACE]` / `[ARCHITECTURE]` / `[CONSTRAINT]` / `[DATA_MODEL]`
+   - 判断基準: メソッドシグネチャ・クラス構造・定数値・ファイル配置・使用パターンが design.md と異なる場合に記録
+
 ## 重要な制約
 - **TDD必須**: テストは実装コードの前に記述すること
 - **タスクスコープ**: 特定のタスクが要求するもののみを実装
@@ -142,7 +161,8 @@ spec.jsonで指定された言語で簡潔なサマリーを提供:
 1. **実行されたタスク**: タスク番号とテスト結果
 2. **Screenshotチェックポイント**: Layer 2のスクリーンショット検証タスクの結果（パス/失敗と詳細）
 3. **スキップされたL4ヒューマンレビュータスク**: スキップされたサブタスクのリスト（該当する場合）と `/kiro:scene-review` を実行するガイダンス
-4. **ステータス**: tasks.mdで完了マークされたタスク、残りのタスク数
+4. **設計ジャーナル**: 記録された乖離エントリ数（0件の場合は省略）。エントリがある場合は `/kiro:design-reconcile $1` の実行を案内
+5. **ステータス**: tasks.mdで完了マークされたタスク、残りのタスク数
 
 **フォーマット**: 簡潔（150語以下）
 
