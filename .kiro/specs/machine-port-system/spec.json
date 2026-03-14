@@ -1,0 +1,24 @@
+{
+  "feature_name": "machine-port-system",
+  "created_at": "2026-03-15T00:00:00Z",
+  "updated_at": "2026-03-15T00:00:00Z",
+  "language": "ja",
+  "phase": "validated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true,
+      "codex_reviewed": false,
+      "codex_status": null
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}
