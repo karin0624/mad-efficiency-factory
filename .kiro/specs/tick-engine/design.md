@@ -345,14 +345,14 @@ Tick Engineは低レベルのシミュレーション基盤であり、外部入
   3. **delta変換精度**: float delta → μs変換の精度検証
   4. **複数ティック発火順序**: 1フレーム内の複数シグナルがtick昇順で発行される
 
-### Layer 3: Human Review (Non-Testable)
+### Layer 3: E2E Test (Screenshot + Metrics)
 
-- 高負荷時のシミュレーション滑らかさ
-  - Review method: ベルト500本+アイテム2000個で60秒実行
-  - Acceptance threshold: 目立つカクつきなし
-- 一時停止/再開の応答性
-  - Review method: 連続10回の停止/再開操作
-  - Acceptance threshold: 体感遅延なし
+- 高負荷時の性能メトリクス計測（メトリクスで客観的に判定可能）
+  - E2E checkpoint: ベルト500本+アイテム2000個でFPS計測。print出力でFPS値を取得しAIが閾値判定
+  - Acceptance threshold: 30FPS以上を維持
+- 一時停止/再開の応答時間計測（メトリクスで判定可能）
+  - E2E checkpoint: pause/resume呼び出し前後でタイムスタンプを計測し応答時間をprint出力
+  - Acceptance threshold: 体感遅延なし（< 100ms）
 
 ### Performance
 

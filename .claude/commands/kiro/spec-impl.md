@@ -83,6 +83,13 @@ argument-hint: <feature-name> [task-numbers]
    - フォールバック: GoPoakが利用できない場合はBashで実行（`godot --path <projectPath>`）
    - 結果を目視確認し、結果を記録
 
+5a. **E2E checkpointの実行**（Layer 3タスクで `E2E checkpoint:` パターンのもの）:
+   - フロー: テスト作成 → xvfb-run実行 → スクショ保存 → AI評価
+   1. **テスト作成**: GdUnit4テストスクリプトを作成し、SceneRunnerでフルシーンを起動してスクショを `godot/test_screenshots/<name>.png` に保存するコードを記述
+   2. **xvfb-run実行**: `xvfb-run --auto-servernum godot --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy --path <projectPath> -s addons/gdUnit4/bin/GdUnitCmdTool.gd` でテスト実行
+   3. **スクショ評価**: Readツールで保存されたスクショを読み込み、AIが視覚的に評価（アイテム位置、UI状態、メトリクス値等）
+   4. **判定**: 評価がパスした場合は完了としてマーク。不確実またはフェイルした場合はL4フォールバック（`/kiro:scene-review`）を案内
+
 6. **完了マーク**:
    - tasks.mdのチェックボックスを `- [ ]` から `- [x]` に更新
 
@@ -94,7 +101,8 @@ argument-hint: <feature-name> [task-numbers]
 - **設計との整合性**: 実装はdesign.mdのスペックに従うこと
 - **レイヤー認識**: テストタイプを選択する前に要件のTestability Layerを確認。L1/L2共にTDD必須（テスト先行）。L2テストはSceneTree依存（`add_child`/シグナル）だがxvfb-run経由のGdUnit4で実行（SceneRunner/InputEvent対応）
 - **Screenshotチェックポイントの実行**: `Screenshot checkpoint:` パターンに一致するサブタスクは異なるフローを使用 — TDDをスキップし、代わりに: `mcp__gopeak__editor_run`（フォールバック: Bash）でアプリケーションを実行、`mcp__gopeak__editor_debug_output` で出力をキャプチャ、結果を目視確認、クリーンアップのため `mcp__gopeak__editor_stop` を呼び出す。タイムアウト: 30秒。検証がパスした場合は完了としてマーク。
-- **ヒューマンレビューのスキップ**: `Human review:` パターンに一致するサブタスクはspec-implでは実行されない。タスク選択時に検出してスキップし、スキップされたタスクリストを出力に含める。これらのタスクの処理には `/kiro:scene-review` を使用する。
+- **E2E checkpointの実行**: `E2E checkpoint:` パターンに一致するサブタスクはL3自動実行フロー（上記5a）を使用。TDDをスキップし、SceneRunner+スクショ+AI評価のフローで処理する。
+- **L4ヒューマンレビューのスキップ**: `Human review:` パターンに一致するサブタスクはspec-implでは実行されない。タスク選択時に検出してスキップし、スキップされたタスクリストを出力に含める。これらのL4タスクの処理には `/kiro:scene-review` を使用する。
 </instructions>
 
 ## ツールガイダンス
@@ -133,7 +141,7 @@ spec.jsonで指定された言語で簡潔なサマリーを提供:
 
 1. **実行されたタスク**: タスク番号とテスト結果
 2. **Screenshotチェックポイント**: Layer 2のスクリーンショット検証タスクの結果（パス/失敗と詳細）
-3. **スキップされたヒューマンレビュータスク**: スキップされたサブタスクのリスト（該当する場合）と `/kiro:scene-review` を実行するガイダンス
+3. **スキップされたL4ヒューマンレビュータスク**: スキップされたサブタスクのリスト（該当する場合）と `/kiro:scene-review` を実行するガイダンス
 4. **ステータス**: tasks.mdで完了マークされたタスク、残りのタスク数
 
 **フォーマット**: 簡潔（150語以下）

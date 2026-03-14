@@ -14,9 +14,17 @@ Layer定義はtech.mdを参照。ここでは**どの層を選ぶかの判断基
 |----------|--------|------|
 | テスト対象がRefCounted/Resourceのみ | L1 | SceneTree不要、xvfb-runで高速 |
 | Node間のシグナル通信・`add_child`が必要 | L2 | SceneTree依存、xvfb-run + GdUnit4で実行（SceneRunner/InputEvent対応） |
-| 見た目・アニメーション・操作感の確認 | L3 | 自動化不可、人間が目視で判断 |
+| スクショ/メトリクスでAI判定可能な視覚・性能検証 | L3 | SceneRunner フルシーン+スクショ+AI視覚評価、spec-implが実行 |
+| 主観的で再現困難な品質確認 | L4 | 自動化不可、人間が目視で判断 |
 
 **迷ったらL1を選ぶ**。テスト対象をリファクタリングしてSceneTree依存を外せないか検討する。
+
+### L3とL4の振り分け基準
+
+- **L3（E2Eテスト）**: スクショ比較またはメトリクス計測でAIが客観的に判定できる項目
+  - 例: アイテムが正しい位置に表示されているか（スクショ）、処理時間が閾値以下か（メトリクス）
+- **L4（ヒューマンレビュー）**: 主観的で再現が困難、AIでは判定できない項目
+  - 例: UIの操作感・ゲームフィール・芸術的な品質判断
 
 ## GdUnit4パターン
 
@@ -107,6 +115,61 @@ xvfb-run --auto-servernum godot --display-driver x11 --rendering-driver opengl3 
 
 **前提パッケージ**: `sudo apt-get install -y xvfb`
 
+## E2Eテストパターン (L3)
+
+L3 E2EテストはSceneRunnerを使用してフルシーンを起動し、スクショまたはメトリクスをAIが評価する。
+
+### 基本パターン
+
+```gdscript
+extends GdUnitTestSuite
+
+func test_e2e_belt_visual() -> void:
+    var runner := scene_runner("res://scenes/game.tscn")
+    await runner.simulate_frames(60)  # 1秒待機
+
+    # スクショを保存
+    var img := get_viewport().get_texture().get_image()
+    img.save_png("res://test_screenshots/belt_visual.png")
+
+    # AI評価: Readツールでスクショを読み込み視覚的に確認
+    pass
+```
+
+### フィルムストリップパターン
+
+連続スクショによる動作検証 — アニメーションや時系列変化を確認する場合に使用する。
+
+```gdscript
+func test_e2e_item_movement_filmstrip() -> void:
+    var runner := scene_runner("res://scenes/game.tscn")
+
+    # 複数のフレームでスクショを撮影
+    for i in range(5):
+        await runner.simulate_frames(12)  # 0.2秒ごと
+        var img := get_viewport().get_texture().get_image()
+        img.save_png("res://test_screenshots/item_move_%02d.png" % i)
+
+    # AIがフィルムストリップを評価:
+    # - アイテムが各フレームで前進していること
+    # - アイテムが消失・重複していないこと
+    pass
+```
+
+### スクショ戦略
+
+| シナリオ | 撮影タイミング | 評価ポイント |
+|----------|---------------|-------------|
+| ベルト上アイテム移動 | 投入直後・中間・到達時 | 位置の前進、消失なし |
+| バックプレッシャー | 末端塞ぎ後数ティック | アイテム停止の視覚表現 |
+| ゴーストプレビュー | カーソル移動中 | 半透明表示、位置正確性 |
+| 性能メトリクス | 500ベルト配置後 | FPSカウンター値（print出力） |
+| 一時停止/再開 | 操作前後 | UI状態の変化 |
+
+### スクショ保存先
+
+E2Eテストのスクショは `godot/test_screenshots/` に保存する（`.gitignore`で除外済み）。
+
 ## テストしないもの
 
 - **Godotエンジン内部**: 物理演算、レンダリング、シーンツリーのライフサイクル
@@ -125,7 +188,8 @@ xvfb-run --auto-servernum godot --display-driver x11 --rendering-driver opengl3 
 
 1. **L1全通過**: コアロジック（グリッド、ベルト、機械、資源フロー）のユニットテストが全てグリーン
 2. **E2E統合テスト**: 採掘→ベルト5本→精錬→ベルト5本→納品のフローを自動テストで検証
-3. **L3人間レビュー**: ビジュアル品質・操作感・ゲームフィールの手動確認完了
+3. **L3 E2Eテスト**: スクショ/メトリクスによるビジュアル品質・性能検証の自動確認完了
+4. **L4ヒューマンレビュー**: 主観的品質・操作感・ゲームフィールの手動確認完了
 
 ---
 _テストの判断基準とパターンを文書化する。ディレクトリ構造はstructure.md、実行コマンドはtech.mdを参照_
