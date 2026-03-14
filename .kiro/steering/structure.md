@@ -9,12 +9,14 @@
 ### コアロジック (`godot/scripts/core/`)
 **目的**: 純粋なゲームロジック — 資源タイプ、グリッドデータ、ベルトシミュレーション、機械加工
 **ルール**: `extends Node` やSceneTree APIは禁止。ランタイム状態は`extends RefCounted`、編集用定義データは`extends Resource`。
-**例**: `resource_type.gd`, `recipe.gd`, `grid_coord.gd`
+**例**: `entity_definition.gd`, `belt_grid.gd`, `placement_system.gd`, `grid_cell_data.gd`
 
 ### ECS / システム (`godot/scripts/systems/`)
 **目的**: ティック駆動のシミュレーションシステム（ベルト輸送、機械加工、資源フロー）
-**ルール**: データコンポーネントを操作し、シーンツリーへの直接アクセスは禁止。ティック受信のために`extends Node`で`_physics_process`を使うことは許可
-**例**: `belt_transport_system.gd`, `machine_process_system.gd`
+**ルール**: シーンツリーへの直接アクセスは禁止。描画・入力等のプレゼンテーションロジックは`scenes/`に配置すること
+**2つのサブパターン**:
+- **純粋ロジック（推奨）**: `extends RefCounted` — tick engineから呼び出される。例: `belt_transport_system.gd`
+- **ティック受信**: `extends Node` — `_physics_process`でティックを駆動する薄いノード。例: `tick_engine_node.gd`
 
 ### シーン＆ノード (`godot/scenes/`)
 **目的**: Godotシーンファイル(.tscn)とアタッチされたスクリプト
@@ -32,7 +34,11 @@
 
 ### テスト (`godot/tests/`)
 **目的**: GdUnit4によるテスト
-**パターン**: ソース構造をミラー — `tests/core/test_grid_coord.gd`
+**パターン**: ソース構造をミラー + E2E専用ディレクトリ
+- `tests/core/`: `scripts/core/`のユニットテスト（L1）
+- `tests/systems/`: `scripts/systems/`の統合テスト（L1/L2）
+- `tests/e2e/`: SceneRunnerによるフルシーンE2Eテスト（L3）
+**命名**: `test_<対象クラス名>.gd`（例: `test_belt_grid.gd`, `test_machine_port_e2e.gd`）
 
 ### スペック (`.kiro/specs/`)
 **目的**: 機能ごとの仕様書（要件、設計、タスク）
