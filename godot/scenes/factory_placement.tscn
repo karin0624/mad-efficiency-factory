@@ -1,39 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://factory_placement"]
 
-[sub_resource type="GDScript" id="GDScript_1"]
-script/source = "extends Node2D
-
-## FactoryPlacement — PlacementSystemをゲームシーンに統合するルートノード
-##
-## PlacementSystem、CoreGrid、EntityRegistry、GhostPreviewNode、PlacementInputNodeを接続する。
-
-var _grid
-var _registry
-var _system
-var _ghost
-var _input_handler
-
-func _ready() -> void:
-	# Core Logicの初期化
-	_grid = CoreGrid.new()
-	_registry = EntityRegistry.create_default()
-	_system = PlacementSystem.new(_grid, _registry)
-
-	# Presentationノードの初期化
-	_ghost = GhostPreviewNode.new()
-	_ghost.placement_system = _system
-	add_child(_ghost)
-
-	_input_handler = PlacementInputNode.new()
-	_input_handler.placement_system = _system
-	_input_handler.ghost_preview = _ghost
-	add_child(_input_handler)
-
-	# Belt(ID=3)をデフォルト選択
-	_input_handler.select_entity(3)
-
-	print('FactoryPlacement ready: grid=64x64, entities=', _registry.size())
-"
+[ext_resource type="Script" path="res://scenes/factory_placement.gd" id="Script_1"]
 
 [node name="FactoryPlacement" type="Node2D"]
-script = SubResource("GDScript_1")
+script = ExtResource("Script_1")
