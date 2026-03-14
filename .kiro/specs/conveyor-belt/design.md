@@ -336,6 +336,17 @@ func on_entity_placed(entity_id: int, pos: Vector2i, direction: int, entity_type
 
 ## エンティティ撤去通知を受け取り、ベルトタイルを削除してダーティフラグを設定する
 func on_entity_removed(entity_id: int, pos: Vector2i, entity_type_id: int) -> void
+
+## 機械出力ポートからベルトへのアイテム受入
+## Preconditions: posにベルトが存在する
+## Postconditions: 成功時true（ベルトが空の場合のみ）、失敗時false
+func receive_item_from_machine(pos: Vector2i, item_id: int) -> bool
+
+## ベルト末端から機械入力ポートへのアイテム引き渡し
+## Preconditions: posにベルトが存在する
+## Postconditions: 成功時はアイテムIDを返しベルトをクリア、失敗時は0を返す
+## 条件: アイテムが存在し、かつprogress >= 1.0（末端到達済み）の場合のみ引き渡す
+func deliver_item_to_machine(pos: Vector2i) -> int
 ```
 - Preconditions: BeltGrid, CoreGrid, PlacementSystemが初期化済み
 - Postconditions: tick()呼び出し後、アイテム保存則が維持される
@@ -358,7 +369,7 @@ func on_entity_removed(entity_id: int, pos: Vector2i, entity_type_id: int) -> vo
 **Responsibilities & Constraints**
 - BeltGridのアイテム位置と進行度に基づいて視覚表現を更新
 - `_process(delta)`で毎フレーム呼び出し（ティック間のアニメーション補間）
-- ベルト上アイテムは個別ノード化せず、スプライトプールまたはMultiMeshInstance2Dで描画（tech.md方針）
+- ベルト上アイテムは個別ノード化せず、Node2D._draw()で毎フレーム2パス描画（Pass1: ベルト背景・矢印、Pass2: アイテム円）。Godotのレンダリングバッチ処理に委譲。大規模ベルト（500+）でFPS低下時はMultiMeshInstance2Dへの最適化を検討
 
 **Dependencies**
 - Inbound: BeltGrid — ベルト状態の読み取り (P0)
@@ -366,13 +377,14 @@ func on_entity_removed(entity_id: int, pos: Vector2i, entity_type_id: int) -> vo
 **Contracts**: State [x]
 
 ##### State Management
-- State model: BeltGridの状態を観察し、描画用バッファを維持
+- State model: BeltGridの状態を観察し、_process()でqueue_redraw()を呼び出して毎フレーム_draw()で再描画
 - Persistence: なし（フレームごとに再計算）
 - Concurrency: メインスレッド（_process内）
 
 **Implementation Notes**
-- Integration: Node2Dとして実装し、BeltGridへの参照を保持。_process()で毎フレーム描画更新
-- Risks: 大量ベルト時の描画コスト — MultiMeshInstance2Dまたはスプライトプールで軽減
+- Integration: Node2Dとして実装し、BeltGridへの参照を保持。_process()でqueue_redraw()、_draw()で2パス描画（ベルトタイル→アイテム）
+- Rendering: _draw()によるcanvasコマンド描画。draw_rect()でベルト背景・境界線、draw_colored_polygon()で方向矢印、draw_circle()/draw_arc()でアイテム描画。バックプレッシャー時はアイテム色をREDに変更
+- Risks: 大量ベルト時の描画コスト — 現在の_draw()実装は<100ベルトで十分。500+ベルトでFPS低下時はMultiMeshInstance2Dへの最適化を検討
 
 ## Data Models
 
@@ -409,6 +421,8 @@ classDiagram
         +tick()
         +on_entity_placed(entity_id, pos, direction, type_id)
         +on_entity_removed(entity_id, pos, type_id)
+        +receive_item_from_machine(pos, item_id) bool
+        +deliver_item_to_machine(pos) int
     }
 
     BeltGrid "1" --> "*" BeltTileData : manages
@@ -506,4 +520,11 @@ classDiagram
 - **処理順序キャッシュ**: ベルト追加/撤去時のみ再計算。通常ティックでは配列の順次走査のみ
 - **ダーティフラグ**: 接続グラフは変更時のみ再構築
 - **DictionaryアクセスO(1)**: Vector2iキーによるO(1)ルックアップ
-- **ベルト上アイテム描画**: 個別ノード化せず、MultiMeshInstance2Dまたはスプライトプールで一括描画
+- **ベルト上アイテム描画**: 個別ノード化せず、Node2D._draw()による2パスcanvas描画。大規模時はMultiMeshInstance2Dへの最適化パスあり
+
+## Implementation Changelog
+
+| 日付 | カテゴリ | 変更内容 |
+|------|---------|---------|
+| 2026-03-15 | [ARCHITECTURE] | BeltVisualSystemの描画方式を「MultiMeshInstance2D/スプライトプール」から「Node2D._draw()による2パスcanvas描画」に更新。実装ではGodotの_draw() APIでベルトタイル（Pass1）とアイテム（Pass2）を直接描画。シンプルさを優先し、大規模時の最適化パスを明記 |
+| 2026-03-15 | [INTERFACE] | BeltTransportSystemのサービスインターフェースに`receive_item_from_machine()`と`deliver_item_to_machine()`を追加。Req 4.1-4.4（機械ポートI/O）の実装メソッドを設計に反映 |

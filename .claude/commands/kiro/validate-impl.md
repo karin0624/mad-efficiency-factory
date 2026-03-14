@@ -1,6 +1,6 @@
 ---
 description: Validate implementation against requirements, design, and tasks
-allowed-tools: Bash, Glob, Grep, Read, mcp__gopeak__lsp_diagnostics, mcp__gopeak__editor_run, mcp__gopeak__editor_stop, mcp__gopeak__runtime_status, mcp__gopeak__editor_debug_output, mcp__gopeak__dap_output, mcp__gopeak__tool_groups
+allowed-tools: Bash, Glob, Grep, Read, mcp__gopeak__lsp_diagnostics, mcp__gopeak__editor_launch, mcp__gopeak__editor_status, mcp__gopeak__editor_run, mcp__gopeak__editor_stop, mcp__gopeak__runtime_status, mcp__gopeak__editor_debug_output, mcp__gopeak__dap_output, mcp__gopeak__tool_groups
 argument-hint: [feature-name] [task-numbers]
 ---
 
@@ -63,8 +63,11 @@ argument-hint: [feature-name] [task-numbers]
 - テストが失敗または存在しない場合、「テストカバレッジの問題」とフラグ
 
 #### LSP品質チェック（ベストエフォート）
+- `mcp__gopeak__editor_status` でエディタの起動状態を確認
+- エディタが起動していない場合: `mcp__gopeak__editor_launch` でエディタを起動し、LSPサーバーの準備を待つ
+  - 起動に失敗した場合のみスキップして **「LSPチェックスキップ: エディタ起動失敗」** を出力
 - `mcp__gopeak__lsp_diagnostics` を実行して静的解析のエラー/警告を確認
-- エディタが起動していないかGoPoakが利用できない場合: スキップして **「LSPチェックスキップ: エディタ未起動」** を出力
+- LSPチェックのためにエディタを起動した場合は、チェック完了後に `mcp__gopeak__editor_stop` でクリーンアップ
 - LSP結果は参考情報であり、GO/NO-GO判定には影響しない
 
 #### ランタイムスモークチェック（Layer 2タスクのみ）
@@ -84,6 +87,54 @@ argument-hint: [feature-name] [task-numbers]
 - 主要なインターフェース、コンポーネント、モジュールが存在することを検証
 - Grep/LSを使用してファイル構造が設計と一致していることを確認
 - 不整合が見つかった場合、「設計からの逸脱」とフラグ
+
+#### 設計ドリフト分析とパッチ提案
+
+設計整合性チェックで検出した逸脱を体系的に分析し、design.mdの更新案を生成する。
+
+**Step 1: 実装の実態抽出**
+実装コードから以下を抽出する:
+- クラス名・ノード名・シーン構造
+- メソッドシグネチャ（引数・戻り値）
+- 定数・設定値（マジックナンバー含む）
+- ファイル配置・ディレクトリ構造
+- 使用しているパターン（レンダリング手法、通信方式等）
+
+**Step 2: design.mdとの差分検出**
+抽出した実態をdesign.mdの以下のセクションと比較する:
+- Components and Interfaces → クラス・インターフェース定義
+- Architecture → アーキテクチャパターン・コンポーネント構成
+- Data Models → データ構造・型定義
+- Technology Stack → 使用技術・ライブラリ
+- System Flows → 処理フロー・状態遷移
+
+**Step 3: 乖離の分類**
+検出した乖離を以下のカテゴリに分類する:
+
+| カテゴリ | 説明 | 例 |
+|---------|------|-----|
+| `[INTERFACE]` | メソッドシグネチャ・API・プロパティの変更 | 引数追加、戻り値型変更 |
+| `[ARCHITECTURE]` | コンポーネント構成・パターンの変更 | ノード構造変更、レンダリング手法変更 |
+| `[CONSTRAINT]` | 発見された制約・前提条件 | 環境依存制約、フレームワーク制限 |
+| `[DATA_MODEL]` | データ構造・定数・設定値の変更 | 定数値変更、新規プロパティ追加 |
+
+**Step 4: ドリフトレポート出力**
+乖離ごとに以下のフォーマットで出力する:
+
+```
+### 🔀 設計ドリフト #N — [カテゴリ]
+- **設計の記述**: design.mdに書かれている内容（該当セクション・行を引用）
+- **実際の実装**: コードから確認した実態（ファイルパス・行番号付き）
+- **推定理由**: なぜ乖離が発生したか（技術的制約、パフォーマンス改善等）
+- **修正案**: design.mdの該当箇所に対する具体的な書き換え案
+```
+
+**Step 5: design.md自動更新**
+- ドリフトが1件以上検出された場合、確認なしで即座に以下を実行:
+  1. design.mdの該当セクションを修正案で更新
+  2. `## Implementation Changelog` セクションに日付・カテゴリ・変更内容を追記（セクションが存在しない場合は末尾に作成）
+- レポートの設計ドリフトセクションに、適用済みの更新内容を含める
+- ドリフトの有無はGO/NO-GO判定に影響しない（警告レベルを維持）
 
 #### リグレッションチェック
 - フルテストスイートを実行（利用可能な場合）
@@ -115,8 +166,12 @@ spec.jsonで指定された言語でサマリーを提供:
 
 ### GoPoakツール（ベストエフォート — すべてBashにフォールバック）
 
+**エディタ管理**:
+- `mcp__gopeak__editor_status` — エディタの起動状態を確認
+- `mcp__gopeak__editor_launch` — LSP診断のためにエディタを起動
+
 **診断**:
-- `mcp__gopeak__lsp_diagnostics` — 静的解析（エディタ起動時のみ、GO/NO-GO非影響）
+- `mcp__gopeak__lsp_diagnostics` — 静的解析（エディタを自動起動して実行、GO/NO-GO非影響）
 - `mcp__gopeak__tool_groups` — ツールグループの有効化
 
 **ランタイム検証**:

@@ -295,3 +295,11 @@ Include a Mermaid flowchart showing migration phases when schema/data movement i
 - Create this section only when keeping the information in the main body would hurt readability (e.g., very long TypeScript definitions, vendor option matrices, exhaustive schema tables). Keep decision-making context in the main sections so the design stays self-contained.
 - Link to the supporting references from the main text instead of inlining large snippets.
 - Background research notes and comparisons continue to live in `research.md`, but their conclusions must be summarized in the main design.
+
+## Implementation Changelog
+
+_Records deviations discovered during implementation that caused updates to this design document. Each entry captures what changed, why, and how the design was updated. When design is regenerated via `spec-design`, these entries are absorbed into the main design sections and this table is reset._
+
+| Date | Category | Change | Reason |
+|------|----------|--------|--------|
+| | | | |

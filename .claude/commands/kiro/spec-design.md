@@ -89,6 +89,11 @@ argument-hint: <feature-name> [-y]
 - **specs/design.mdテンプレートの構造と生成指示に厳密に従う**
 - **すべてのディスカバリー結果を統合**: リサーチ済み情報（API、パターン、技術）をコンポーネント定義、アーキテクチャ決定、インテグレーションポイント全体に活用
 - ステップ 1 で既存のdesign.mdが見つかった場合、参照コンテキストとして使用（マージモード）
+- **Implementation Changelogの活用**: 既存design.mdに `## Implementation Changelog` セクションが存在する場合:
+  - Changelogの各エントリを設計判断の入力として扱う（過去の実装で発見された制約・パターン・乖離の理由を新設計に反映する）
+  - 例: 「`[ARCHITECTURE]` MultiMeshInstance2Dではなく_draw()を採用（現規模ではシンプル）」→ 新設計のレンダリング方式選定に反映
+  - 例: 「`[CONSTRAINT]` TILE_SIZE=64がプロジェクト横断制約」→ 新設計のデータモデル・定数に明示的に記載
+  - 新しいdesign.mdでは `## Implementation Changelog` セクションを空の状態で出力する（過去の教訓は本文の設計判断に吸収済みのため）
 - 設計ルールを適用: 型安全性、ビジュアルコミュニケーション、フォーマルなトーン
 - spec.jsonで指定された言語を使用
 - セクションが更新された見出し（「Architecture Pattern & Boundary Map」「Technology Stack & Alignment」「Components & Interface Contracts」）を反映し、`research.md` の補足詳細を参照すること

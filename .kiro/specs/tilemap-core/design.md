@@ -287,7 +287,7 @@ Index calculation: _terrain[pos.y * _width + pos.x]
 class_name TilemapInitializer
 extends RefCounted
 
-func create_grid(seed: int) -> CoreGrid
+func create_grid(seed_value: int) -> CoreGrid
 ```
 
 - Preconditions: seedは任意のint値
@@ -426,3 +426,9 @@ GDScriptの例外機構が限定的であるため、防御的プログラミン
 
 ### Layer 4: Human Review
 該当なし（ビジュアル/UI要素なし）
+
+## Implementation Changelog
+
+| 日付 | カテゴリ | 変更内容 |
+|------|---------|---------|
+| 2026-03-14 | [INTERFACE] | `TilemapInitializer.create_grid(seed: int)` → `create_grid(seed_value: int)` — GDScript組み込み関数`seed()`とのシャドーイング回避のためパラメータ名を変更 |
