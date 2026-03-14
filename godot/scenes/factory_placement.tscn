@@ -7,11 +7,11 @@ script/source = "extends Node2D
 ##
 ## PlacementSystem、CoreGrid、EntityRegistry、GhostPreviewNode、PlacementInputNodeを接続する。
 
-var _grid: CoreGrid
-var _registry: EntityRegistry
-var _system: PlacementSystem
-var _ghost: GhostPreviewNode
-var _input_handler: PlacementInputNode
+var _grid
+var _registry
+var _system
+var _ghost
+var _input_handler
 
 func _ready() -> void:
 	# Core Logicの初期化
