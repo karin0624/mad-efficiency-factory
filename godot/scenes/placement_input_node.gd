@@ -9,6 +9,12 @@ extends Node2D
 ##
 ## Presentation層: 薄いアダプター。ロジックはPlacementSystemに委譲。
 
+## エンティティ配置時に発行されるシグナル
+signal entity_placed(entity_id: int, pos: Vector2i, direction: int, entity_type_id: int)
+
+## エンティティ撤去時に発行されるシグナル
+signal entity_removed(entity_id: int, pos: Vector2i, entity_type_id: int)
+
 const CELL_SIZE: int = 64  # グリッドセルのピクセルサイズ
 
 ## 依存コンポーネント（外部から注入）
@@ -77,7 +83,9 @@ func _handle_place() -> void:
 		_current_direction
 	)
 	if entity_id > 0:
-		# 配置成功: ゴーストプレビューを更新
+		# 配置成功: シグナル発行
+		entity_placed.emit(entity_id, _current_cell, _current_direction, _selected_entity_type_id)
+		# ゴーストプレビューを更新
 		if ghost_preview != null:
 			ghost_preview.update_target_cell(_current_cell)
 
@@ -86,7 +94,16 @@ func _handle_place() -> void:
 func _handle_remove() -> void:
 	if _current_cell.x < 0 or _current_cell.y < 0:
 		return
-	placement_system.remove(_current_cell)
+	# 撤去前にエンティティ情報を取得
+	var entity: PlacedEntity = placement_system.get_entity_at(_current_cell)
+	if entity == null:
+		return
+	var removed_entity_id := entity.entity_id
+	var removed_pos := entity.base_cell
+	var removed_type_id := entity.entity_type_id
+	var success := placement_system.remove(_current_cell)
+	if success:
+		entity_removed.emit(removed_entity_id, removed_pos, removed_type_id)
 	if ghost_preview != null:
 		ghost_preview.update_target_cell(_current_cell)
 
