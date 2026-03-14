@@ -1,174 +1,150 @@
 ---
 description: Create a requirements-optimized plan file for the cc-sdd pipeline
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill
+disable-model-invocation: true
+allowed-tools: Bash, Read, Glob, Agent, AskUserQuestion
 argument-hint: <plan-name>
 ---
 
-# Plan作成: requirements最適化されたplanファイルの生成
-
-<background_information>
-- **ミッション**: ユーザーの機能説明から、spec-requirementsフェーズに最適化されたplanファイルを `docs/plans/` に生成する
-- **成功基準**:
-  - planが「何を(WHAT)」「なぜ(WHY)」に集中し、「どう(HOW)」を含まないこと
-  - spec-requirementsが必要とする情報（スコープ、ドメイン用語、制約、テスタビリティ、受け入れ条件）が網羅されていること
-  - 実装詳細（クラス名、データ構造、System名、アーキテクチャパターン）が排除されていること
-  - 1つのplanが1つのfeature（= 1回の `/implement` 実行）に対応していること
-</background_information>
+# Plan作成: thinオーケストレータ
 
 <instructions>
 ## コアタスク
-ユーザーの機能説明（$ARGUMENTS + 会話コンテキスト）から、`docs/plans/<plan-name>.md` にrequirements最適化されたplanファイルを生成する。
+ユーザーの機能説明（$ARGUMENTS + 会話コンテキスト）から、requirements最適化されたplanファイルを `docs/plans/` に生成する。重い処理はsubagentに委譲し、メインコンテキストにはサマリのみ残す。
 
 ## 実行ステップ
 
-### ステップ 1: コンテキストの読み込み
+### ステップ 0: 引数の解析
 
-1. **steeringの読み込み**: `.kiro/steering/` ディレクトリ全体を読み込み、プロジェクト固有の用語・ドメイン・制約を把握する
-2. **既存specの確認**: `.kiro/specs/` 内の既存specをGlobで一覧し、既に実装済みまたは進行中の機能との関係を把握する
+- `$ARGUMENTS` の最初のトークンをplan名として抽出
+- 残りのトークンをユーザーの機能説明テキスト（`USER_DESCRIPTION`）として結合
+- 説明テキストが空の場合、会話コンテキストから機能説明を取得する
 
-### ステップ 2: 出力パスの決定
+### ステップ 1: 出力パスの解決
 
-- `$ARGUMENTS` の最初のトークンをplan名として使用する
 - 出力先: `docs/plans/<plan-name>.md`
-- 同名のファイルが既に存在する場合: ユーザーに上書きするか別名にするか確認する
-- `docs/plans/` ディレクトリが存在しない場合: 作成する
+- `docs/plans/` ディレクトリが存在しない場合: Bashで作成する
+- 絶対パスに変換: `PLAN_FILE_PATH="$(pwd)/docs/plans/<plan-name>.md"`
 
-### ステップ 3: planの生成
+### ステップ 2: 上書き確認
 
-ユーザーの説明と会話コンテキストから、以下のテンプレートに従ってplanを生成する。
-**まず初期バージョンを一括生成し、その後ユーザーのフィードバックで改善する**（事前に順番に質問しない）。
+- 同名のファイルが既に存在する場合: AskUserQuestion toolで上書きするか別名にするか確認する
+  - question: "docs/plans/<plan-name>.md は既に存在します。どうしますか？"
+  - options: "上書きする" / "別名を指定する"
+  - 「別名を指定する」の場合: AskUserQuestion toolで新しいplan名を入力させ、ステップ1に戻る
+- 存在しない場合: そのまま続行
 
-#### planテンプレート
+### ステップ 3: Agent P1 — plan生成
 
-```markdown
-# <Feature Name>
+```
+Agent(
+  description: "plan-gen <plan-name>",
+  model: "opus",
+  prompt: """
+  .claude/agents/plan-gen.md をRead toolで読み込み、その指示に従ってください。
 
-## 概要
-<!-- 1-3文: この機能の目的と提供価値 -->
+  ## パラメータ
+  - PLAN_FILE_PATH: {PLAN_FILE_PATH}
+  - USER_DESCRIPTION: {USER_DESCRIPTION}
 
-## ユーザーと価値
-- **対象ユーザー**:
-- **提供する価値**:
-- **解決する課題**:
-
-## 機能スコープ
-<!-- 「何をするか」の箇条書き。動詞+目的語形式。
-     OK: 「鉄鉱石を採掘して出力する」
-     NG: 「MinerExtractionSystemがタイマー減算して抽出する」 -->
--
--
-
-## ドメイン用語
-<!-- この機能で使われる用語とその意味。
-     spec-requirementsがEARS文の主語選定に使う -->
-| 用語 | 意味 |
-|------|------|
-|      |      |
-
-## 制約と前提
-<!-- ビジネス/ドメイン制約。技術的な実装制約は含めない
-     OK: 「マップサイズは64x64固定」「ティックレートは30tps」
-     NG: 「NativeHashMapを使用する」「MonoBehaviourで実装する」 -->
--
--
-
-## 依存関係
-<!-- 他の機能やシステムとの関係。インターフェース詳細は不要 -->
--
-
-## テスタビリティヒント
-<!-- spec-requirementsがLayer 1/2/3分類を決める際の参考情報
-     Layer 1: 純粋ロジック、ユニットテスト可能
-     Layer 2: フレームワーク依存、インテグレーションテスト可能
-     Layer 3/4: E2Eテスト（スクショ+AI評価）または人的レビュー必要（視覚品質、操作感など） -->
-- **自動テスト可能**:
-- **人的レビューが必要**:
-
-## 受け入れ条件の概要
-<!-- この機能が「完了」と言える条件。詳細な受け入れ基準はrequirementsフェーズで定義する -->
--
-
-## スコープ外
-<!-- 明示的に含まないもの。将来の拡張やV2で対応するものもここに記載 -->
--
+  ## 完了報告形式
+  P1_DONE
+  SUMMARY_START
+  ...
+  SUMMARY_END
+  GAPS: ...
+  """
+)
 ```
 
-#### セクション生成のガイドライン
+### ステップ 4: P1サマリの表示
 
-各セクションは `spec-requirements` が必要とする情報に直接マッピングされている:
-- **概要 / ユーザーと価値** → EARS文の背景・目的の基盤
-- **機能スコープ** → 要件項目の候補（各箇条書きが1つ以上の要件に展開される）
-- **ドメイン用語** → EARS文の主語・述語の語彙
-- **制約と前提** → 非機能要件・制約条件
-- **依存関係** → 前提条件・インターフェース要件
-- **テスタビリティヒント** → 各要件のLayer分類の判断材料
-- **受け入れ条件** → 受け入れ基準のシード（requirementsで詳細化される）
-- **スコープ外** → スコープ境界の明確化（スコープクリープ防止）
+Agent P1の返却結果から `SUMMARY_START` / `SUMMARY_END` 間のサマリと `GAPS:` 行を抽出してユーザーに表示する。
 
-### ステップ 4: 実装詳細のガードレール
+表示形式:
+```
+## Plan生成完了: <plan-name>
 
-生成したplanを書き出す前に、以下の実装詳細が混入していないか検証し、検出した場合は振る舞い記述にリライトする:
+<サマリ内容>
 
-| 検出対象 | リライト例 |
-|----------|-----------|
-| クラス名・コンポーネント名 | `MinerExtractionSystem` → 「タイマー間隔で資源を抽出する」 |
-| データ構造 | `NativeHashMap<int2, TileData>` → 「座標からタイルデータへのマッピング」 |
-| System名・メソッド名 | `BeltTransportSystem` → 「ベルト上のアイテムを進行・転送する」 |
-| アーキテクチャパターン名 | 「ECSパターンで実装」→ 記載しない（designフェーズで決定） |
-| 型定義 | `IComponentData`, `struct` → 概念レベルの説明に変換 |
+**不足情報**: <GAPS内容>
+**ファイル**: docs/plans/<plan-name>.md
+```
 
-**許容する具体値**（これらはドメイン/要件レベルの情報）:
-- 数値パラメータ: サイズ、レート、数量（例: 「64x64グリッド」「30tps」「2秒の処理時間」）
-- ユーザー操作: 入力方法、UI動作（例: 「ドラッグでパン、スクロールでズーム」）
-- ドメイン固有の振る舞い: バックプレッシャー、オーバーフロー処理など（実装ではなく振る舞いとして記述）
+### ステップ 5: Agent P2 — plan-readiness
 
-### ステップ 5: ファイルの書き出しと提示
+```
+Agent(
+  description: "plan-readiness <plan-name>",
+  model: "opus",
+  prompt: """
+  .claude/agents/plan-readiness.md をRead toolで読み込み、その指示に従ってください。
 
-1. Write toolで `docs/plans/<plan-name>.md` にplanを書き出す
-2. ユーザーに以下を提示:
-   - 生成されたplanの概要（各セクションの要約）
-   - 不足している可能性がある情報の指摘
+  ## パラメータ
+  - PLAN_FILE_PATH: {PLAN_FILE_PATH}
 
-### ステップ 6: plan-readinessの自動実行
+  ## 完了報告形式
+  P2_DONE status=<READY|REVISE|INCOMPLETE|SKIP>
+  CHANGES_START
+  ...
+  CHANGES_END
+  """
+)
+```
 
-planファイルの書き出し完了後、Skill toolを使用して `/plan-readiness <plan-name>` を自動実行する。
-これにより、Codex CLIによるrequirements準備度レビューが即座に行われ、フィードバックがplanに反映される。
+### ステップ 6: P2結果の表示
 
-### ステップ 7: イテレーション
+Agent P2の返却結果から status と `CHANGES_START` / `CHANGES_END` 間の変更サマリを抽出してユーザーに表示する。
 
-ユーザーからフィードバックがあれば:
-1. Edit toolでplanを更新する
-2. ステップ4のガードレールを再適用する
-3. 変更内容のサマリを提示する
+表示形式:
+```
+## Readinessレビュー: <status>
 
-## 重要な制約
+<変更サマリ>
+```
 
-- **1 plan = 1 feature**: 1つのplanファイルは1つの機能に対応する。複数機能を含むロードマップ的なplanは作成しない
-- **WHAT/WHY only**: 実装詳細（HOW）は絶対に含めない。判断に迷ったら「これはdesignフェーズで決めるべきか？」と自問する
-- **generate-then-iterate**: 事前に質問を重ねるのではなく、まず初期バージョンを生成してからフィードバックで改善する
-- **steeringとの整合**: steeringに定義されたドメイン用語や制約と矛盾しないこと
-</instructions>
+- `status=SKIP` の場合: "Codex CLIが未インストールのため、readinessレビューをスキップしました" と表示
 
-## ツールガイド
-- **Read**: steeringファイル、既存plan/specの読み込み
-- **Glob**: 既存plan/specの一覧確認
-- **Grep**: 既存コードベース内の関連パターン検索（必要な場合のみ）
-- **Write**: planファイルの新規作成
-- **Edit**: planファイルの更新（イテレーション時）
-- **Bash**: `docs/plans/` ディレクトリの存在確認・作成
+### ステップ 7: 次のステップの提示
 
-## 出力の説明
-1. **生成されたplanの概要**: 各セクションの簡潔な要約（5行以内）
-2. **情報の充足度**: 不足している可能性がある情報の指摘
-3. **plan-readiness結果**: Codex CLIによる準備度レビュー結果とplanへの反映内容
-4. **次のステップ**: AskUserQuestionツールで次のアクションをユーザーに選択させる。以下の選択肢を提示する:
-   - 「フィードバックで改善する」（具体的な改善ポイントも併せて提案する）
-   - 「`/implement <plan-name>` でcc-sddパイプラインを開始する」
+AskUserQuestion toolでユーザーに選択肢を提示する:
+- question: "planの準備が完了しました。次のステップを選択してください。"
+- options:
+  - "フィードバックで改善する"（具体的な改善ポイントも併せて提案する）
+  - "`/implement <plan-name>` でcc-sddパイプラインを開始する"
+
+### ステップ 8: イテレーション（「フィードバックで改善する」選択時）
+
+ユーザーのフィードバック内容を取得し、Agent P1eを起動する:
+
+```
+Agent(
+  description: "plan-edit <plan-name>",
+  model: "sonnet",
+  prompt: """
+  .claude/agents/plan-edit.md をRead toolで読み込み、その指示に従ってください。
+
+  ## パラメータ
+  - PLAN_FILE_PATH: {PLAN_FILE_PATH}
+  - USER_FEEDBACK: {ユーザーのフィードバック内容}
+
+  ## 完了報告形式
+  P1E_DONE
+  CHANGES_START
+  ...
+  CHANGES_END
+  """
+)
+```
+
+P1e完了後:
+1. 変更サマリをユーザーに表示
+2. ステップ 5（P2: plan-readiness）に戻る
 
 ## 安全策とフォールバック
 
 ### エラーシナリオ
-- **ユーザーの説明が不足している場合**: テンプレートの各セクションに対して最低限の情報を埋め、不明な箇所には `<!-- 要確認 -->` コメントを付与して提示する
-- **同名のplanが存在する場合**: 上書きせず、ユーザーに確認する
-- **steeringが空の場合**: プロジェクトコンテキストが不足しており、planの品質に影響する可能性があることを警告する
-- **ユーザーが実装詳細を要求する場合**: 「実装詳細はdesignフェーズで決定されます。planでは振る舞いレベルの記述に留めます」と説明し、振る舞い記述への変換を提案する
+- **ユーザーの説明が不足している場合**: P1が最低限のテンプレートを生成し、GAPSで不足情報を報告する
+- **steeringが空の場合**: P1がプロジェクトコンテキスト不足の警告をサマリに含める
+- **Agent失敗時**: エラー内容を表示し、手動での対応方法を案内する
+
+</instructions>
