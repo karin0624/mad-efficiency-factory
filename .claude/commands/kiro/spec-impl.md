@@ -92,6 +92,7 @@ argument-hint: <feature-name> [task-numbers]
 
 6. **完了マーク**:
    - tasks.mdのチェックボックスを `- [ ]` から `- [x]` に更新
+   - **全タスク完了時**: すべてのタスクが完了した場合（未チェックの `- [ ]` が残っていない場合、L4 Human Reviewのスキップ分を除く）、`spec.json` の `phase` を `"impl-completed"` に更新
 
 7. **設計ジャーナル記録**:
    - タスク実装中に design.md との乖離や新たな発見があった場合、`.kiro/specs/$1/impl-journal.md` に記録する
