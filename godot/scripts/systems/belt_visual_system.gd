@@ -62,6 +62,7 @@ func _draw() -> void:
 		Vector2(-1.0, 0.0),   # W
 	]
 
+	# パス1: ベルトタイル背景・境界線・方向矢印
 	for pos: Vector2i in positions:
 		var tile: BeltTileData = belt_grid.get_tile(pos)
 		if tile == null:
@@ -70,25 +71,29 @@ func _draw() -> void:
 		var pixel_pos := Vector2(pos.x * TILE_SIZE, pos.y * TILE_SIZE)
 		var tile_rect := Rect2(pixel_pos, Vector2(TILE_SIZE, TILE_SIZE))
 
-		# --- ベルトタイル背景 ---
 		draw_rect(tile_rect, BELT_BG_COLOR)
-		# 境界線（1px内側）
 		draw_rect(tile_rect, BELT_BORDER_COLOR, false, 1.5)
 
-		# --- 方向矢印（三角形） ---
 		var center := pixel_pos + Vector2(TILE_SIZE / 2.0, TILE_SIZE / 2.0)
 		_draw_direction_arrow(center, tile.direction)
 
-		# --- アイテム描画 ---
-		if tile.has_item():
-			var dir_offset := dir_offsets[tile.direction]
-			var item_offset := dir_offset * (tile.progress - 0.5) * TILE_SIZE
-			var item_pos := center + item_offset
+	# パス2: アイテム（ベルト境界線の上に描画）
+	for pos: Vector2i in positions:
+		var tile: BeltTileData = belt_grid.get_tile(pos)
+		if tile == null:
+			continue
+		if not tile.has_item():
+			continue
 
-			var color := ITEM_BLOCKED_COLOR if tile.progress >= 1.0 else ITEM_COLOR
-			draw_circle(item_pos, ITEM_RADIUS, color)
-			# アイテムの輪郭
-			draw_arc(item_pos, ITEM_RADIUS, 0.0, TAU, 16, Color.BLACK, 1.5)
+		var pixel_pos := Vector2(pos.x * TILE_SIZE, pos.y * TILE_SIZE)
+		var center := pixel_pos + Vector2(TILE_SIZE / 2.0, TILE_SIZE / 2.0)
+		var dir_offset := dir_offsets[tile.direction]
+		var item_offset := dir_offset * (tile.progress - 0.5) * TILE_SIZE
+		var item_pos := center + item_offset
+
+		var color := ITEM_BLOCKED_COLOR if tile.progress >= 1.0 else ITEM_COLOR
+		draw_circle(item_pos, ITEM_RADIUS, color)
+		draw_arc(item_pos, ITEM_RADIUS, 0.0, TAU, 16, Color.BLACK, 1.5)
 
 
 ## 方向矢印を描画する（三角形ポリゴン）
