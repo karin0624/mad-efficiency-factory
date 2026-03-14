@@ -12,6 +12,7 @@ config_version=5
 
 config/name="Mad Efficiency Factory"
 config/features=PackedStringArray("4.3")
+run/main_scene="res://scenes/factory_placement.tscn"
 
 [editor_plugins]
 

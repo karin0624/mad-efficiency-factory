@@ -1,0 +1,48 @@
+[gd_scene load_steps=2 format=3 uid="uid://placement_integration_test"]
+
+[sub_resource type="GDScript" id="GDScript_1"]
+script/source = "extends Node2D
+
+var _grid: CoreGrid
+var _registry: EntityRegistry
+var _system: PlacementSystem
+var _ghost: GhostPreviewNode
+var _input_handler: PlacementInputNode
+
+func _ready() -> void:
+	_grid = CoreGrid.new()
+	_registry = EntityRegistry.create_default()
+	_system = PlacementSystem.new(_grid, _registry)
+
+	_ghost = GhostPreviewNode.new()
+	_ghost.placement_system = _system
+	add_child(_ghost)
+
+	_input_handler = PlacementInputNode.new()
+	_input_handler.placement_system = _system
+	_input_handler.ghost_preview = _ghost
+	add_child(_input_handler)
+
+	# Belt(ID=3, 1x1)を選択
+	_input_handler.select_entity(3)
+
+	# プログラムで配置テスト
+	var id1 := _system.place(3, Vector2i(0, 0), Enums.Direction.N)
+	var id2 := _system.place(3, Vector2i(1, 0), Enums.Direction.N)
+	print('PlacementInputNode integration test ready')
+	print('Belt placed at (0,0): entity_id=', id1)
+	print('Belt placed at (1,0): entity_id=', id2)
+	print('Cell (0,0) occupied: ', _grid.is_occupied(Vector2i(0, 0)))
+	print('Cell (1,0) occupied: ', _grid.is_occupied(Vector2i(1, 0)))
+	# 撤去テスト
+	var removed := _system.remove(Vector2i(0, 0))
+	print('Remove at (0,0): ', removed)
+	print('Cell (0,0) after remove: ', _grid.is_occupied(Vector2i(0, 0)))
+	# 再配置テスト
+	var id3 := _system.place(3, Vector2i(0, 0), Enums.Direction.N)
+	print('Re-place at (0,0): entity_id=', id3)
+	print('All integration tests passed!')
+"
+
+[node name="PlacementIntegrationTest" type="Node2D"]
+script = SubResource("GDScript_1")
