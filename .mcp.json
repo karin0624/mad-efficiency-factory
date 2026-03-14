@@ -5,8 +5,8 @@
       "args": ["tools/memory-mcp/server.mjs"]
     },
     "gopeak": {
-      "command": "npx",
-      "args": ["gopeak"]
+      "command": "env",
+      "args": ["-u", "WAYLAND_DISPLAY", "-u", "XDG_RUNTIME_DIR", "xvfb-run", "--auto-servernum", "npx", "gopeak"]
     }
   }
 }
