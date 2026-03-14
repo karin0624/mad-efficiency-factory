@@ -1,5 +1,5 @@
 ---
-description: Execute cc-sdd pipeline from a plan file in an isolated worktree
+description: Execute cc-sdd pipeline from a plan file in an isolated worktree. ONLY invoke when the user explicitly calls /implement — never auto-trigger.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
 argument-hint: <plan-file-or-name>
 ---
