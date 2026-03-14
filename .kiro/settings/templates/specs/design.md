@@ -258,8 +258,14 @@ Error tracking, logging, and health monitoring implementation.
 - Tolerance-based assertions where applicable
 - List 3–5 constraint verification targets
 
-### Layer 3: Human Review (Non-Testable)
-- Target: Visual quality, usability, art direction alignment
+### Layer 3: E2E Test (Screenshot + AI Visual Evaluation)
+- Target: Visual quality verifiable via screenshots, performance metrics, scene-level behavior
+- Framework: GdUnit4 SceneRunner + xvfb-run + AI evaluation (Read tool)
+- Screenshot save path: `godot/test_screenshots/`
+- List 2–4 specific E2E test targets (screenshot scenarios or metric thresholds)
+
+### Layer 4: Human Review (Non-Testable)
+- Target: Subjective quality, game feel, art direction alignment that AI cannot judge
 - Review method and criteria for each item
 - List items requiring human judgment with specific review criteria
 

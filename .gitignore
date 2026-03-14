@@ -53,3 +53,4 @@ tools/memory-mcp/memory.db-shm
 .godot/
 *.import
 godot/reports/
+godot/test_screenshots/

@@ -424,5 +424,5 @@ GDScriptの例外機構が限定的であるため、防御的プログラミン
 ### Layer 2: Integration Tests
 該当なし（全コンポーネントがSceneTree非依存）
 
-### Layer 3: Human Review
+### Layer 4: Human Review
 該当なし（ビジュアル/UI要素なし）

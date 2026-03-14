@@ -13,8 +13,8 @@ argument-hint: <plan-file-or-name>
   - フィーチャーブランチ上にworktreeが作成されていること
   - spec生成（Agent A）と実装（Agent B）が隔離されたサブエージェントで完了していること
   - 変更がコミットされていること（Agent C）
-  - Human Reviewタスクがない場合: プッシュされ、PRが作成されていること（Agent D）
-  - Human Reviewタスクがある場合: scene-reviewが実行され、worktreeが保持されていること
+  - L4 Human Reviewタスクがない場合: プッシュされ、PRが作成されていること（Agent D）
+  - L4 Human Reviewタスクがある場合: scene-reviewが実行され、worktreeが保持されていること
   - メインセッションのコンテキストが最小限に保たれていること（オーケストレーターのみ）
 </background_information>
 
@@ -228,18 +228,18 @@ Agent(
 )
 ```
 
-### ステップ 5.5: Human Review 分岐判定
+### ステップ 5.5: L4 Human Review 分岐判定
 
-Agent C完了後、worktree内の `tasks.md` を確認してHuman Reviewタスクの有無を判定する:
+Agent C完了後、worktree内の `tasks.md` を確認してL4 Human Reviewタスクの有無を判定する:
 1. `{WORKTREE_PATH}/.kiro/specs/{FEATURE_NAME}/tasks.md` を読み込む
-2. 未チェックのHuman Reviewサブタスク（パターン: `- [ ] X.Y Human review:`）を検索
+2. 未チェックのL4 Human Reviewサブタスク（パターン: `- [ ] X.Y Human review:`）を検索
 3. 結果に応じて次のステップを分岐:
-   - **Human Reviewタスクあり** → ステップ 6A へ
-   - **Human Reviewタスクなし** → ステップ 6B へ
+   - **L4 Human Reviewタスクあり** → ステップ 6A へ
+   - **L4 Human Reviewタスクなし** → ステップ 6B へ
 
-### ステップ 6A: scene-review（Human Reviewタスクがある場合）
+### ステップ 6A: scene-review（L4 Human Reviewタスクがある場合）
 
-Human Reviewタスクが存在する場合、PR作成の前にscene-reviewを実行する。
+L4 Human Reviewタスクが存在する場合、PR作成の前にscene-reviewを実行する。
 
 1. Skill toolで scene-review を起動:
    - `Skill(skill="kiro:scene-review", args="{FEATURE_NAME}")`
@@ -250,7 +250,7 @@ Human Reviewタスクが存在する場合、PR作成の前にscene-reviewを実
 
 ### ステップ 6B: Agent D — Push + PR + クリーンアップ
 
-ステップ 5.5 でHuman Reviewタスクがなかった場合、またはステップ 6A で全項目合格の場合にAgent Dを起動してPush・PR作成を行う。
+ステップ 5.5 でL4 Human Reviewタスクがなかった場合、またはステップ 6A で全項目合格の場合にAgent Dを起動してPush・PR作成を行う。
 
 ```
 Agent(
@@ -310,7 +310,7 @@ scene-reviewで不合格項目がある場合の出力:
 
 ### ステップ 7B: 最終出力（PR作成完了）
 
-scene-reviewが全項目合格だった場合、またはHuman Reviewタスクがなかった場合の出力:
+scene-reviewが全項目合格だった場合、またはL4 Human Reviewタスクがなかった場合の出力:
 - ブランチ名
 - 作成されたspec名
 - タスク完了状況

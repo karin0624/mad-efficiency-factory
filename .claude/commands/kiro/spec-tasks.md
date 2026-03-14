@@ -55,7 +55,11 @@ argument-hint: <feature-name> [-y] [--sequential]
   - 論理的な場合はタスクを実装レイヤーごとにグループ化（コアロジック → シーン構築 → インテグレーション → ヒューマンレビュー）
   - Layer 1タスク: テストサブタスクが実装サブタスクの前に来ること（TDD強制）。テスト対象はRefCounted/Resource等SceneTree非依存クラス
   - Layer 2タスク: TDD強制（L1と同様にテスト先行）。テストはGdUnit4でSceneTree依存コード（`add_child`、シグナル通信等）を検証。実装後に `- [ ] X.Y Screenshot checkpoint: [検証内容]` サブタスクを追加してランタイム動作を目視確認
-  - Layer 3タスク: 最終サブタスクはヒューマンレビューチェックポイント: `- [ ] X.Y Human review: [criteria]`
+  - Layer 3タスク: E2E checkpointチェックポイント: `- [ ] X.Y E2E checkpoint: [検証内容]`
+    - フロー: SceneRunnerフルシーン起動→スクショ保存（`godot/test_screenshots/`）→AI視覚評価
+    - spec-implが自動実行する（ヒューマンレビュー不要）
+    - **L3/L4の振り分け基準**: スクショ/メトリクスでAIが客観的に判定可能 → L3。主観的で再現困難（操作感・アートディレクション等）→ L4
+  - Layer 4タスク: 最終サブタスクはヒューマンレビューチェックポイント: `- [ ] X.Y Human review: [criteria]`
   - ヒューマンレビューサブタスクはspec-implでは実行されない。`/kiro:scene-review` で処理される
 - 既存のtasks.mdが見つかった場合、新しいコンテンツとマージ
 
@@ -96,7 +100,7 @@ spec.jsonで指定された言語で簡潔なサマリーを提供:
    - ✅ すべての要件がタスクにマッピング済み
    - ✅ タスク依存関係の検証済み
    - ✅ テストタスクが含まれている
-   - ✅ レイヤーを考慮した順序付けの検証済み（Layer 1 TDD、Layer 3 ヒューマンレビューチェックポイント）
+   - ✅ レイヤーを考慮した順序付けの検証済み（Layer 1 TDD、Layer 3 E2E checkpoint、Layer 4 ヒューマンレビューチェックポイント）
    - ✅ ロジックとシーンタスクが分離されている
 4. **次のアクション**: タスクをレビューし、準備ができたら次へ進む
 

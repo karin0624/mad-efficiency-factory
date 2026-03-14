@@ -63,6 +63,16 @@ Focus on capabilities and outcomes, not code structure.
 - User testing
 - Marketing/business activities
 
+### Layer-Aware Task Ordering
+
+When ordering tasks, group by testability layer (L1 → L2 → L3 → L4):
+
+- **Layer 1 tasks**: TDD mandatory — test sub-task before implementation sub-task. Test targets are RefCounted/Resource (no SceneTree dependency).
+- **Layer 2 tasks**: TDD mandatory. Tests use GdUnit4 with SceneTree (`add_child`, signals). After implementation, add `- [ ] X.Y Screenshot checkpoint: [description]` for runtime visual confirmation.
+- **Layer 3 tasks**: E2E checkpoint pattern — `- [ ] X.Y E2E checkpoint: [description]`. Flow: SceneRunner full-scene run → screenshot save (`godot/test_screenshots/`) → AI visual evaluation. spec-impl executes automatically.
+  - **L3 vs L4 decision**: screenshot/metrics objectively verifiable by AI → L3 E2E. Subjective, hard to reproduce → L4 Human Review.
+- **Layer 4 tasks**: Final sub-task is a human review checkpoint: `- [ ] X.Y Human review: [criteria]`. Processed by `/kiro:scene-review`, NOT by spec-impl.
+
 ### Optional Test Coverage Tasks
 
 - When the design already guarantees functional coverage and rapid MVP delivery is prioritized, mark purely test-oriented follow-up work (e.g., baseline rendering/unit tests) as **optional** using the `- [ ]*` checkbox form.

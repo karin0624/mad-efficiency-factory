@@ -11,7 +11,8 @@
 **Testability:** Layer 1 (Fully Testable)
 <!-- Layer 1: Fully Testable - Pure logic, unit test verifiable -->
 <!-- Layer 2: Range-Testable - Constraint/range verification possible, non-testable aspects documented -->
-<!-- Layer 3: Human Review - Not automatically testable, review method and criteria required -->
+<!-- Layer 3: E2E Test - Auto-verifiable via screenshot/metrics + AI visual evaluation (SceneRunner) -->
+<!-- Layer 4: Human Review - Not automatically testable, review method and criteria required -->
 
 #### Acceptance Criteria
 1. When [event], the [system] shall [response/action]
@@ -20,7 +21,7 @@
 4. Where [feature is included], the [system] shall [response/action]
 5. The [system] shall [response/action]
 
-### Requirement 2: {{REQUIREMENT_AREA_2}} (Layer 2/3 example)
+### Requirement 2: {{REQUIREMENT_AREA_2}} (Layer 2/3/4 example)
 **Objective:** As a {{ROLE}}, I want {{CAPABILITY}}, so that {{BENEFIT}}
 **Testability:** Layer {{N}} ({{CLASSIFICATION}})
 
@@ -34,4 +35,4 @@
 - Acceptance threshold: [Specific criteria for human judgment]
 
 <!-- Additional requirements follow the same pattern -->
-<!-- All requirements MUST include Testability classification. Layer 1 requirements need only Acceptance Criteria. Layer 2/3 requirements MUST include Non-Testable Aspects section. -->
+<!-- All requirements MUST include Testability classification. Layer 1 requirements need only Acceptance Criteria. Layer 2/3/4 requirements MUST include Non-Testable Aspects section. -->

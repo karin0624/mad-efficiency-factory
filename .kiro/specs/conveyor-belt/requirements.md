@@ -90,7 +90,7 @@
 
 ### Requirement 9: ベルト上アイテムの視覚表現 (Layer 3)
 **Objective:** プレイヤーとして、ベルト上のアイテム移動が視覚的に滑らかで分かりやすく表示されてほしい。これにより工場の稼働状況を直感的に把握できる。
-**Testability:** Layer 3 (Human Review)
+**Testability:** Layer 3 (E2E Test)
 
 #### Acceptance Criteria
 1. The BeltVisualSystem shall ベルト上のアイテムをベルトの向き方向に視覚的に移動表示する
