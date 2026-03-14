@@ -13,6 +13,12 @@ fi
 GODOT_BIN="${GODOT_BIN:-godot}"
 PROJECT_DIR="$(cd "$(dirname "$0")/../godot" && pwd)"
 
+# WSLg prevents xvfb-run from being truly headless — it intercepts X11/Wayland
+# and renders real windows. Unsetting these variables forces Godot to use only
+# the virtual display created by xvfb-run.
+unset WAYLAND_DISPLAY 2>/dev/null || true
+unset XDG_RUNTIME_DIR 2>/dev/null || true
+
 xvfb-run --auto-servernum \
   "$GODOT_BIN" --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy \
   --path "$PROJECT_DIR" \
