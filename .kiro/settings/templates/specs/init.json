@@ -11,7 +11,9 @@
     },
     "design": {
       "generated": false,
-      "approved": false
+      "approved": false,
+      "codex_reviewed": false,
+      "codex_status": null
     },
     "tasks": {
       "generated": false,
