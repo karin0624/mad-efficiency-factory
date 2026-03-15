@@ -38,6 +38,12 @@ RE_AFFECTED_TASKS = re.compile(r"\bAFFECTED_TASKS:\s*(.+)")
 RE_DELTA_SUMMARY_START = re.compile(r"\bDELTA_SUMMARY_START\b")
 RE_DELTA_SUMMARY_END = re.compile(r"\bDELTA_SUMMARY_END\b")
 
+# M1 ADR fields
+RE_ADR_REQUIRED = re.compile(r"\bADR_REQUIRED:\s*(yes|no)\b")
+RE_ADR_CATEGORY = re.compile(r"\bADR_CATEGORY:\s*(spec|architecture|governance)\b")
+RE_ADR_REASON = re.compile(r"\bADR_REASON:\s*(.+)")
+RE_ADR_CREATED = re.compile(r"\bADR_CREATED\b")
+
 # M2 (cascade)
 RE_CASCADE_DONE = re.compile(r"\bCASCADE_DONE\b")
 RE_CASCADE_FAILED = re.compile(r"\bCASCADE_FAILED\b")
@@ -114,6 +120,18 @@ class ParsedOutput:
     def affected_tasks(self) -> str:
         return self.values.get("AFFECTED_TASKS", "")
 
+    @property
+    def adr_required(self) -> bool:
+        return self.values.get("ADR_REQUIRED", "no") == "yes"
+
+    @property
+    def adr_category(self) -> str:
+        return self.values.get("ADR_CATEGORY", "")
+
+    @property
+    def adr_reason(self) -> str:
+        return self.values.get("ADR_REASON", "")
+
 
 def parse_agent_output(text: str) -> ParsedOutput:
     """Extract structured markers and values from agent output text."""
@@ -130,6 +148,7 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("CASCADE_DONE", RE_CASCADE_DONE),
         ("CASCADE_FAILED", RE_CASCADE_FAILED),
         ("DELTA_TASKS_DONE", RE_DELTA_TASKS_DONE),
+        ("ADR_CREATED", RE_ADR_CREATED),
     ]:
         if pattern.search(text):
             result.markers[name] = True
@@ -142,6 +161,9 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("AFFECTED_REQUIREMENTS", RE_AFFECTED_REQS),
         ("AFFECTED_DESIGN_SECTIONS", RE_AFFECTED_DESIGN),
         ("AFFECTED_TASKS", RE_AFFECTED_TASKS),
+        ("ADR_REQUIRED", RE_ADR_REQUIRED),
+        ("ADR_CATEGORY", RE_ADR_CATEGORY),
+        ("ADR_REASON", RE_ADR_REASON),
     ]:
         m = pattern.search(text)
         if m:

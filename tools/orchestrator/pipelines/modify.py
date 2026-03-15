@@ -122,12 +122,19 @@ class ModifyPipeline(Pipeline):
         m1_cache_dir = self.config.project_root / ".claude" / "orchestrator"
         m1_cache_dir.mkdir(parents=True, exist_ok=True)
         m1_cache_path = m1_cache_dir / f"modify-{feature_name}.json"
+        adr_required = result_m1.parsed.adr_required
+        adr_category = result_m1.parsed.adr_category
+        adr_reason = result_m1.parsed.adr_reason
+
         m1_cache_path.write_text(json.dumps({
             "m1_output": m1_output,
             "cascade_depth": cascade_depth,
             "classification": classification,
             "change_description": change_description,
             "delta_summary": delta_summary,
+            "adr_required": adr_required,
+            "adr_category": adr_category,
+            "adr_reason": adr_reason,
         }, ensure_ascii=False, indent=2))
 
         # ── Step 3: Resume detection + Worktree ──────────────────
@@ -228,6 +235,32 @@ class ModifyPipeline(Pipeline):
         else:
             self.skip_step("B2: validate", "opus", "resume")
 
+        # ── Step ADR: Auto-generate ADR (when needed) ──────────────
+        if adr_required:
+            self.progress.print_info(
+                f"ADR required: {adr_category} — {adr_reason}"
+            )
+            spec_diff = await self._get_worktree_diff(wt_path)
+            result_adr = await self._run_or_fail(
+                "ADR: auto-generate",
+                "tools/orchestrator/prompts/modify-adr.md",
+                "sonnet",
+                {
+                    "FEATURE_NAME": feature_name,
+                    "CHANGE_DESCRIPTION": change_description,
+                    "ADR_CATEGORY": adr_category,
+                    "ADR_REASON": adr_reason,
+                    "DELTA_SUMMARY": delta_summary,
+                    "M1_OUTPUT": m1_output,
+                    "SPEC_DIFF": spec_diff,
+                },
+                wt_path,
+            )
+            if not result_adr.parsed.markers.get("ADR_CREATED"):
+                self.progress.print_warning("ADR generation failed — continuing without ADR")
+        else:
+            self.skip_step("ADR: auto-generate", "sonnet", "ADR not required")
+
         # ── Step 8: C — Commit ────────────────────────────────────
         await self._run_or_fail(
             "C: commit", "tools/orchestrator/prompts/impl-commit.md", "sonnet",
@@ -325,6 +358,22 @@ class ModifyPipeline(Pipeline):
         if result.is_error:
             raise PipelineError(f"{name} failed: {result.error_message}", cwd)
         return result
+
+    async def _get_worktree_diff(self, wt_path: Path) -> str:
+        """Get git diff from worktree to understand implementation changes."""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["git", "diff", "HEAD"],
+                cwd=str(wt_path),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return result.stdout[:10000] if result.stdout else "(no diff)"
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+            return "(diff unavailable)"
 
     async def _run_scene_review(self, wt_path: Path, feature_name: str) -> bool:
         """Run scene-review via a query() call that invokes the Skill."""

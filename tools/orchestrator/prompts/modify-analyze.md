@@ -19,6 +19,7 @@ promptから以下を受け取る:
 - `.kiro/specs/{FEATURE_NAME}/design.md`
 - `.kiro/specs/{FEATURE_NAME}/tasks.md`
 - `.kiro/specs/{FEATURE_NAME}/impl-journal.md`（存在する場合）
+- `.kiro/decisions/spec/` — このspecに関連する既存の意思決定記録（あれば）
 
 ### 2. Steeringコンテキストの読み込み
 
@@ -79,6 +80,16 @@ promptから以下を受け取る:
 | `removal` | 既存要件の削除 |
 | `mixed` | 上記の組み合わせ |
 
+### 7. ADR必要性の判定
+
+`.kiro/settings/rules/decision-criteria.md` を参照し、この変更がADRを必要とするか判定する。
+
+判定基準:
+- 既存の受入基準のセマンティック変更 → yes
+- 代替案を比較した選択 → yes
+- 既存の制約の変更 → yes
+- 文言明確化・バグ修正・曖昧さ詳細化 → no
+
 ## 出力形式
 
 以下の形式で正確に出力すること（パーサーが読み取るため形式厳守）:
@@ -91,6 +102,9 @@ CASCADE_DEPTH: requirements-only|requirements+design|requirements+design+tasks|f
 AFFECTED_REQUIREMENTS: 1, 3, 5
 AFFECTED_DESIGN_SECTIONS: Components/MachinePortTransfer, SystemFlows/TickProcessing
 AFFECTED_TASKS: 4.1, 4.2, 5.1
+ADR_REQUIRED: yes|no
+ADR_CATEGORY: spec|architecture|governance
+ADR_REASON: [1行の判定理由]
 DELTA_SUMMARY_START
 （変更内容の構造化記述 — 何が追加/変更/削除されるかを箇条書きで記述）
 DELTA_SUMMARY_END

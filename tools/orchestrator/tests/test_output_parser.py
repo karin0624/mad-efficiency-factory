@@ -183,3 +183,64 @@ class TestL4HumanReview:
 - [ ] 1.2 Add tests
 """
         assert not has_l4_human_review(tasks)
+
+
+# ── ADR markers ──────────────────────────────────────────────────
+
+class TestADRMarkers:
+    def test_adr_required_yes(self):
+        text = "ADR_REQUIRED: yes\nADR_CATEGORY: spec\nADR_REASON: semantic change to acceptance criteria"
+        p = parse_agent_output(text)
+        assert p.adr_required
+        assert p.adr_category == "spec"
+        assert p.adr_reason == "semantic change to acceptance criteria"
+
+    def test_adr_required_no(self):
+        text = "ADR_REQUIRED: no\nADR_CATEGORY: spec\nADR_REASON: wording clarification only"
+        p = parse_agent_output(text)
+        assert not p.adr_required
+
+    def test_adr_required_missing(self):
+        text = "ANALYSIS_DONE\nCLASSIFICATION: minor"
+        p = parse_agent_output(text)
+        assert not p.adr_required
+        assert p.adr_category == ""
+        assert p.adr_reason == ""
+
+    def test_adr_category_all_variants(self):
+        for cat in ("spec", "architecture", "governance"):
+            p = parse_agent_output(f"ADR_CATEGORY: {cat}")
+            assert p.adr_category == cat
+
+    def test_adr_created_marker(self):
+        text = "ADR_CREATED\nADR_PATH: .kiro/decisions/spec/0001-add-validation.md"
+        p = parse_agent_output(text)
+        assert p.markers.get("ADR_CREATED")
+
+    def test_adr_created_not_present(self):
+        text = "ADR generation failed."
+        p = parse_agent_output(text)
+        assert not p.markers.get("ADR_CREATED")
+
+    def test_full_m1_with_adr(self):
+        text = """\
+ANALYSIS_DONE
+CLASSIFICATION: major
+CHANGE_TYPE: modifying
+CASCADE_DEPTH: requirements+design+tasks
+AFFECTED_REQUIREMENTS: 2, 4
+AFFECTED_DESIGN_SECTIONS: Components/Grid
+AFFECTED_TASKS: 3.1, 3.2
+ADR_REQUIRED: yes
+ADR_CATEGORY: spec
+ADR_REASON: acceptance criteria semantic change
+DELTA_SUMMARY_START
+Modify grid to support 3x3 entities.
+DELTA_SUMMARY_END
+"""
+        p = parse_agent_output(text)
+        assert p.analysis_done
+        assert p.adr_required
+        assert p.adr_category == "spec"
+        assert p.adr_reason == "acceptance criteria semantic change"
+        assert "3x3" in p.delta_summary

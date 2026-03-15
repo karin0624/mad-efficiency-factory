@@ -51,11 +51,17 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ## 同期フロー
 
 1. 既存のSteeringをすべて読み込む（`.kiro/steering/*.md`）
+   - `.kiro/decisions/` の既存ADRをスキャンし、関連する意思決定を把握
 2. コードベースの変更を分析する（JIT）
 3. 乖離を検出する:
    - **Steering → コード**: 欠落要素 → 警告
    - **コード → Steering**: 新しいパターン → 更新候補
    - **カスタムファイル**: 関連性をチェック
+3.5. **ADR必要性の評価**:
+   - ステップ3で検出された変更が既存のパターン・決定を**変更**する場合のみ評価
+   - 新しいパターンの追加のみの場合はADR不要
+   - `.kiro/settings/rules/decision-criteria.md` の基準に照らして判定
+   - ADRが必要と判断した場合、Steering更新前に `/kiro:decision-create` の実行を提案
 4. 更新を提案する（追加的に、ユーザーコンテンツを保全）
 5. レポート: 更新内容、警告、推奨事項
 
@@ -111,6 +117,9 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 
 ## コードの乖離:
 - コンポーネントがインポート規則に従っていない
+
+## ADR推奨:
+- [変更名]: ADR推奨 (理由: [criteria match])
 
 ## 推奨事項:
 - api-standards.md の作成を検討してください
