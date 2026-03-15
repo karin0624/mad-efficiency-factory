@@ -32,6 +32,7 @@
 - **型注釈チェッカー**: `scripts/check_gdscript_types.py`。関数引数・戻り値・クラス変数の型注釈を強制（ローカル変数は警告のみ）
 - **統一ランナー**: `scripts/gdcheck.sh`（gdlint + 型チェック。`--all`でCI用、ファイル指定で単体チェック）
 - **Claude Code hook**: `.gd`ファイルのWrite/Edit時にPostToolUseで自動実行。エラーはstderr経由でClaude にフィードバック
+- **Stop hook (テストゲート)**: Claude停止時に`.gd`変更を検出し、変更がある場合は全テスト実行。失敗時はexit 2でClaudeに修正を強制。`SKIP_TEST_GATE=1`でバイパス可能。`.claude/hooks/test-gate.sh`
 
 ### コード品質
 - GDScript静的型付けを使用（`var x: int`, `func foo() -> void`）。`Variant`型の使用は意図的な場合のみ
