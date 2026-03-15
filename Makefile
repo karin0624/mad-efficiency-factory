@@ -1,12 +1,12 @@
 PYTHON := .venv/bin/python
 ORCH   := $(PYTHON) -m tools.orchestrator
 
-.PHONY: impl mod spike
+.PHONY: impl modify spike
 
 impl:
 	$(ORCH) implement $(plan)
 
-mod:
+modify:
 	$(ORCH) modify $(feature) $(change)
 
 spike:
