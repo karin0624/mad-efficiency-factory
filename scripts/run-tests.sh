@@ -19,6 +19,12 @@ PROJECT_DIR="$(cd "$(dirname "$0")/../godot" && pwd)"
 unset WAYLAND_DISPLAY 2>/dev/null || true
 unset XDG_RUNTIME_DIR 2>/dev/null || true
 
+# Regenerate global_script_class_cache so all class_name references resolve.
+# CI does this via `godot --headless --import`; without it, newly added classes
+# (e.g. MachinePortGrid, GameStateDump) are invisible and their test files
+# silently fail to load.
+"$GODOT_BIN" --headless --path "$PROJECT_DIR" --import 2>/dev/null || true
+
 # Default to running all tests if no -a flag is provided
 if [[ "$*" != *"-a "* ]] && [[ "$*" != *"--add "* ]]; then
   set -- -a res://tests/ "$@"

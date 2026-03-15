@@ -4,7 +4,7 @@ extends GdUnitTestSuite
 
 
 func test_dump_simple_hierarchy() -> void:
-	var root := auto_free(Node2D.new())
+	var root: Node2D = auto_free(Node2D.new())
 	root.name = "Root"
 	var child := Node2D.new()
 	child.name = "Child"
@@ -18,7 +18,7 @@ func test_dump_simple_hierarchy() -> void:
 
 
 func test_dump_shows_position() -> void:
-	var root := auto_free(Node2D.new())
+	var root: Node2D = auto_free(Node2D.new())
 	root.name = "Root"
 	root.position = Vector2(128, 64)
 
@@ -27,7 +27,7 @@ func test_dump_shows_position() -> void:
 
 
 func test_dump_shows_visibility() -> void:
-	var root := auto_free(Node2D.new())
+	var root: Node2D = auto_free(Node2D.new())
 	root.name = "Root"
 	root.visible = false
 
@@ -37,7 +37,7 @@ func test_dump_shows_visibility() -> void:
 
 func test_dump_max_depth_control() -> void:
 	# 3段階の階層を作成
-	var root := auto_free(Node2D.new())
+	var root: Node2D = auto_free(Node2D.new())
 	root.name = "Level0"
 	var level1 := Node2D.new()
 	level1.name = "Level1"
@@ -69,7 +69,7 @@ func test_dump_null_returns_empty() -> void:
 
 
 func test_dump_label_shows_text() -> void:
-	var root := auto_free(Control.new())
+	var root: Control = auto_free(Control.new())
 	root.name = "Root"
 	var label := Label.new()
 	label.name = "MyLabel"

@@ -86,7 +86,7 @@ func test_output_contains_section_headers() -> void:
 	var dumper := GameStateDump.new()
 	var grid := BeltGrid.new()
 	var clock := TickClock.new()
-	var core_grid := CoreGrid.new(64, 64)
+	var core_grid := CoreGrid.new()
 	var registry := EntityRegistry.create_default()
 	var system := PlacementSystem.new(core_grid, registry)
 	var catalog := MachinePortCatalog.create_default()
@@ -149,7 +149,7 @@ func test_snapshot_with_minimal_args() -> void:
 	var dumper := GameStateDump.new()
 	var grid := BeltGrid.new()
 	var clock := TickClock.new()
-	var core_grid := CoreGrid.new(64, 64)
+	var core_grid := CoreGrid.new()
 	var registry := EntityRegistry.create_default()
 	var system := PlacementSystem.new(core_grid, registry)
 	var catalog := MachinePortCatalog.create_default()
@@ -186,7 +186,7 @@ func test_dump_tick_shows_paused() -> void:
 
 func test_dump_placement_shows_entity_name() -> void:
 	var dumper := GameStateDump.new()
-	var core_grid := CoreGrid.new(64, 64)
+	var core_grid := CoreGrid.new()
 	var registry := EntityRegistry.create_default()
 	var system := PlacementSystem.new(core_grid, registry)
 
@@ -200,7 +200,7 @@ func test_dump_placement_shows_entity_name() -> void:
 
 func test_dump_placement_without_registry_shows_type_id() -> void:
 	var dumper := GameStateDump.new()
-	var core_grid := CoreGrid.new(64, 64)
+	var core_grid := CoreGrid.new()
 	var registry := EntityRegistry.create_default()
 	var system := PlacementSystem.new(core_grid, registry)
 
