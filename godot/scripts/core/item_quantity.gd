@@ -23,7 +23,9 @@ var max_value: int
 func _init(initial_value: int = 0, p_max_value: int = DEFAULT_MAX) -> void:
 	assert(p_max_value > 0, "ItemQuantity: max_value must be positive (got %d)" % p_max_value)
 	assert(initial_value >= 0, "ItemQuantity: initial_value must be non-negative (got %d)" % initial_value)
-	assert(initial_value <= p_max_value, "ItemQuantity: initial_value (%d) must not exceed max_value (%d)" % [initial_value, p_max_value])
+	assert(initial_value <= p_max_value,
+		"ItemQuantity: initial_value (%d) must not exceed max_value (%d)"
+		% [initial_value, p_max_value])
 	current = initial_value
 	max_value = p_max_value
 

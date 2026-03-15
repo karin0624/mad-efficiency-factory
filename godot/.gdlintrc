@@ -1,0 +1,8 @@
+max-line-length: 120
+max-public-methods: 40
+excluded_directories: !!set
+  .git: null
+  addons: null
+  .godot: null
+disable:
+- unused-argument

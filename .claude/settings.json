@@ -45,5 +45,19 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true
   },
-  "effortLevel": "high"
+  "effortLevel": "high",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/gdcheck-hook.sh",
+            "timeout": 30000
+          }
+        ]
+      }
+    ]
+  }
 }

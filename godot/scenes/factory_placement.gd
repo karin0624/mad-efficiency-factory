@@ -72,7 +72,10 @@ func _ready() -> void:
 	_input_handler.select_entity(3)
 
 	print("FactoryPlacement ready: grid=64x64, entities=", _registry.size())
-	print("MachinePortSystem initialized: catalog=", _port_catalog.has_config(1), "/", _port_catalog.has_config(2), "/", _port_catalog.has_config(4))
+	print("MachinePortSystem initialized: catalog=",
+		_port_catalog.has_config(1), "/",
+		_port_catalog.has_config(2), "/",
+		_port_catalog.has_config(4))
 
 
 ## TickEngine tick_fired ハンドラ

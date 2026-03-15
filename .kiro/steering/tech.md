@@ -27,6 +27,12 @@
 
 ## 開発標準
 
+### 静的解析
+- **gdlint**: gdtoolkitベースのスタイルチェッカー。設定は`godot/.gdlintrc`（max-line-length: 120, max-public-methods: 40, addons除外）
+- **型注釈チェッカー**: `scripts/check_gdscript_types.py`。関数引数・戻り値・クラス変数の型注釈を強制（ローカル変数は警告のみ）
+- **統一ランナー**: `scripts/gdcheck.sh`（gdlint + 型チェック。`--all`でCI用、ファイル指定で単体チェック）
+- **Claude Code hook**: `.gd`ファイルのWrite/Edit時にPostToolUseで自動実行。エラーはstderr経由でClaude にフィードバック
+
 ### コード品質
 - GDScript静的型付けを使用（`var x: int`, `func foo() -> void`）。`Variant`型の使用は意図的な場合のみ
 - ゲームロジックをSceneTree/Node APIから分離（テストはGdUnit4経由で`xvfb-run`+X11仮想ディスプレイ上で実行）
@@ -50,6 +56,8 @@
 ```bash
 # プロジェクト実行: godot --path godot/
 # テスト実行: ./scripts/run-tests.sh
+# GDScript静的解析（全ファイル）: ./scripts/gdcheck.sh --all
+# GDScript静的解析（単一ファイル）: ./scripts/gdcheck.sh path/to/file.gd
 # エクスポート: godot --headless --export-release "Linux" godot/build/game
 ```
 
