@@ -1,8 +1,3 @@
----
-name: impl-spec-how
-description: "cc-sdd HOW phase: design generation + Codex design-review with APPROVE/REVISE/REJECT"
-model: opus
----
 
 ## cwd強制
 

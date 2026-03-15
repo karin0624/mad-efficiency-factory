@@ -148,7 +148,7 @@ Provide your review as structured Markdown:
 2. **Codexレビュー**: Codexからの完全な構造化レビュー（5基準 + 総合判定）
 3. **変更内容**（`--dry-run` でない場合）: planに適用された変更のサマリ
 4. **次のステップ**:
-   - READY: `/implement <plan-name>` でパイプライン開始を提案
+   - READY: `make impl plan=<plan-name>` でパイプライン開始を提案
    - REVISE: 具体的な改善ポイントと再レビューを提案
    - INCOMPLETE: 不足セクションの追加を案内
 

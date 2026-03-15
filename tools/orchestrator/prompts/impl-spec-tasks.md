@@ -1,8 +1,3 @@
----
-name: impl-spec-tasks
-description: "cc-sdd tasks phase: task generation + auto-approval in worktree"
-model: sonnet
----
 
 ## cwd強制
 

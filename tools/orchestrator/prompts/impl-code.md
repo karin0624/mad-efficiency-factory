@@ -1,9 +1,3 @@
----
-name: impl-code
-description: "cc-sdd implementation phase: execute spec-impl in worktree"
-model: sonnet
----
-
 ## cwd強制
 
 最初に必ず以下を実行してください:

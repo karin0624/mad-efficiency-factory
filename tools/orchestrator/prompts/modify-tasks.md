@@ -1,8 +1,3 @@
----
-name: modify-tasks
-description: "Delta task generation for spec modification"
-model: sonnet
----
 
 ## cwd強制
 

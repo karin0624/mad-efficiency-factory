@@ -1,8 +1,3 @@
----
-name: impl-push-pr
-description: "cc-sdd push+PR phase: push branch and create pull request"
-model: sonnet
----
 
 ## cwd強制
 

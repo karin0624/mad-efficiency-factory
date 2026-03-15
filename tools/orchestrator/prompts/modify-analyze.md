@@ -1,8 +1,3 @@
----
-name: modify-analyze
-description: "Change impact analysis for existing spec modification"
-model: opus
----
 
 ## コアタスク
 

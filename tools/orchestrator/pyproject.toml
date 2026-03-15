@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cc-sdd-orchestrator"
+version = "0.1.0"
+description = "External orchestrator for cc-sdd implement/modify pipelines"
+requires-python = ">=3.10"
+dependencies = [
+    "claude-agent-sdk",
+    "rich>=13.0",
+    "anyio>=4.0",
+]
+
+[project.scripts]
+cc-sdd = "tools.orchestrator.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tools"]

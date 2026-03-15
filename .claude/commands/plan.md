@@ -110,7 +110,7 @@ AskUserQuestion toolでユーザーに選択肢を提示する:
 - question: "planの準備が完了しました。次のステップを選択してください。"
 - options:
   - "フィードバックで改善する"（具体的な改善ポイントも併せて提案する）
-  - "`/implement <plan-name>` でcc-sddパイプラインを開始する"
+  - "`make impl plan=<plan-name>` でcc-sddパイプラインを開始する"
 
 ### ステップ 8: イテレーション（「フィードバックで改善する」選択時）
 

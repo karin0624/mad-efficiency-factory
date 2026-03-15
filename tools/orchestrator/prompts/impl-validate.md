@@ -1,8 +1,3 @@
----
-name: impl-validate
-description: "cc-sdd validation phase: validate-impl with GO/NO-GO decision in worktree"
-model: opus
----
 
 ## cwd強制
 

@@ -1,8 +1,3 @@
----
-name: modify-cascade
-description: "Spec cascade regeneration for modification workflow"
-model: opus
----
 
 ## cwd強制
 

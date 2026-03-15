@@ -1,8 +1,3 @@
----
-name: impl-commit
-description: "cc-sdd commit phase: stage and commit changes in worktree"
-model: sonnet
----
 
 ## cwd強制
 

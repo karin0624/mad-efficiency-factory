@@ -1,9 +1,3 @@
----
-name: impl-spec-what
-description: "cc-sdd WHAT phase: spec-init + requirements generation in worktree"
-model: opus
----
-
 ## cwd強制
 
 最初に必ず以下を実行してください:

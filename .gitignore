@@ -49,6 +49,15 @@ tools/memory-mcp/memory.db
 tools/memory-mcp/memory.db-wal
 tools/memory-mcp/memory.db-shm
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Orchestrator cache
+.claude/orchestrator/
+
 # Godot
 .godot/
 *.import
