@@ -84,11 +84,28 @@ argument-hint: <feature-name> [task-numbers]
    - 結果を目視確認し、結果を記録
 
 5a. **E2E checkpointの実行**（Layer 3タスクで `E2E checkpoint:` パターンのもの）:
-   - フロー: テスト作成 → xvfb-run実行 → スクショ保存 → AI評価
-   1. **テスト作成**: GdUnit4テストスクリプトを作成し、SceneRunnerでフルシーンを起動してスクショを `godot/test_screenshots/<name>.png` に保存するコードを記述
-   2. **xvfb-run実行**: `xvfb-run --auto-servernum godot --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy --path <projectPath> -s addons/gdUnit4/bin/GdUnitCmdTool.gd` でテスト実行
-   3. **スクショ評価**: Readツールで保存されたスクショを読み込み、AIが視覚的に評価（アイテム位置、UI状態、メトリクス値等）
-   4. **判定**: 評価がパスした場合は完了としてマーク。不確実またはフェイルした場合はL4フォールバック（`/kiro:scene-review`）を案内
+
+   **フロー: テスト実行 → アサーション確認 → アーティファクト評価（該当時） → 判定**
+
+   1. **テスト実行**: xvfb-runでGdUnit4テスト実行
+      - テストはアサーション（プログラム的検証）+ アーティファクト出力（AI評価用）の両方を含む
+      - アーティファクト: `godot/test_snapshots/*.txt`（セマンティックダンプ）+ `godot/test_screenshots/*.png`（スクショ）
+
+   2. **テスト結果の確認**: GdUnit4アサーションが全てパスしていることを確認
+      - アサーション失敗時: テスト失敗として処理（通常のTDDフロー）
+      - アサーション成功時: 次のステップへ
+
+   3. **アーティファクト評価（検証対象に応じた適用）**:
+      - **数値メトリクスのみの検証**（FPS、応答時間等）: アサーション成功で判定完了。AI評価不要
+      - **状態・トポロジーの検証**: `test_snapshots/*.txt` をReadツールで読み、期待状態と照合
+      - **視覚検証**: `test_screenshots/*.png` をReadツールで読み、視覚的妥当性を確認
+      - アーティファクトが存在しない場合はテストの実装に問題がある
+
+   4. **判定と記録**:
+      - PASS: アサーション成功 AND（該当する場合）アーティファクト評価が基準を満たす → タスク完了 `[x]`
+      - FAIL: アサーション失敗 OR アーティファクト評価で不適合 → 原因を記録、修正へ
+      - UNCERTAIN: AI判断が不確実 → `/kiro:scene-review` へフォールバック（L4）
+      - **判定理由を必ずprint出力**: `[E2E EVAL] Task X.Y: PASS — belt_count=500, item_count=450, fps=44.1 (基準: >=30)`
 
 6. **完了マーク**:
    - tasks.mdのチェックボックスを `- [ ]` から `- [x]` に更新
@@ -121,7 +138,12 @@ argument-hint: <feature-name> [task-numbers]
 - **設計との整合性**: 実装はdesign.mdのスペックに従うこと
 - **レイヤー認識**: テストタイプを選択する前に要件のTestability Layerを確認。L1/L2共にTDD必須（テスト先行）。L2テストはSceneTree依存（`add_child`/シグナル）だがxvfb-run経由のGdUnit4で実行（SceneRunner/InputEvent対応）
 - **Screenshotチェックポイントの実行**: `Screenshot checkpoint:` パターンに一致するサブタスクは異なるフローを使用 — TDDをスキップし、代わりに: `mcp__gopeak__editor_run`（フォールバック: Bash）でアプリケーションを実行、`mcp__gopeak__editor_debug_output` で出力をキャプチャ、結果を目視確認、クリーンアップのため `mcp__gopeak__editor_stop` を呼び出す。タイムアウト: 30秒。検証がパスした場合は完了としてマーク。
-- **E2E checkpointの実行**: `E2E checkpoint:` パターンに一致するサブタスクはL3自動実行フロー（上記5a）を使用。TDDをスキップし、SceneRunner+スクショ+AI評価のフローで処理する。
+- **E2E checkpointの実行**: `E2E checkpoint:` パターンに一致するサブタスクはL3自動実行フロー（上記5a）を使用。TDDをスキップし、SceneRunner+アーティファクト出力+AI評価のフローで処理する。
+- **E2Eアーティファクト評価の適用判断**: `E2E checkpoint:` タスクでは、検証対象に応じて評価方法を使い分ける:
+  - 数値閾値（FPS、応答時間）: GdUnit4アサーション成功で完了
+  - 状態検証（トポロジー、接続関係）: `test_snapshots/` のセマンティックダンプをReadツールで読み込みAI評価
+  - 視覚検証: `test_screenshots/` のスクショをReadツールで読み込みAI評価
+  アーティファクトが存在しない場合はテストの実装に問題がある。
 - **L4ヒューマンレビューのスキップ**: `Human review:` パターンに一致するサブタスクはspec-implでは実行されない。タスク選択時に検出してスキップし、スキップされたタスクリストを出力に含める。これらのL4タスクの処理には `/kiro:scene-review` を使用する。
 </instructions>
 

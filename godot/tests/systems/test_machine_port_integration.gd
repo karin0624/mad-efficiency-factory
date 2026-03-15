@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 
-# E2Eテスト: machine-port-system統合フロー (Req 8.1, 8.2, 8.3)
+# 統合テスト: machine-port-system統合フロー (Req 8.1, 8.2, 8.3)
 # タスク6.1: 出力ポート→ベルト5本→入力ポートのアイテム到達
 # タスク6.2: 全4方向回転でのポート転送検証
 

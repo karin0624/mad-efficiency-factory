@@ -51,6 +51,22 @@ func _save_screenshot(scene_root: Node, filename: String) -> void:
 			print("[E2E] Screenshot: test_screenshots/%s" % filename)
 
 
+func _dump_state(scene_root: Node, label: String, filename: String) -> void:
+	var dumper := GameStateDump.new()
+	var catalog := ItemCatalog.create_default()
+	var content := dumper.snapshot(
+		scene_root._belt_grid,
+		scene_root._tick_engine.clock,
+		scene_root._system,
+		scene_root._port_grid,
+		scene_root._registry,
+		catalog,
+	)
+	print("[E2E State] %s" % label)
+	print(dumper.dump_summary(scene_root._belt_grid, scene_root._port_grid, scene_root._system))
+	GameStateDump.save(content, filename)
+
+
 # --- Task 4.1: High-load FPS measurement ---
 
 func test_e2e_high_load_fps() -> void:
@@ -58,9 +74,17 @@ func test_e2e_high_load_fps() -> void:
 	await runner.simulate_frames(2)
 
 	var scene_root := runner.scene()
+
+	# SceneTree dump (1回のみ)
+	var tree_dump := SceneTreeDump.dump(scene_root)
+	GameStateDump.save(tree_dump, "factory_scene_tree.txt")
+
 	var counts := _setup_high_load(scene_root)
 
 	assert_int(counts.belts).is_equal(TARGET_BELT_COUNT)
+
+	# セットアップ後の状態ダンプ
+	_dump_state(scene_root, "high_load_setup", "high_load_setup_state.txt")
 
 	# Measure effective FPS over 120 simulated frames
 	var frame_count := 120
@@ -72,6 +96,9 @@ func test_e2e_high_load_fps() -> void:
 
 	print("[E2E 4.1] Frames=%d Elapsed=%.3fs EffectiveFPS=%.1f" % [frame_count, elapsed_sec, effective_fps])
 	print("[E2E 4.1] RESULT: %s (FPS >= 30)" % ["PASS" if effective_fps >= 30.0 else "FAIL"])
+
+	# 最終状態ダンプ
+	_dump_state(scene_root, "high_load_final", "high_load_state.txt")
 
 	await runner.simulate_frames(1)
 	_save_screenshot(scene_root, "high_load_fps.png")
@@ -121,6 +148,9 @@ func test_e2e_pause_resume_response_time() -> void:
 	print("[E2E 4.2] RESULT: %s (< 100ms)" % [
 		"PASS" if max_pause_ms < 100.0 and max_resume_ms < 100.0 else "FAIL"
 	])
+
+	# tick状態ダンプ
+	_dump_state(scene_root, "pause_resume_final", "pause_resume_state.txt")
 
 	await runner.simulate_frames(1)
 	_save_screenshot(scene_root, "pause_resume_response.png")

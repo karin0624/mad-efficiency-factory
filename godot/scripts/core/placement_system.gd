@@ -97,6 +97,12 @@ func get_entity_at(cell: Vector2i) -> PlacedEntity:
 	return _entities.get(entity_id, null)
 
 
+## 全配置済みエンティティを取得する。
+## Postconditions: PlacedEntityの配列を返す（読み取り専用）
+func get_all_entities() -> Array:
+	return _entities.values()
+
+
 ## 時計回りに回転方向を切り替える（N→E→S→W→N）。
 ## Postconditions: (direction + 1) % 4 を返す
 static func rotate_cw(direction: int) -> int:

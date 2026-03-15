@@ -19,6 +19,11 @@ PROJECT_DIR="$(cd "$(dirname "$0")/../godot" && pwd)"
 unset WAYLAND_DISPLAY 2>/dev/null || true
 unset XDG_RUNTIME_DIR 2>/dev/null || true
 
+# Default to running all tests if no -a flag is provided
+if [[ "$*" != *"-a "* ]] && [[ "$*" != *"--add "* ]]; then
+  set -- -a res://tests/ "$@"
+fi
+
 xvfb-run --auto-servernum \
   "$GODOT_BIN" --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy \
   --path "$PROJECT_DIR" \
