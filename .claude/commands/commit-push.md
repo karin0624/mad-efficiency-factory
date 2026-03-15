@@ -25,13 +25,37 @@ argument-hint: [commit-message]
 
 このリストを「セッションファイル一覧」とする。
 
-## ステップ 2: 現在のブランチ確認（メインセッションで実行）
+## ステップ 2: コミットメッセージの生成（メインセッションで実行）
+
+`.agents/skills/contextual-commit/SKILL.md` のフォーマットに従い、**メインセッションの会話コンテキストから**コミットメッセージを生成する。
+
+コミットメッセージ引数（`{$ARGUMENTS}`）が指定されている場合はそれをsubject lineとして使用する。
+
+### Subject line
+Conventional Commit形式（`feat(scope):`, `fix(scope):`, `chore:` 等）
+
+### Body（action lines）
+セッション中の会話から以下を抽出してbodyに記載（該当するものだけ。1-3行が目安）:
+- `intent(scope):` — ユーザーが何を達成したかったか（ユーザーの言葉で）
+- `decision(scope):` — 代替案がある中で選んだアプローチと理由
+- `rejected(scope):` — 検討して却下した案と理由（最重要。次回の再提案を防ぐ）
+- `constraint(scope):` — 実装を形作った制約・制限
+- `learned(scope):` — 実装中に発見した非自明な知見
+
+### ルール
+- 会話コンテキストがあるchangeのみaction linesを書く
+- trivialなコミット（typo修正等）にはaction lines不要
+- scopeはプロジェクト内で一貫させる
+
+生成したコミットメッセージ全文を「COMMIT_MESSAGE」とする。
+
+## ステップ 3: 現在のブランチ確認（メインセッションで実行）
 
 `git branch --show-current` でブランチ名を取得する。
 
-## ステップ 3: サブエージェントに委譲
+## ステップ 4: サブエージェントに委譲
 
-セッションファイル一覧とブランチ名をsonnetサブエージェントに渡す。
+セッションファイル一覧、ブランチ名、**生成済みコミットメッセージ**をsonnetサブエージェントに渡す。
 
 ```
 Agent(
@@ -46,8 +70,8 @@ Agent(
   ## 現在のブランチ
   {BRANCH_NAME}
 
-  ## コミットメッセージ引数（空の場合は自動生成）
-  {$ARGUMENTS}
+  ## コミットメッセージ（確定済み・変更しないこと）
+  {COMMIT_MESSAGE}
 
   ## 実行手順
 
@@ -72,18 +96,13 @@ Agent(
   git add <file1> <file2> ...
   ```
 
-  #### 3b. コミットメッセージの決定
-  - コミットメッセージ引数が指定されている場合: それをコミットメッセージとして使用
-  - 指定がない場合: `git diff --cached -- <session-files>` の内容から自動生成
-    - conventional commit形式のprefixを選択: `feat:`, `fix:`, `chore:`, `test:`, `docs:`, `refactor:`
-    - 簡潔な英語の要約（`git log` のスタイルに合わせる）
-
-  #### 3c. コミット実行
+  #### 3b. コミット実行
   **重要**: `--only` フラグを使い、セッションファイルだけをコミットする。これにより既存のステージング状態は保持される。
+  **重要**: コミットメッセージは上記の確定済みメッセージをそのまま使う。改変しないこと。
 
   ```bash
   git commit --only -m "$(cat <<'EOF'
-  <prefix>: <message>
+  {COMMIT_MESSAGE}
 
   Co-Authored-By: Claude <noreply@anthropic.com>
   EOF
@@ -108,13 +127,14 @@ Agent(
   ## 重要な制約
   - **セッションファイルのみ**: `git status` に表示される変更でも、リストにないファイルは絶対にステージング・コミットしない
   - **既存ステージ保持**: `git reset HEAD` は使わない。`git commit --only` で他のステージを無傷に保つ
+  - **コミットメッセージ固定**: 渡されたコミットメッセージを改変しない。Co-Authored-Byの追記のみ許可
   - **最小出力**: ツール呼び出しと結果報告のみ。余計な説明やテキストは出力しない
   - **force push禁止**: `--force` は絶対に使わない
   """
 )
 ```
 
-## ステップ 4: 結果の伝達
+## ステップ 5: 結果の伝達
 
 サブエージェントの報告をそのままユーザーに伝える。余計な装飾は不要。
 
