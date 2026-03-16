@@ -160,6 +160,13 @@ class ImplementPipeline(Pipeline):
         else:
             self.skip_step("B2: validate", "opus", "resume")
 
+        # ── Step 4.75: Steering sync ─────────────────────────────
+        await self._run_or_fail(
+            "steering-sync", "tools/orchestrator/prompts/impl-steering-sync.md", "sonnet",
+            {"WORKTREE_PATH": str(wt_path), "FEATURE_NAMES": feature_name},
+            wt_path,
+        )
+
         # ── Step 5: C — Commit ────────────────────────────────────
         await self._run_or_fail(
             "C: commit", "tools/orchestrator/prompts/impl-commit.md", "sonnet",

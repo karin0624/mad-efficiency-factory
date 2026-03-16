@@ -50,6 +50,15 @@
 
 ## Documentation Standards
 
+### Self-Contained Declarative Specification
+- **requirements.md と design.md は、ドキュメント単体で完結する宣言的仕様である**
+- 書いてよいのは「このシステムはこうあるべき」という宣言的記述のみ
+- **禁止**: 他ドキュメント（steering, 旧spec, ADR等）を参照しないと意味が通じない記述
+- **禁止**: 変更前の状態への言及（「以前は〜」「現状は〜」「〜から変更」）
+- **禁止**: 変更理由・経緯の説明（「〜に基づく変更」「〜との整合性のため」）
+- **禁止**: ドキュメント間の差異に関するメタ情報（注記、コメンタリー、齟齬の説明）
+- Implementation Changelog は例外（実装ドリフト記録の公式メカニズム）
+
 ### Language and Tone
 - **Declarative**: "The system authenticates users" not "The system should authenticate"
 - **Precise**: Specific technical terms over vague descriptions
@@ -181,3 +190,4 @@ graph TB
 ❌ Tight coupling between components
 ❌ Missing data consistency strategy
 ❌ Incomplete dependency analysis
+❌ Non-self-contained statements that require reading other files to understand (e.g., "differs from steering", "changed from X to Y", "intentional deviation from...")
