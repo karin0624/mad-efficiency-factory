@@ -20,11 +20,14 @@ from ..pipeline import Pipeline, PipelineError
 from ..progress import PipelineProgress
 
 
-def _slugify(text: str) -> str:
-    """Generate a URL-friendly slug from text."""
-    slug = re.sub(r"[^\w\s-]", "", text.lower())
-    slug = re.sub(r"[\s_]+", "-", slug).strip("-")
-    return slug[:60] if slug else "modify-plan"
+def _next_plan_id(plans_base: Path) -> str:
+    """Auto-increment plan directory name (m1, m2, ...)."""
+    existing = []
+    if plans_base.is_dir():
+        for d in plans_base.iterdir():
+            if d.is_dir() and (m := re.match(r"^m(\d+)$", d.name)):
+                existing.append(int(m.group(1)))
+    return f"m{max(existing, default=0) + 1}"
 
 
 class ModifyPlanPipeline(Pipeline):
@@ -135,8 +138,9 @@ class ModifyPlanPipeline(Pipeline):
                 raise PipelineError("MP0: 対象specリストの解析に失敗しました。")
 
         # ── Step 3: Output directory resolution ───────────────────
-        slug = _slugify(change_description)
-        output_dir = self.config.project_root / "docs" / "modify-plans" / slug
+        plans_base = self.config.project_root / "docs" / "modify-plans"
+        slug = result_mp0.parsed.plan_slug or _next_plan_id(plans_base)
+        output_dir = plans_base / slug
 
         if output_dir.exists():
             dir_action = ask_choice(
@@ -200,6 +204,12 @@ class ModifyPlanPipeline(Pipeline):
 
         self.progress.print_summary()
         self.progress.print_success(f"Plan出力: docs/modify-plans/{slug}/")
+        self.progress.print_info(
+            f"=== 次のステップ ===\n"
+            f"1. docs/modify-plans/{slug}/_index.md を確認してください\n"
+            f"2. 各planファイルの内容を確認・修正してください\n"
+            f"3. 準備ができたら: make modify plan={slug}"
+        )
 
         return {
             "status": "completed",
@@ -436,16 +446,9 @@ class ModifyPlanPipeline(Pipeline):
             )
         spec_table = "\n".join(spec_rows)
 
-        # Build execution commands
+        # Build execution order list
         exec_order = [s.strip() for s in execution_order.split(",")]
-        exec_commands: list[str] = []
-        for i, spec_name in enumerate(exec_order, 1):
-            plan_path = output_dir / f"{spec_name}.md"
-            exec_commands.append(
-                f'{i}. `make modify feature={spec_name} change="<{spec_name}.mdの変更記述>"`'
-            )
-
-        exec_section = "\n".join(exec_commands)
+        exec_list = "\n".join(f"{i}. {name}" for i, name in enumerate(exec_order, 1))
 
         content = f"""# Modify Plan: {slug}
 **Generated**: {today}
@@ -460,7 +463,13 @@ class ModifyPlanPipeline(Pipeline):
 {propagation_map}
 
 ## 推奨実行順序
-{exec_section}
+```bash
+make modify plan={slug}
+```
+上記コマンドを実行すると、以下の順序で1つずつspecを処理します。
+各specのPRをマージした後、同じコマンドを再実行してください。
+
+{exec_list}
 
 > 各 `make modify` は独立したworktreeを作成します。
 > 複数specの場合、先行specのPRをマージしてから次を実行してください。

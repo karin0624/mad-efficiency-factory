@@ -44,12 +44,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     mod_p.add_argument(
         "feature",
+        nargs="?",
         help="Feature name (spec directory name)",
     )
     mod_p.add_argument(
         "change",
         nargs="*",
         help="Change description (can be omitted — will prompt interactively)",
+    )
+    mod_p.add_argument(
+        "--plan",
+        help="Modify-plan directory name (e.g. 'miner-smelter-1x1')",
     )
     mod_p.add_argument(
         "--max-turns",
@@ -106,15 +111,20 @@ async def _run_implement(args: argparse.Namespace, config: OrchestratorConfig) -
 async def _run_modify(args: argparse.Namespace, config: OrchestratorConfig) -> int:
     from .pipelines.modify import ModifyPipeline
 
-    change_desc = " ".join(args.change) if args.change else ""
-
     pipeline = ModifyPipeline(config)
     try:
-        result = await pipeline.run(
-            feature_name=args.feature,
-            change_description=change_desc,
-        )
-        if result["status"] == "completed":
+        if args.plan:
+            result = await pipeline.run_from_plan(plan_name=args.plan)
+        else:
+            if not args.feature:
+                print("Error: feature name is required when --plan is not specified.")
+                return 1
+            change_desc = " ".join(args.change) if args.change else ""
+            result = await pipeline.run(
+                feature_name=args.feature,
+                change_description=change_desc,
+            )
+        if result["status"] in ("completed", "all-completed"):
             return 0
         return 1
     except PipelineError as e:

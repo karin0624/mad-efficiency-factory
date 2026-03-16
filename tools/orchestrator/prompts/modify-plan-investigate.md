@@ -60,6 +60,7 @@ promptから以下を受け取る:
 
 ```
 MP0_DONE
+PLAN_SLUG: miner-smelter-1x1
 TARGET_SPECS: spec2 (high), spec1 (medium)
 EXECUTION_ORDER: spec2, spec1
 PROPAGATION_MAP_START
@@ -95,4 +96,5 @@ SUGGESTED_FEATURE: <推奨するfeature名>
 - `TARGET_SPECS` は信頼度の高い順に列挙
 - `EXECUTION_ORDER` は依存関係に基づく実行順（上流 → 下流）
 - 伝播マップ内の各エントリは `##` ヘッダーで区切る
+- `PLAN_SLUG` は変更内容を表す短い英語スラッグ（2-4語、kebab-case、30文字以内）
 - 各フィールドは1行で出力し、改行しない（伝播マップ内のリスト項目を除く）

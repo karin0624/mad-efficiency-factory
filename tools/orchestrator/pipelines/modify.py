@@ -39,6 +39,155 @@ from ..worktree import create_or_reuse_worktree, remove_worktree
 class ModifyPipeline(Pipeline):
     """Modify pipeline: change analysis → cascade → delta tasks → impl → PR."""
 
+    async def run_from_plan(self, plan_name: str) -> dict[str, Any]:
+        """Run modify pipeline driven by a modify-plan directory."""
+        plan_dir = self.config.project_root / "docs" / "modify-plans" / plan_name
+        if not plan_dir.is_dir():
+            raise PipelineError(f"Plan directory not found: docs/modify-plans/{plan_name}")
+
+        index_path = plan_dir / "_index.md"
+        if not index_path.exists():
+            raise PipelineError(f"_index.md not found in: docs/modify-plans/{plan_name}")
+
+        order = self._parse_execution_order(index_path)
+        if not order:
+            raise PipelineError("推奨実行順序のパースに失敗しました。")
+
+        spec_name = self._find_next_pending_spec(plan_dir, order)
+        if spec_name is None:
+            self.progress = PipelineProgress("Modify Pipeline")
+            self.progress.print_header()
+            self.progress.print_success("全specの処理が完了しています。")
+            self.progress.print_summary()
+            return {"status": "all-completed", "plan": plan_name}
+
+        plan_file = plan_dir / f"{spec_name}.md"
+        if not plan_file.exists():
+            raise PipelineError(f"Plan file not found: {plan_file}")
+
+        feature_name, change_description = self._parse_plan_params(plan_file)
+        if not feature_name or not change_description:
+            raise PipelineError(
+                f"{spec_name}.md から実行パラメータを抽出できません。"
+                f"'## /modify 実行パラメータ' セクションのYAMLを確認してください。"
+            )
+
+        result = await self.run(
+            feature_name=feature_name,
+            change_description=change_description,
+        )
+
+        if result.get("status") == "completed":
+            self._mark_spec_completed(plan_dir, spec_name)
+            remaining = [s for s in order if s != spec_name and self._find_next_pending_spec(plan_dir, [s]) is not None]
+            if remaining:
+                if self.progress:
+                    self.progress.print_info(
+                        f"残りspec: {', '.join(remaining)}\n"
+                        f"PRマージ後に再実行: make modify plan={plan_name}"
+                    )
+
+        return result
+
+    @staticmethod
+    def _parse_execution_order(index_path: Path) -> list[str]:
+        """Parse execution order from _index.md."""
+        content = index_path.read_text()
+        order: list[str] = []
+
+        # New format: numbered list after "推奨実行順序" section
+        in_section = False
+        for line in content.split("\n"):
+            if "推奨実行順序" in line:
+                in_section = True
+                continue
+            if in_section:
+                # Stop at next section header
+                if line.startswith("##") or line.startswith("> "):
+                    if order:
+                        break
+                    continue
+                # Match "1. spec-name" pattern (new format)
+                m = re.match(r"^\d+\.\s+(\S+)\s*$", line.strip())
+                if m:
+                    order.append(m.group(1))
+                    continue
+                # Fallback: match old format "make modify feature=SPEC"
+                m = re.match(r".*feature=(\S+)", line)
+                if m:
+                    order.append(m.group(1))
+
+        return order
+
+    @staticmethod
+    def _find_next_pending_spec(plan_dir: Path, order: list[str]) -> str | None:
+        """Find the first spec not yet completed in .status.json."""
+        status_path = plan_dir / ".status.json"
+        completed: list[str] = []
+        if status_path.exists():
+            try:
+                data = json.loads(status_path.read_text())
+                completed = data.get("completed", [])
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        for spec in order:
+            if spec not in completed:
+                return spec
+        return None
+
+    @staticmethod
+    def _mark_spec_completed(plan_dir: Path, spec_name: str) -> None:
+        """Append completed spec to .status.json."""
+        status_path = plan_dir / ".status.json"
+        data: dict[str, Any] = {"completed": []}
+        if status_path.exists():
+            try:
+                data = json.loads(status_path.read_text())
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        if spec_name not in data.get("completed", []):
+            data.setdefault("completed", []).append(spec_name)
+        status_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+    @staticmethod
+    def _parse_plan_params(plan_file: Path) -> tuple[str, str]:
+        """Extract feature_name and change_description from plan file YAML block."""
+        content = plan_file.read_text()
+
+        # Find "## /modify 実行パラメータ" section
+        section_match = re.search(r"##\s*/modify\s*実行パラメータ", content)
+        if not section_match:
+            return "", ""
+
+        section_text = content[section_match.end():]
+
+        # Extract YAML fence block (may be indented with spaces)
+        yaml_match = re.search(r"\s*```ya?ml\s*\n(.*?)\s*```", section_text, re.DOTALL)
+        if not yaml_match:
+            return "", ""
+
+        yaml_text = yaml_match.group(1)
+
+        # Parse feature_name
+        fn_match = re.search(r"feature_name:\s*(\S+)", yaml_text)
+        feature_name = fn_match.group(1) if fn_match else ""
+
+        # Parse change_description (multiline with | indicator)
+        cd_match = re.search(r"change_description:\s*\|?\s*\n(.*?)(?:\n\S|\Z)", yaml_text, re.DOTALL)
+        if cd_match:
+            raw_lines = cd_match.group(1).split("\n")
+            # Strip common leading whitespace
+            stripped = [line.strip() for line in raw_lines if line.strip()]
+            change_description = "\n".join(stripped)
+        else:
+            # Single-line fallback
+            cd_match = re.search(r"change_description:\s*(.+)", yaml_text)
+            change_description = cd_match.group(1).strip() if cd_match else ""
+
+        return feature_name, change_description
+
     async def run(
         self,
         *,

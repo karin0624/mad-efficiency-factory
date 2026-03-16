@@ -60,6 +60,7 @@ RE_L4_HUMAN_REVIEW = re.compile(r"^- \[ \] \d+\.\d+ Human review:", re.MULTILINE
 RE_MP0_DONE = re.compile(r"\bMP0_DONE\b")
 RE_MP0_NO_MATCH = re.compile(r"\bMP0_NO_MATCH\b")
 RE_MP0_NEW_SPEC_RECOMMENDED = re.compile(r"\bMP0_NEW_SPEC_RECOMMENDED\b")
+RE_PLAN_SLUG = re.compile(r"\bPLAN_SLUG:\s*(\S+)")
 RE_TARGET_SPECS = re.compile(r"\bTARGET_SPECS:\s*(.+)")
 RE_EXECUTION_ORDER = re.compile(r"\bEXECUTION_ORDER:\s*(.+)")
 RE_PROPAGATION_MAP_START = re.compile(r"\bPROPAGATION_MAP_START\b")
@@ -162,6 +163,10 @@ class ParsedOutput:
     # ── Modify-plan pipeline properties ───────────────────────────
 
     @property
+    def plan_slug(self) -> str:
+        return self.values.get("PLAN_SLUG", "")
+
+    @property
     def mp0_done(self) -> bool:
         return self.markers.get("MP0_DONE", False)
 
@@ -253,6 +258,7 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("ADR_CATEGORY", RE_ADR_CATEGORY),
         ("ADR_REASON", RE_ADR_REASON),
         # Modify-plan values
+        ("PLAN_SLUG", RE_PLAN_SLUG),
         ("TARGET_SPECS", RE_TARGET_SPECS),
         ("EXECUTION_ORDER", RE_EXECUTION_ORDER),
         ("GAPS", RE_MP1_GAPS),
