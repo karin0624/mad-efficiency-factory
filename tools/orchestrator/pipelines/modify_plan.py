@@ -82,20 +82,57 @@ class ModifyPlanPipeline(Pipeline):
         if not target_specs:
             raise PipelineError("MP0: 対象specリストの解析に失敗しました。")
 
-        # ── Step 2: User confirmation ─────────────────────────────
-        spec_list_display = "\n".join(
-            f"  - {name} ({conf})" for name, conf in target_specs
-        )
-        self.progress.print_info(f"対象spec:\n{spec_list_display}")
+        # ── Step 2: User confirmation (with feedback re-run loop) ──
+        while True:
+            spec_list_display = "\n".join(
+                f"  - {name} ({conf})" for name, conf in target_specs
+            )
+            self.progress.print_info(f"対象spec:\n{spec_list_display}")
 
-        confirm = ask_choice(
-            "この対象specリストで進めますか？",
-            ["はい、進める", "キャンセル"],
-        )
-        if confirm == "キャンセル":
-            self.progress.print_info("キャンセルしました。")
-            self.progress.print_summary()
-            return {"status": "cancelled", "change": change_description}
+            confirm = ask_choice(
+                "この対象specリストで進めますか？",
+                ["はい、進める", "キャンセル"],
+                allow_freetext=True,
+            )
+            if confirm == "キャンセル":
+                self.progress.print_info("キャンセルしました。")
+                self.progress.print_summary()
+                return {"status": "cancelled", "change": change_description}
+
+            if confirm == "はい、進める":
+                break
+
+            # Free text feedback — re-run MP0 with user's correction
+            self.progress.print_info(f"フィードバックを反映してMP0を再実行します...")
+            feedback_prompt = (
+                f"{change_description}\n\n"
+                f"--- ユーザーフィードバック ---\n"
+                f"前回の調査結果に対する修正指示: {confirm}"
+            )
+            result_mp0 = await self._run_or_fail(
+                "MP0: investigate (retry)",
+                "tools/orchestrator/prompts/modify-plan-investigate.md",
+                "opus",
+                {"CHANGE_DESCRIPTION": feedback_prompt},
+                self.config.project_root,
+            )
+
+            if result_mp0.parsed.mp0_no_match:
+                self.progress.print_info("対象specが見つかりませんでした。")
+                self.progress.print_summary()
+                return {"status": "no-match", "change": change_description}
+
+            if not result_mp0.parsed.mp0_done:
+                raise PipelineError("MP0: 調査結果のマーカーが見つかりません。")
+
+            target_specs_str = result_mp0.parsed.target_specs
+            execution_order_str = result_mp0.parsed.execution_order
+            propagation_map = result_mp0.parsed.propagation_map
+
+            self.progress.print_info(f"Target specs: {target_specs_str}")
+            target_specs = self._parse_target_specs(target_specs_str)
+            if not target_specs:
+                raise PipelineError("MP0: 対象specリストの解析に失敗しました。")
 
         # ── Step 3: Output directory resolution ───────────────────
         slug = _slugify(change_description)
