@@ -77,15 +77,4 @@
 ## Risks & Mitigations
 - entity_idの採番がオーバーフローするリスク — MVPでは64x64グリッドのため実質的に問題なし。将来的にはID再利用またはBigInt化
 - CoreGridのoccupy_rectとPlacementSystemの状態が不整合になるリスク — PlacementSystem経由でのみ配置・撤去を行うことで防止
-- ゴーストプレビューのパフォーマンス — フットプリント検証はO(footprint_size)で、MVPは全エンティティ1x1のため問題なし
-
-## Modification Log
-
-### Miner/Smelterフットプリント 2x2→1x1 変更 (2026-03-16)
-- **Context**: 上流specの修正により、Miner/Smelterのフットプリントが2x2から1x1に変更
-- **Discovery Scope**: ライトディスカバリー（値変更のみ、アーキテクチャ変更なし）
-- **Findings**:
-  - 汎用矩形フットプリントアーキテクチャ（EntityDefinition.footprint: Vector2i, CoreGrid.occupy_rect, PlacementSystemの汎用矩形処理）は変更不要
-  - MVP全エンティティが1x1になるが、矩形フットプリントのサポートは将来拡張用に維持
-  - テスト戦略: 多セルフットプリントの検証にはテスト専用のエンティティ定義（2x2等）を使用
-- **Implications**: design.mdのcreate_default() postconditions、テスト戦略の更新が必要。コア設計は不変。
+- ゴーストプレビューのパフォーマンス — フットプリント検証はO(footprint_size)で、MVPの最大は2x2=4セルのため問題なし

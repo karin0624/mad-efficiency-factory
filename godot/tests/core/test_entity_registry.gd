@@ -59,22 +59,22 @@ func test_create_default_has_four_entity_types() -> void:
 	assert_int(registry.size()).is_equal(4)
 
 
-func test_create_default_miner_is_1x1() -> void:
+func test_create_default_miner_is_2x2() -> void:
 	var registry := EntityRegistry.create_default()
-	# MinerはID=1（修正後: 1x1）
+	# MinerはID=1
 	var miner := registry.get_definition(1)
 	assert_object(miner).is_not_null()
 	assert_str(miner.display_name).is_equal("Miner")
-	assert_that(miner.footprint).is_equal(Vector2i(1, 1))
+	assert_that(miner.footprint).is_equal(Vector2i(2, 2))
 
 
-func test_create_default_smelter_is_1x1() -> void:
+func test_create_default_smelter_is_2x2() -> void:
 	var registry := EntityRegistry.create_default()
-	# SmelterはID=2（修正後: 1x1）
+	# SmelterはID=2
 	var smelter := registry.get_definition(2)
 	assert_object(smelter).is_not_null()
 	assert_str(smelter.display_name).is_equal("Smelter")
-	assert_that(smelter.footprint).is_equal(Vector2i(1, 1))
+	assert_that(smelter.footprint).is_equal(Vector2i(2, 2))
 
 
 func test_create_default_belt_is_1x1() -> void:

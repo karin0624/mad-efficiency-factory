@@ -2,9 +2,6 @@ extends GdUnitTestSuite
 
 ## PlacementSystem.remove() のユニットテスト (Layer 1)
 ## エンティティ撤去ロジックが正しく機能することを検証する
-## 注: MVPエンティティは全て1x1。多セル検証にはテスト専用2x2エンティティ(ID=99)を使用。
-
-const TEST_2X2_ID: int = 99  ## テスト専用の2x2エンティティID
 
 var _grid: CoreGrid
 var _registry: EntityRegistry
@@ -14,8 +11,6 @@ var _system: PlacementSystem
 func before_test() -> void:
 	_grid = CoreGrid.new()
 	_registry = EntityRegistry.create_default()
-	# テスト専用の2x2エンティティを登録（多セル撤去検証用）
-	_registry.register(EntityDefinition.new(TEST_2X2_ID, "TestLarge", Vector2i(2, 2)))
 	_system = PlacementSystem.new(_grid, _registry)
 
 
@@ -37,16 +32,14 @@ func test_remove_1x1_entity_frees_the_cell() -> void:
 	assert_bool(_grid.is_occupied(Vector2i(5, 5))).is_false()
 
 
-func test_remove_2x2_test_entity_by_origin_cell() -> void:
-	# テスト専用2x2エンティティを基準セルから撤去
-	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
+func test_remove_2x2_entity_by_origin_cell() -> void:
+	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	var result := _system.remove(Vector2i(0, 0))
 	assert_bool(result).is_true()
 
 
-func test_remove_2x2_test_entity_frees_all_four_cells() -> void:
-	# テスト専用2x2エンティティ撤去後、4セル全て解放されること
-	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
+func test_remove_2x2_entity_frees_all_four_cells() -> void:
+	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	_system.remove(Vector2i(0, 0))
 	assert_bool(_grid.is_occupied(Vector2i(0, 0))).is_false()
 	assert_bool(_grid.is_occupied(Vector2i(1, 0))).is_false()
@@ -54,9 +47,9 @@ func test_remove_2x2_test_entity_frees_all_four_cells() -> void:
 	assert_bool(_grid.is_occupied(Vector2i(1, 1))).is_false()
 
 
-func test_remove_2x2_test_entity_by_non_origin_cell() -> void:
-	# Req 4.2: テスト専用2x2エンティティのいずれか1セル指定で全体を撤去
-	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
+func test_remove_2x2_entity_by_non_origin_cell() -> void:
+	# Req 4.2: 2x2エンティティのいずれか1セル指定で全体を撤去
+	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	# (1,1)（右下）を指定して撤去
 	var result := _system.remove(Vector2i(1, 1))
 	assert_bool(result).is_true()
@@ -67,9 +60,8 @@ func test_remove_2x2_test_entity_by_non_origin_cell() -> void:
 	assert_bool(_grid.is_occupied(Vector2i(1, 1))).is_false()
 
 
-func test_remove_2x2_test_entity_by_top_right_cell() -> void:
-	# テスト専用2x2エンティティを右上セルから指定して撤去
-	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
+func test_remove_2x2_entity_by_top_right_cell() -> void:
+	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	# (1,0)（右上）を指定して撤去
 	var result := _system.remove(Vector2i(1, 0))
 	assert_bool(result).is_true()
@@ -78,8 +70,7 @@ func test_remove_2x2_test_entity_by_top_right_cell() -> void:
 
 
 func test_remove_deletes_placed_entity_record() -> void:
-	# 1x1エンティティ撤去後、PlacedEntityレコードも削除される
-	var entity_id := _system.place(3, Vector2i(0, 0), Enums.Direction.N)
+	var entity_id := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	_system.remove(Vector2i(0, 0))
 	var entity := _system.get_placed_entity(entity_id)
 	assert_object(entity).is_null()
@@ -110,7 +101,7 @@ func test_place_remove_replace_cycle_succeeds() -> void:
 
 func test_remove_immediately_completes() -> void:
 	# Req 4.6: 撤去操作は即座に完了する
-	_system.place(3, Vector2i(0, 0), Enums.Direction.N)
+	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	var result := _system.remove(Vector2i(0, 0))
 	# 即座に完了: boolが返ること
 	assert_bool(result).is_true()
@@ -118,7 +109,7 @@ func test_remove_immediately_completes() -> void:
 
 func test_remove_entity_can_always_be_removed() -> void:
 	# Req 4.5: 配置済みエンティティはいつでも撤去可能
-	var entity_id := _system.place(3, Vector2i(0, 0), Enums.Direction.N)
+	var entity_id := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	assert_int(entity_id).is_greater(0)
 	var result := _system.remove(Vector2i(0, 0))
 	assert_bool(result).is_true()

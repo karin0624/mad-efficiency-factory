@@ -33,12 +33,12 @@ func size() -> int:
 	return _definitions.size()
 
 
-## MVPデフォルトデータ（Miner:1x1, Smelter:1x1, Belt:1x1, DeliveryBox:1x1）が登録済みのレジストリを生成する。
+## MVPデフォルトデータ（Miner:2x2, Smelter:2x2, Belt:1x1, DeliveryBox:1x1）が登録済みのレジストリを生成する。
 ## Postconditions: ID=1(Miner), ID=2(Smelter), ID=3(Belt), ID=4(DeliveryBox)が登録されたEntityRegistryを返す。
 static func create_default() -> EntityRegistry:
 	var registry := EntityRegistry.new()
-	registry.register(EntityDefinition.new(1, "Miner", Vector2i(1, 1)))
-	registry.register(EntityDefinition.new(2, "Smelter", Vector2i(1, 1)))
+	registry.register(EntityDefinition.new(1, "Miner", Vector2i(2, 2)))
+	registry.register(EntityDefinition.new(2, "Smelter", Vector2i(2, 2)))
 	registry.register(EntityDefinition.new(3, "Belt", Vector2i(1, 1)))
 	registry.register(EntityDefinition.new(4, "DeliveryBox", Vector2i(1, 1)))
 	return registry

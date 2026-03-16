@@ -2,9 +2,6 @@ extends GdUnitTestSuite
 
 ## PlacementSystem.rotate_cw() のユニットテスト (Layer 1)
 ## 回転ロジックが正しく機能することを検証する
-## 注: 多セル回転検証にはテスト専用2x2エンティティ(ID=99)を使用。
-
-const TEST_2X2_ID: int = 99
 
 var _grid: CoreGrid
 var _registry: EntityRegistry
@@ -14,7 +11,6 @@ var _system: PlacementSystem
 func before_test() -> void:
 	_grid = CoreGrid.new()
 	_registry = EntityRegistry.create_default()
-	_registry.register(EntityDefinition.new(TEST_2X2_ID, "TestLarge", Vector2i(2, 2)))
 	_system = PlacementSystem.new(_grid, _registry)
 
 
@@ -80,14 +76,14 @@ func test_place_west_direction_is_stored_in_entity() -> void:
 
 
 func test_rotation_does_not_change_occupied_cells_for_2x2() -> void:
-	# Req 3.4: 正方形フットプリントは回転で占有領域が変化しない（テスト専用2x2で検証）
+	# Req 3.4: MVPのエンティティは正方形フットプリント、回転で占有領域は変化しない
 	# 北向きで配置
-	var id_north := _system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
+	var id_north := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	assert_int(id_north).is_greater(0)
 	_system.remove(Vector2i(0, 0))
 
 	# 東向きで配置 - 同じ4セルを占有する
-	var id_east := _system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.E)
+	var id_east := _system.place(1, Vector2i(0, 0), Enums.Direction.E)
 	assert_int(id_east).is_greater(0)
 	assert_bool(_grid.is_occupied(Vector2i(0, 0))).is_true()
 	assert_bool(_grid.is_occupied(Vector2i(1, 0))).is_true()
