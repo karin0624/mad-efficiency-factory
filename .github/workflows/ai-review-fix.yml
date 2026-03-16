@@ -42,6 +42,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: ${{ steps.prompt.outputs.value }}
+          allowed_bots: 'claude'
           claude_args: '--model claude-sonnet-4-6 --allowedTools "Read,Glob,Grep,Bash(gh pr diff:*),Bash(gh pr view:*)"'
 
       - name: Validate critic JSON
@@ -136,6 +137,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: ${{ steps.prompt.outputs.value }}
+          allowed_bots: 'claude'
           claude_args: '--model claude-sonnet-4-6 --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git:*)"'
 
       - name: Save verdict
