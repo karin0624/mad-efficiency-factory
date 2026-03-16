@@ -43,6 +43,7 @@ reports/stryker-incremental.json
 
 # Claude Plans
 docs/plans
+docs/modify-plans
 
 # Memory MCP database
 tools/memory-mcp/memory.db
