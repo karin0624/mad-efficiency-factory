@@ -2,6 +2,9 @@ extends GdUnitTestSuite
 
 ## PlacementSystem.place() のユニットテスト (Layer 1)
 ## エンティティ配置ロジックが正しく機能することを検証する
+## 注: MVPエンティティは全て1x1。多セル検証にはテスト専用2x2エンティティ(ID=99)を使用。
+
+const TEST_2X2_ID: int = 99  ## テスト専用の2x2エンティティID
 
 var _grid: CoreGrid
 var _registry: EntityRegistry
@@ -11,6 +14,8 @@ var _system: PlacementSystem
 func before_test() -> void:
 	_grid = CoreGrid.new()
 	_registry = EntityRegistry.create_default()
+	# テスト専用の2x2エンティティを登録（多セル占有検証用）
+	_registry.register(EntityDefinition.new(TEST_2X2_ID, "TestLarge", Vector2i(2, 2)))
 	_system = PlacementSystem.new(_grid, _registry)
 
 
@@ -31,9 +36,9 @@ func test_place_1x1_entity_occupies_the_cell() -> void:
 	assert_bool(_grid.is_occupied(Vector2i(5, 5))).is_true()
 
 
-func test_place_2x2_entity_occupies_all_four_cells() -> void:
-	# Miner(ID=1)は2x2
-	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
+func test_place_2x2_test_entity_occupies_all_four_cells() -> void:
+	# テスト専用2x2エンティティが4セルを全て占有する
+	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
 	# (0,0), (1,0), (0,1), (1,1)の4セルすべてが占有されること
 	assert_bool(_grid.is_occupied(Vector2i(0, 0))).is_true()
 	assert_bool(_grid.is_occupied(Vector2i(1, 0))).is_true()
@@ -42,6 +47,7 @@ func test_place_2x2_entity_occupies_all_four_cells() -> void:
 
 
 func test_place_records_placed_entity() -> void:
+	# Miner(ID=1)は1x1。PlacedEntity記録の検証
 	var entity_id := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
 	var entity := _system.get_placed_entity(entity_id)
 	assert_object(entity).is_not_null()
@@ -58,8 +64,8 @@ func test_place_on_occupied_cell_returns_zero() -> void:
 
 
 func test_place_on_occupied_cell_does_not_change_grid() -> void:
-	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
-	# 既に占有されている(1,1)のセルに1x1を置こうとする
+	# テスト専用2x2エンティティを配置して(1,1)を占有させてから、1x1を置こうとする
+	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
 	var grid_entity_before := _grid.get_occupying_entity(Vector2i(1, 1))
 	_system.place(3, Vector2i(1, 1), Enums.Direction.N)
 	var grid_entity_after := _grid.get_occupying_entity(Vector2i(1, 1))
@@ -67,14 +73,14 @@ func test_place_on_occupied_cell_does_not_change_grid() -> void:
 	assert_int(grid_entity_before).is_equal(grid_entity_after)
 
 
-func test_place_out_of_bounds_returns_zero() -> void:
-	# Req 2.4: 基準セル(63,63)に2x2エンティティは範囲外
-	var result := _system.place(1, Vector2i(63, 63), Enums.Direction.N)
+func test_place_2x2_test_entity_out_of_bounds_returns_zero() -> void:
+	# テスト専用2x2エンティティを(63,63)に配置→範囲外
+	var result := _system.place(TEST_2X2_ID, Vector2i(63, 63), Enums.Direction.N)
 	assert_int(result).is_equal(0)
 
 
-func test_place_out_of_bounds_does_not_modify_grid() -> void:
-	_system.place(1, Vector2i(63, 63), Enums.Direction.N)
+func test_place_2x2_test_entity_out_of_bounds_does_not_modify_grid() -> void:
+	_system.place(TEST_2X2_ID, Vector2i(63, 63), Enums.Direction.N)
 	# 64x64グリッドの範囲外への配置でグリッドに変化はない
 	assert_bool(_grid.is_occupied(Vector2i(63, 63))).is_false()
 
@@ -89,22 +95,22 @@ func test_place_entity_ids_are_unique_and_increasing() -> void:
 
 
 func test_place_invalid_entity_type_id_returns_zero() -> void:
-	var result := _system.place(999, Vector2i(0, 0), Enums.Direction.N)
+	var result := _system.place(9999, Vector2i(0, 0), Enums.Direction.N)
 	assert_int(result).is_equal(0)
 
 
 func test_place_returns_immediately_no_delay() -> void:
 	# 配置は即座に完了する（戻り値が返ること）
-	var entity_id := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
+	var entity_id := _system.place(3, Vector2i(0, 0), Enums.Direction.N)
 	# IDが正の整数であることで即座に完了したことを確認
 	assert_int(entity_id).is_greater(0)
 
 
 func test_place_failed_does_not_leave_partial_occupation() -> void:
-	# 2x2エンティティで一部が占有済みの場合、部分的な占有が発生しないことを確認
+	# テスト専用2x2エンティティで一部が占有済みの場合、部分的な占有が発生しないことを確認
 	_grid.occupy_rect(Vector2i(1, 1), Vector2i(1, 1), 999)
-	# (0,0)にMiner(2x2)を配置しようとする→(1,1)が占有済みで失敗
-	var result := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
+	# (0,0)にテスト専用2x2を配置しようとする→(1,1)が占有済みで失敗
+	var result := _system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
 	assert_int(result).is_equal(0)
 	# (0,0), (1,0), (0,1)は未占有のまま
 	assert_bool(_grid.is_occupied(Vector2i(0, 0))).is_false()
