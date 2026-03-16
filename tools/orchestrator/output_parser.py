@@ -54,6 +54,32 @@ RE_DELTA_TASKS_DONE = re.compile(r"\bDELTA_TASKS_DONE\b")
 # L4 Human Review pattern in tasks.md
 RE_L4_HUMAN_REVIEW = re.compile(r"^- \[ \] \d+\.\d+ Human review:", re.MULTILINE)
 
+# ── Modify-plan pipeline markers ──────────────────────────────────
+
+# MP0 (investigate)
+RE_MP0_DONE = re.compile(r"\bMP0_DONE\b")
+RE_MP0_NO_MATCH = re.compile(r"\bMP0_NO_MATCH\b")
+RE_MP0_NEW_SPEC_RECOMMENDED = re.compile(r"\bMP0_NEW_SPEC_RECOMMENDED\b")
+RE_TARGET_SPECS = re.compile(r"\bTARGET_SPECS:\s*(.+)")
+RE_EXECUTION_ORDER = re.compile(r"\bEXECUTION_ORDER:\s*(.+)")
+RE_PROPAGATION_MAP_START = re.compile(r"\bPROPAGATION_MAP_START\b")
+RE_PROPAGATION_MAP_END = re.compile(r"\bPROPAGATION_MAP_END\b")
+
+# MP1 (plan-gen)
+RE_MP1_DONE = re.compile(r"\bMP1_DONE\b")
+RE_MP1_SUMMARY_START = re.compile(r"\bSUMMARY_START\b")
+RE_MP1_SUMMARY_END = re.compile(r"\bSUMMARY_END\b")
+RE_MP1_GAPS = re.compile(r"\bGAPS:\s*(.+)")
+
+# MP2 (review)
+RE_MP2_DONE = re.compile(r"\bMP2_DONE\b")
+RE_MP2_STATUS = re.compile(r"\bMP2_DONE\s+status=(\w+)\b")
+RE_MP2_CHANGES_START = re.compile(r"\bCHANGES_START\b")
+RE_MP2_CHANGES_END = re.compile(r"\bCHANGES_END\b")
+
+# MP1e (edit)
+RE_MP1E_DONE = re.compile(r"\bMP1E_DONE\b")
+
 
 @dataclass
 class ParsedOutput:
@@ -63,6 +89,7 @@ class ParsedOutput:
     markers: dict[str, bool] = field(default_factory=dict)
     values: dict[str, str] = field(default_factory=dict)
     delta_summary: str = ""
+    _blocks: dict[str, str] = field(default_factory=dict)
 
     @property
     def has_reject(self) -> bool:
@@ -132,6 +159,60 @@ class ParsedOutput:
     def adr_reason(self) -> str:
         return self.values.get("ADR_REASON", "")
 
+    # ── Modify-plan pipeline properties ───────────────────────────
+
+    @property
+    def mp0_done(self) -> bool:
+        return self.markers.get("MP0_DONE", False)
+
+    @property
+    def mp0_no_match(self) -> bool:
+        return self.markers.get("MP0_NO_MATCH", False)
+
+    @property
+    def mp0_new_spec_recommended(self) -> bool:
+        return self.markers.get("MP0_NEW_SPEC_RECOMMENDED", False)
+
+    @property
+    def target_specs(self) -> str:
+        return self.values.get("TARGET_SPECS", "")
+
+    @property
+    def execution_order(self) -> str:
+        return self.values.get("EXECUTION_ORDER", "")
+
+    @property
+    def propagation_map(self) -> str:
+        return self._blocks.get("PROPAGATION_MAP", "")
+
+    @property
+    def mp1_done(self) -> bool:
+        return self.markers.get("MP1_DONE", False)
+
+    @property
+    def mp1_summary(self) -> str:
+        return self._blocks.get("SUMMARY", "")
+
+    @property
+    def mp1_gaps(self) -> str:
+        return self.values.get("GAPS", "")
+
+    @property
+    def mp2_done(self) -> bool:
+        return self.markers.get("MP2_DONE", False)
+
+    @property
+    def mp2_status(self) -> str:
+        return self.values.get("MP2_STATUS", "")
+
+    @property
+    def mp2_changes(self) -> str:
+        return self._blocks.get("CHANGES", "")
+
+    @property
+    def mp1e_done(self) -> bool:
+        return self.markers.get("MP1E_DONE", False)
+
 
 def parse_agent_output(text: str) -> ParsedOutput:
     """Extract structured markers and values from agent output text."""
@@ -149,6 +230,13 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("CASCADE_FAILED", RE_CASCADE_FAILED),
         ("DELTA_TASKS_DONE", RE_DELTA_TASKS_DONE),
         ("ADR_CREATED", RE_ADR_CREATED),
+        # Modify-plan markers
+        ("MP0_DONE", RE_MP0_DONE),
+        ("MP0_NO_MATCH", RE_MP0_NO_MATCH),
+        ("MP0_NEW_SPEC_RECOMMENDED", RE_MP0_NEW_SPEC_RECOMMENDED),
+        ("MP1_DONE", RE_MP1_DONE),
+        ("MP2_DONE", RE_MP2_DONE),
+        ("MP1E_DONE", RE_MP1E_DONE),
     ]:
         if pattern.search(text):
             result.markers[name] = True
@@ -164,10 +252,19 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("ADR_REQUIRED", RE_ADR_REQUIRED),
         ("ADR_CATEGORY", RE_ADR_CATEGORY),
         ("ADR_REASON", RE_ADR_REASON),
+        # Modify-plan values
+        ("TARGET_SPECS", RE_TARGET_SPECS),
+        ("EXECUTION_ORDER", RE_EXECUTION_ORDER),
+        ("GAPS", RE_MP1_GAPS),
     ]:
         m = pattern.search(text)
         if m:
             result.values[name] = m.group(1).strip()
+
+    # MP2 status (extracted from MP2_DONE status=<VALUE>)
+    m = RE_MP2_STATUS.search(text)
+    if m:
+        result.values["MP2_STATUS"] = m.group(1).strip()
 
     # Delta summary (multiline block)
     start_m = RE_DELTA_SUMMARY_START.search(text)
@@ -175,7 +272,26 @@ def parse_agent_output(text: str) -> ParsedOutput:
     if start_m and end_m and end_m.start() > start_m.end():
         result.delta_summary = text[start_m.end() : end_m.start()].strip()
 
+    # Generic multiline block extraction
+    _extract_block(text, RE_PROPAGATION_MAP_START, RE_PROPAGATION_MAP_END, "PROPAGATION_MAP", result)
+    _extract_block(text, RE_MP1_SUMMARY_START, RE_MP1_SUMMARY_END, "SUMMARY", result)
+    _extract_block(text, RE_MP2_CHANGES_START, RE_MP2_CHANGES_END, "CHANGES", result)
+
     return result
+
+
+def _extract_block(
+    text: str,
+    start_re: re.Pattern[str],
+    end_re: re.Pattern[str],
+    name: str,
+    result: ParsedOutput,
+) -> None:
+    """Extract a multiline block between start/end markers."""
+    start_m = start_re.search(text)
+    end_m = end_re.search(text)
+    if start_m and end_m and end_m.start() > start_m.end():
+        result._blocks[name] = text[start_m.end() : end_m.start()].strip()
 
 
 def has_l4_human_review(tasks_md_content: str) -> bool:

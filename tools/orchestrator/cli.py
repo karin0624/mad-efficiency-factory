@@ -58,6 +58,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Max agentic turns per step (default: 200)",
     )
 
+    # modify-plan
+    mp_p = sub.add_parser(
+        "modify-plan",
+        aliases=["mp"],
+        help="Investigate affected specs and generate modify-plans",
+    )
+    mp_p.add_argument(
+        "change",
+        nargs="*",
+        help="Change description (can be omitted — will prompt interactively)",
+    )
+    mp_p.add_argument(
+        "--max-turns",
+        type=int,
+        default=200,
+        help="Max agentic turns per step (default: 200)",
+    )
+
     # spike (Phase 0 verification)
     sub.add_parser(
         "spike",
@@ -108,6 +126,24 @@ async def _run_modify(args: argparse.Namespace, config: OrchestratorConfig) -> i
         return 1
 
 
+async def _run_modify_plan(args: argparse.Namespace, config: OrchestratorConfig) -> int:
+    from .pipelines.modify_plan import ModifyPlanPipeline
+
+    change_desc = " ".join(args.change) if args.change else ""
+
+    pipeline = ModifyPlanPipeline(config)
+    try:
+        result = await pipeline.run(change_description=change_desc)
+        if result["status"] == "completed":
+            return 0
+        return 1
+    except PipelineError as e:
+        if pipeline.progress:
+            pipeline.progress.print_error(str(e))
+            pipeline.progress.print_summary()
+        return 1
+
+
 async def _run_spike() -> int:
     from .spike import run_spike
 
@@ -130,6 +166,8 @@ async def _async_main() -> int:
         return await _run_implement(args, config)
     elif args.command in ("modify", "mod"):
         return await _run_modify(args, config)
+    elif args.command in ("modify-plan", "mp"):
+        return await _run_modify_plan(args, config)
     elif args.command == "spike":
         return await _run_spike()
     else:
