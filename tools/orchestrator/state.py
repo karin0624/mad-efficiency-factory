@@ -24,6 +24,7 @@ class ModifyPhase(str, Enum):
     """Modification sub-phases."""
 
     ANALYSIS_COMPLETED = "analysis-completed"
+    ADR_ACCEPTED = "adr-accepted"
     SPEC_CASCADED = "spec-cascaded"
     DELTA_TASKS_GENERATED = "delta-tasks-generated"
     IMPL_COMPLETED = "impl-completed"
@@ -48,6 +49,7 @@ class ImplementResumePoint(str, Enum):
 class ModifyResumePoint(str, Enum):
     """Where to resume a modify pipeline."""
 
+    ADR_GATE = "adr-gate"
     M2_CASCADE = "m2-cascade"
     M3_DELTA_TASKS = "m3-delta-tasks"
     B_IMPL = "b-impl"
@@ -194,7 +196,10 @@ def detect_modify_resume(spec: SpecState) -> ModifyResumePoint | None:
     if modify_phase == ModifyPhase.SPEC_CASCADED:
         return ModifyResumePoint.M3_DELTA_TASKS
 
-    if modify_phase == ModifyPhase.ANALYSIS_COMPLETED:
+    if modify_phase == ModifyPhase.ADR_ACCEPTED:
         return ModifyResumePoint.M2_CASCADE
+
+    if modify_phase == ModifyPhase.ANALYSIS_COMPLETED:
+        return ModifyResumePoint.ADR_GATE
 
     return None

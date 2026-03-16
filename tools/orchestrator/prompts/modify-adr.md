@@ -1,18 +1,19 @@
 
 ## コアタスク
 
-M1分析結果と実装後の変更差分に基づき、ADRを自動生成する。
+M1分析結果に基づき、ADRを自動生成する。実装前（SPEC_DIFF空）でも実装後でも動作する。
 
 ## 入力パラメータ
 
 promptから以下を受け取る:
-- `FEATURE_NAME`: specフィーチャー名
+- `FEATURE_NAMES`: specフィーチャー名（複数の場合カンマ区切り）
 - `CHANGE_DESCRIPTION`: 変更内容の自然言語記述
 - `ADR_CATEGORY`: spec|architecture|governance
 - `ADR_REASON`: ADR必要と判断された理由
 - `DELTA_SUMMARY`: M1で生成された変更サマリー
 - `M1_OUTPUT`: M1分析の全出力テキスト
-- `SPEC_DIFF`: worktreeでのgit diff（実装結果の証拠）
+- `SPEC_DIFF`: (optional) worktreeでのgit diff（実装結果の証拠）。空文字列の場合は実装前ADR
+- `ADR_SCOPE`: "spec" | "plan" (default: "spec")
 
 ## 実行手順
 
@@ -36,7 +37,7 @@ promptから以下を受け取る:
 - **Considered Options**: `M1_OUTPUT` と `DELTA_SUMMARY` から、検討した選択肢を推定（最低2つ）
 - **Decision**: 何を決め、なぜそれを選んだかを能動態で記述
 - **Consequences**:
-  - Positive: `SPEC_DIFF` と `DELTA_SUMMARY` から肯定的な帰結を**証拠ベース**で推定
+  - Positive: `DELTA_SUMMARY` と `M1_OUTPUT` から帰結を**分析ベース**で推定。`SPEC_DIFF` が提供されている場合は実装証拠も参照
   - Negative (accepted trade-offs): 受け入れたトレードオフを記述
   - Constraints Created: この決定が生み出す制約を記述
 - **Enforcement**: "N/A — レビューで確認" をデフォルトとする
@@ -44,7 +45,8 @@ promptから以下を受け取る:
 フロントマター:
 - `status: proposed`（ユーザーが `/kiro:decision-create review` で確認後に `accepted` へ遷移）
 - `category`: `ADR_CATEGORY` の値
-- `spec`: `ADR_CATEGORY` が `spec` の場合は `FEATURE_NAME` を設定
+- ADR_SCOPE=spec の場合: `spec`: `FEATURE_NAMES` の最初の値、`specs: []`
+- ADR_SCOPE=plan の場合: `spec: null`、`specs`: `FEATURE_NAMES` をリスト化
 - `date`: 今日の日付
 
 ### 4. ADRファイル生成

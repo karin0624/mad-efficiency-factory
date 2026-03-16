@@ -255,6 +255,10 @@ class PipelineProgress:
         """Print an info message."""
         self.console.print(f"[bold blue]Info:[/] {message}")
 
+    def print_warning(self, message: str) -> None:
+        """Print a warning message."""
+        self.console.print(f"[bold yellow]Warning:[/] {message}")
+
     def print_success(self, message: str) -> None:
         """Print a success message."""
         self.console.print(f"[bold green]Success:[/] {message}")

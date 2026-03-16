@@ -43,6 +43,7 @@ RE_ADR_REQUIRED = re.compile(r"\bADR_REQUIRED:\s*(yes|no)\b")
 RE_ADR_CATEGORY = re.compile(r"\bADR_CATEGORY:\s*(spec|architecture|governance)\b")
 RE_ADR_REASON = re.compile(r"\bADR_REASON:\s*(.+)")
 RE_ADR_CREATED = re.compile(r"\bADR_CREATED\b")
+RE_ADR_PATH = re.compile(r"\bADR_PATH:\s*(\S+)")
 
 # M2 (cascade)
 RE_CASCADE_DONE = re.compile(r"\bCASCADE_DONE\b")
@@ -160,6 +161,10 @@ class ParsedOutput:
     def adr_reason(self) -> str:
         return self.values.get("ADR_REASON", "")
 
+    @property
+    def adr_path(self) -> str:
+        return self.values.get("ADR_PATH", "")
+
     # ── Modify-plan pipeline properties ───────────────────────────
 
     @property
@@ -257,6 +262,7 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("ADR_REQUIRED", RE_ADR_REQUIRED),
         ("ADR_CATEGORY", RE_ADR_CATEGORY),
         ("ADR_REASON", RE_ADR_REASON),
+        ("ADR_PATH", RE_ADR_PATH),
         # Modify-plan values
         ("PLAN_SLUG", RE_PLAN_SLUG),
         ("TARGET_SPECS", RE_TARGET_SPECS),

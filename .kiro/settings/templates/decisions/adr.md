@@ -5,6 +5,7 @@ status: proposed    # proposed | accepted | superseded | deprecated
 date: "{{DATE}}"
 category: "{{CATEGORY}}"    # spec | architecture | governance
 spec: null                   # spec カテゴリの場合のみ設定
+specs: []                    # 複数specにまたがるADRの場合に設定
 supersedes: null
 superseded_by: null
 tags: []

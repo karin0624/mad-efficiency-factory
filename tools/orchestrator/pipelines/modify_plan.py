@@ -466,13 +466,9 @@ class ModifyPlanPipeline(Pipeline):
 ```bash
 make modify plan={slug}
 ```
-上記コマンドを実行すると、以下の順序で1つずつspecを処理します。
-各specのPRをマージした後、同じコマンドを再実行してください。
+上記コマンドを実行すると、以下の順序で全specを一括処理し、1つのPRを作成します。
 
 {exec_list}
-
-> 各 `make modify` は独立したworktreeを作成します。
-> 複数specの場合、先行specのPRをマージしてから次を実行してください。
 """
 
         index_path = output_dir / "_index.md"
