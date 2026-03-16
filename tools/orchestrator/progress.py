@@ -21,7 +21,8 @@ class StepRecord:
     end_time: float = 0.0
     tool_calls: list[str] = field(default_factory=list)
     error: str = ""
-    cost_usd: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
 
     @property
     def elapsed_s(self) -> float:
@@ -29,6 +30,14 @@ class StepRecord:
             return 0.0
         end = self.end_time if self.end_time > 0 else time.time()
         return end - self.start_time
+
+
+def _fmt_tokens(n: int) -> str:
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K"
+    return str(n)
 
 
 class PipelineProgress:
@@ -61,17 +70,19 @@ class PipelineProgress:
         self.console.print(f"    [dim]↳ {tool_name}[/]")
 
     def complete_step(
-        self, step: StepRecord, cost_usd: float = 0.0
+        self, step: StepRecord, input_tokens: int = 0, output_tokens: int = 0
     ) -> None:
         """Mark a step as completed."""
         step.status = "completed"
         step.end_time = time.time()
-        step.cost_usd = cost_usd
+        step.input_tokens = input_tokens
+        step.output_tokens = output_tokens
         elapsed = step.elapsed_s
-        cost_str = f" ${cost_usd:.3f}" if cost_usd else ""
+        total_tok = input_tokens + output_tokens
+        tok_str = f" {_fmt_tokens(total_tok)} tok" if total_tok else ""
         self.console.print(
             f"  [bold green]✓[/] {step.name} "
-            f"[dim]({elapsed:.1f}s{cost_str})[/]"
+            f"[dim]({elapsed:.1f}s{tok_str})[/]"
         )
         self._current = None
 
@@ -116,9 +127,10 @@ class PipelineProgress:
         table.add_column("Step", style="bold")
         table.add_column("Status")
         table.add_column("Time", justify="right")
-        table.add_column("Cost", justify="right")
+        table.add_column("Tokens (in/out)", justify="right")
 
-        total_cost = 0.0
+        total_in = 0
+        total_out = 0
         total_time = 0.0
 
         for step in self.steps:
@@ -131,17 +143,24 @@ class PipelineProgress:
             }.get(step.status, step.status)
 
             time_str = f"{step.elapsed_s:.1f}s" if step.elapsed_s > 0 else "-"
-            cost_str = f"${step.cost_usd:.3f}" if step.cost_usd > 0 else "-"
+            step_total = step.input_tokens + step.output_tokens
+            tok_str = (
+                f"{_fmt_tokens(step.input_tokens)} / {_fmt_tokens(step.output_tokens)}"
+                if step_total > 0
+                else "-"
+            )
 
-            table.add_row(step.name, status_str, time_str, cost_str)
-            total_cost += step.cost_usd
+            table.add_row(step.name, status_str, time_str, tok_str)
+            total_in += step.input_tokens
+            total_out += step.output_tokens
             total_time += step.elapsed_s
 
+        grand_total = total_in + total_out
         table.add_row(
             "[bold]Total[/]",
             "",
             f"[bold]{total_time:.1f}s[/]",
-            f"[bold]${total_cost:.3f}[/]",
+            f"[bold]{_fmt_tokens(total_in)} / {_fmt_tokens(total_out)} ({_fmt_tokens(grand_total)})[/]",
         )
 
         self.console.print(table)

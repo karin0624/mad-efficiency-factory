@@ -37,7 +37,8 @@ class AgentResult:
 
     output_text: str = ""
     parsed: ParsedOutput = field(default_factory=ParsedOutput)
-    cost_usd: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
     duration_ms: int = 0
     num_turns: int = 0
     session_id: str = ""
@@ -116,7 +117,9 @@ class AgentRunner:
                                 progress.log_tool_call(step_record, block.name)
 
                 elif isinstance(message, ResultMessage):
-                    result.cost_usd = message.total_cost_usd or 0.0
+                    usage = message.usage or {}
+                    result.input_tokens = usage.get("input_tokens", 0)
+                    result.output_tokens = usage.get("output_tokens", 0)
                     result.duration_ms = message.duration_ms
                     result.num_turns = message.num_turns
                     result.session_id = message.session_id

@@ -58,7 +58,7 @@ class Pipeline(ABC):
             if result.is_error:
                 self.progress.fail_step(record, result.error_message)
             else:
-                self.progress.complete_step(record, result.cost_usd)
+                self.progress.complete_step(record, result.input_tokens, result.output_tokens)
 
         return result
 

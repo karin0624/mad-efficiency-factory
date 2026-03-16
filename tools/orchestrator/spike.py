@@ -77,7 +77,10 @@ SPIKE_RESULT:
             print(f"--- Result ---")
             print(f"  Turns: {message.num_turns}")
             print(f"  Duration: {message.duration_ms}ms")
-            print(f"  Cost: ${message.total_cost_usd}")
+            usage = message.usage or {}
+            in_tok = usage.get("input_tokens", 0)
+            out_tok = usage.get("output_tokens", 0)
+            print(f"  Tokens: in={in_tok:,} / out={out_tok:,} (total={in_tok+out_tok:,})")
             print(f"  Error: {message.is_error}")
             if message.result:
                 print(f"  Final: {message.result[:200]}")
