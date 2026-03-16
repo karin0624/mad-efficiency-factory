@@ -74,7 +74,16 @@
 - **Selected Approach**: PlacedEntity値オブジェクト + PlacementSystem内のDictionary管理
 - **Rationale**: CoreGridはセル占有のみ管理し、エンティティのメタデータはPlacementSystemが管理する。entity_idによる双方向参照が可能。
 
+### Miner/Smelterフットプリント 2x2→1x1 変更の影響分析
+- **Context**: ADR 0001により、Miner/Smelterのフットプリントが2x2から1x1に変更
+- **Findings**:
+  - `EntityRegistry.create_default()` の登録データ変更のみで対応可能（`Vector2i(2,2)` → `Vector2i(1,1)`）
+  - 可変サイズフットプリントのシステム設計（EntityDefinition, PlacementSystem, CoreGrid）に変更不要
+  - MVPでは全エンティティが1x1になるが、2x2以上のフットプリントサポートはシステムとして維持
+  - MachinePortCatalogのポートオフセット定義にも影響あり（entity-placement specスコープ外）
+- **Implications**: design.mdのcreate_default() postconditionを更新。アーキテクチャ変更なし。
+
 ## Risks & Mitigations
 - entity_idの採番がオーバーフローするリスク — MVPでは64x64グリッドのため実質的に問題なし。将来的にはID再利用またはBigInt化
 - CoreGridのoccupy_rectとPlacementSystemの状態が不整合になるリスク — PlacementSystem経由でのみ配置・撤去を行うことで防止
-- ゴーストプレビューのパフォーマンス — フットプリント検証はO(footprint_size)で、MVPの最大は2x2=4セルのため問題なし
+- ゴーストプレビューのパフォーマンス — フットプリント検証はO(footprint_size)で、MVPの1x1では1セルのみの検証で高速

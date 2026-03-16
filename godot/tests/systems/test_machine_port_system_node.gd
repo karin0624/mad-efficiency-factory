@@ -40,8 +40,8 @@ func test_entity_placed_machine_port_world_position() -> void:
 	_sut.on_entity_placed(1, Vector2i(2, 2), Enums.Direction.N, 1)
 	var output_ports := _port_grid.get_active_output_ports()
 	var port: Dictionary = output_ports[0]
-	# 採掘機北向き: base(2,2) + offset(1,1) = (3,3), dir=S
-	assert_that(port["world_position"]).is_equal(Vector2i(3, 3))
+	# 採掘機(1x1)北向き: base(2,2) + offset(0,0) = (2,2), dir=S
+	assert_that(port["world_position"]).is_equal(Vector2i(2, 2))
 	assert_int(port["world_direction"]).is_equal(Enums.Direction.S)
 
 
@@ -80,7 +80,7 @@ func test_belt_entity_removed_sets_dirty_flag() -> void:
 func test_tick_output_transfers_from_output_port_to_belt() -> void:
 	# 採掘機登録 + ベルト配置
 	_sut.on_entity_placed(1, Vector2i(2, 2), Enums.Direction.N, 1)  # Miner
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	# 出力ポートにアイテムをセット
@@ -91,7 +91,7 @@ func test_tick_output_transfers_from_output_port_to_belt() -> void:
 
 	# ポートがクリアされてベルトにアイテムが入る
 	assert_int(output_ports[0]["item_id"]).is_equal(0)
-	assert_int(_belt_grid.get_tile(Vector2i(3, 4)).item_id).is_equal(5)
+	assert_int(_belt_grid.get_tile(Vector2i(2, 3)).item_id).is_equal(5)
 
 
 ## tick_inputでベルトから入力ポートへ引き込みが行われる
@@ -117,7 +117,7 @@ func test_tick_input_pulls_from_belt_to_input_port() -> void:
 func test_tick_output_rebuilds_connections_if_dirty() -> void:
 	_sut.on_entity_placed(1, Vector2i(2, 2), Enums.Direction.N, 1)  # Miner → dirty=true
 	# ベルト追加（dirty flagは既にtrueなので再構築が行われる）
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 
 	# tick_outputが接続再構築を行い、転送が成功するはず
 	var output_ports := _port_grid.get_active_output_ports()
@@ -127,4 +127,4 @@ func test_tick_output_rebuilds_connections_if_dirty() -> void:
 
 	# dirty flagがtrueのままでもrebuildが行われて転送される
 	assert_int(output_ports[0]["item_id"]).is_equal(0)
-	assert_int(_belt_grid.get_tile(Vector2i(3, 4)).item_id).is_equal(5)
+	assert_int(_belt_grid.get_tile(Vector2i(2, 3)).item_id).is_equal(5)

@@ -30,13 +30,13 @@ func after_test() -> void:
 func test_output_backpressure_resumes_when_belt_space_available() -> void:
 	# 出力先ベルト満杯→空き発生→転送自動再開
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
 	var port: Dictionary = output_ports[0]
 	port["item_id"] = 1
-	_belt_grid.set_item(Vector2i(3, 4), 99)  # ベルト満杯
+	_belt_grid.set_item(Vector2i(2, 3), 99)  # ベルト満杯
 
 	# 転送スキップ（バックプレッシャー）
 	var result1 := _sut.process_output_ports(_port_grid, _belt_grid)
@@ -44,7 +44,7 @@ func test_output_backpressure_resumes_when_belt_space_available() -> void:
 	assert_int(port["item_id"]).is_equal(1)  # ポートにアイテムが残る
 
 	# ベルトを空に → 転送自動再開
-	_belt_grid.clear_item(Vector2i(3, 4))
+	_belt_grid.clear_item(Vector2i(2, 3))
 	var result2 := _sut.process_output_ports(_port_grid, _belt_grid)
 	assert_int(result2).is_equal(1)
 	assert_int(port["item_id"]).is_equal(0)  # ポートが空に
@@ -53,13 +53,13 @@ func test_output_backpressure_resumes_when_belt_space_available() -> void:
 func test_output_backpressure_no_item_loss() -> void:
 	# バックプレッシャー発生中のアイテム消失なし
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
 	var port: Dictionary = output_ports[0]
 	port["item_id"] = 5
-	_belt_grid.set_item(Vector2i(3, 4), 99)  # ベルト満杯
+	_belt_grid.set_item(Vector2i(2, 3), 99)  # ベルト満杯
 
 	# 複数ティックにわたる転送試行でもアイテムが消失しない
 	for _i in range(5):
@@ -122,10 +122,10 @@ func test_input_backpressure_no_item_loss() -> void:
 func test_multi_tick_output_to_input_item_conservation() -> void:
 	# 複数ティックにわたる出力→入力の連続転送でアイテム総数が保存される
 	# セットアップ: 採掘機(出力) → ベルト(消費専用) → 各ティックで消費
-	# Miner@(0,0): 出力ポート world_pos=(1,1), dir=S → 接続先=(1,2)
+	# Miner@(0,0) 1x1: 出力ポート world_pos=(0,0), dir=S → 接続先=(0,1)
 
 	_port_grid.register_machine(1, 1, Vector2i(0, 0), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(1, 2), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(0, 1), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
@@ -141,7 +141,7 @@ func test_multi_tick_output_to_input_item_conservation() -> void:
 		var transferred := _sut.process_output_ports(_port_grid, _belt_grid)
 		total_items_out += transferred
 		# ベルトをクリアして次のティックに備える（保存則の検証）
-		_belt_grid.clear_item(Vector2i(1, 2))
+		_belt_grid.clear_item(Vector2i(0, 1))
 
 	# 全5回の転送が成功し、アイテム総数が保存されている
 	assert_int(total_items_out).is_equal(total_items_in)
@@ -150,7 +150,7 @@ func test_multi_tick_output_to_input_item_conservation() -> void:
 func test_no_item_duplication_on_transfer() -> void:
 	# いかなる状態でもアイテムの消失・重複が発生しないことを検証
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()

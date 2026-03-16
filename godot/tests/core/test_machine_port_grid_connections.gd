@@ -21,17 +21,17 @@ func after_test() -> void:
 
 
 ## 出力ポート: 隣接にベルトが存在する場合に接続が成立する
-## 採掘機北向き: 出力ポートworld_pos=(3,3), world_dir=S
-## 接続先belt_pos = (3,3) + (0,1) = (3,4)
+## 採掘機(1x1)北向き: 出力ポートworld_pos=(2,2), world_dir=S
+## 接続先belt_pos = (2,2) + (0,1) = (2,3)
 func test_output_port_connects_when_adjacent_belt_exists() -> void:
 	_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	# 出力ポートは(3,3)、方向S → 接続先=(3,4)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	# 出力ポートは(2,2)、方向S → 接続先=(2,3)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_grid.rebuild_connections_if_dirty(_belt_grid)
 	var ports := _grid.get_active_output_ports()
 	var port: Dictionary = ports[0]
 	assert_bool(port["has_connection"]).is_true()
-	assert_that(port["connected_belt_pos"]).is_equal(Vector2i(3, 4))
+	assert_that(port["connected_belt_pos"]).is_equal(Vector2i(2, 3))
 
 
 ## 出力ポート: 隣接にベルトが存在しない場合に接続が不成立
@@ -109,7 +109,7 @@ func test_mark_dirty_sets_flag() -> void:
 ## 配置/撤去が発生していない場合に接続関係が変化しない
 func test_connections_unchanged_without_placement() -> void:
 	_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_grid.rebuild_connections_if_dirty(_belt_grid)
 	var ports_before := _grid.get_active_output_ports()
 	var has_connection_before: bool = ports_before[0]["has_connection"]
@@ -128,7 +128,7 @@ func test_connection_updates_after_belt_added() -> void:
 	assert_bool(ports[0]["has_connection"]).is_false()
 
 	# ベルト追加後にmark_dirty→rebuild
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_grid.mark_dirty()
 	_grid.rebuild_connections_if_dirty(_belt_grid)
 	ports = _grid.get_active_output_ports()

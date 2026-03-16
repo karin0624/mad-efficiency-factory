@@ -7,10 +7,14 @@ var _grid: CoreGrid
 var _registry: EntityRegistry
 var _system: PlacementSystem
 
+## 汎用テスト用2x2エンティティのID
+const TEST_2X2_ID := 99
+
 
 func before_test() -> void:
 	_grid = CoreGrid.new()
 	_registry = EntityRegistry.create_default()
+	_registry.register(EntityDefinition.new(TEST_2X2_ID, "TestMachine2x2", Vector2i(2, 2)))
 	_system = PlacementSystem.new(_grid, _registry)
 
 
@@ -32,8 +36,8 @@ func test_place_1x1_entity_occupies_the_cell() -> void:
 
 
 func test_place_2x2_entity_occupies_all_four_cells() -> void:
-	# Miner(ID=1)は2x2
-	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
+	# 汎用テスト用2x2エンティティ
+	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
 	# (0,0), (1,0), (0,1), (1,1)の4セルすべてが占有されること
 	assert_bool(_grid.is_occupied(Vector2i(0, 0))).is_true()
 	assert_bool(_grid.is_occupied(Vector2i(1, 0))).is_true()
@@ -58,7 +62,8 @@ func test_place_on_occupied_cell_returns_zero() -> void:
 
 
 func test_place_on_occupied_cell_does_not_change_grid() -> void:
-	_system.place(1, Vector2i(0, 0), Enums.Direction.N)
+	# 汎用2x2エンティティを(0,0)に配置 → (1,1)が占有される
+	_system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
 	# 既に占有されている(1,1)のセルに1x1を置こうとする
 	var grid_entity_before := _grid.get_occupying_entity(Vector2i(1, 1))
 	_system.place(3, Vector2i(1, 1), Enums.Direction.N)
@@ -68,13 +73,13 @@ func test_place_on_occupied_cell_does_not_change_grid() -> void:
 
 
 func test_place_out_of_bounds_returns_zero() -> void:
-	# Req 2.4: 基準セル(63,63)に2x2エンティティは範囲外
-	var result := _system.place(1, Vector2i(63, 63), Enums.Direction.N)
+	# Req 2.4: 基準セル(63,63)に汎用2x2エンティティは範囲外
+	var result := _system.place(TEST_2X2_ID, Vector2i(63, 63), Enums.Direction.N)
 	assert_int(result).is_equal(0)
 
 
 func test_place_out_of_bounds_does_not_modify_grid() -> void:
-	_system.place(1, Vector2i(63, 63), Enums.Direction.N)
+	_system.place(TEST_2X2_ID, Vector2i(63, 63), Enums.Direction.N)
 	# 64x64グリッドの範囲外への配置でグリッドに変化はない
 	assert_bool(_grid.is_occupied(Vector2i(63, 63))).is_false()
 
@@ -95,16 +100,16 @@ func test_place_invalid_entity_type_id_returns_zero() -> void:
 
 func test_place_returns_immediately_no_delay() -> void:
 	# 配置は即座に完了する（戻り値が返ること）
-	var entity_id := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
+	var entity_id := _system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
 	# IDが正の整数であることで即座に完了したことを確認
 	assert_int(entity_id).is_greater(0)
 
 
 func test_place_failed_does_not_leave_partial_occupation() -> void:
-	# 2x2エンティティで一部が占有済みの場合、部分的な占有が発生しないことを確認
+	# 汎用2x2エンティティで一部が占有済みの場合、部分的な占有が発生しないことを確認
 	_grid.occupy_rect(Vector2i(1, 1), Vector2i(1, 1), 999)
-	# (0,0)にMiner(2x2)を配置しようとする→(1,1)が占有済みで失敗
-	var result := _system.place(1, Vector2i(0, 0), Enums.Direction.N)
+	# (0,0)に汎用2x2を配置しようとする→(1,1)が占有済みで失敗
+	var result := _system.place(TEST_2X2_ID, Vector2i(0, 0), Enums.Direction.N)
 	assert_int(result).is_equal(0)
 	# (0,0), (1,0), (0,1)は未占有のまま
 	assert_bool(_grid.is_occupied(Vector2i(0, 0))).is_false()

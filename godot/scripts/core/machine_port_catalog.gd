@@ -29,31 +29,31 @@ func has_config(machine_type_id: int) -> bool:
 
 
 ## MVP3機械（採掘機・精錬機・納品箱）のポート構成が登録済みのカタログを生成する
-## Miner(ID=1): 2x2, 出力ポート offset=(1,1) dir=S
-## Smelter(ID=2): 2x2, 入力ポート offset=(0,0) dir=N, 出力ポート offset=(1,1) dir=S
+## Miner(ID=1): 1x1, 出力ポート offset=(0,0) dir=S  (ADR 0001: 2x2→1x1)
+## Smelter(ID=2): 1x1, 入力ポート offset=(0,0) dir=N, 出力ポート offset=(0,0) dir=S  (ADR 0001: 2x2→1x1)
 ## DeliveryBox(ID=4): 1x1, 入力ポート offset=(0,0) dir=N
 static func create_default() -> MachinePortCatalog:
 	var catalog := MachinePortCatalog.new()
 
-	# Miner (ID=1): 2x2, 出力ポート1つ
+	# Miner (ID=1): 1x1, 出力ポート1つ
 	var miner_config := MachinePortConfig.new()
 	miner_config.machine_type_id = 1
-	miner_config.machine_size = Vector2i(2, 2)
+	miner_config.machine_size = Vector2i(1, 1)
 	miner_config.input_ports = []
 	miner_config.output_ports = [
-		{"local_offset": Vector2i(1, 1), "local_direction": Enums.Direction.S}
+		{"local_offset": Vector2i(0, 0), "local_direction": Enums.Direction.S}
 	]
 	catalog.register(miner_config)
 
-	# Smelter (ID=2): 2x2, 入力ポート1つ・出力ポート1つ
+	# Smelter (ID=2): 1x1, 入力ポート1つ・出力ポート1つ
 	var smelter_config := MachinePortConfig.new()
 	smelter_config.machine_type_id = 2
-	smelter_config.machine_size = Vector2i(2, 2)
+	smelter_config.machine_size = Vector2i(1, 1)
 	smelter_config.input_ports = [
 		{"local_offset": Vector2i(0, 0), "local_direction": Enums.Direction.N}
 	]
 	smelter_config.output_ports = [
-		{"local_offset": Vector2i(1, 1), "local_direction": Enums.Direction.S}
+		{"local_offset": Vector2i(0, 0), "local_direction": Enums.Direction.S}
 	]
 	catalog.register(smelter_config)
 

@@ -8,10 +8,14 @@ var _registry: EntityRegistry
 var _system: PlacementSystem
 var _ghost: GhostPreviewNode
 
+## 汎用テスト用2x2エンティティのID
+const TEST_2X2_ID := 99
+
 
 func before_test() -> void:
 	_grid = CoreGrid.new()
 	_registry = EntityRegistry.create_default()
+	_registry.register(EntityDefinition.new(TEST_2X2_ID, "TestMachine2x2", Vector2i(2, 2)))
 	_system = PlacementSystem.new(_grid, _registry)
 	_ghost = auto_free(GhostPreviewNode.new())
 	_ghost.placement_system = _system
@@ -52,7 +56,7 @@ func test_ghost_invalid_when_cell_is_occupied() -> void:
 
 
 func test_ghost_invalid_when_out_of_bounds() -> void:
-	_ghost.set_entity_type(1, Vector2i(2, 2))  # Miner(2x2)
+	_ghost.set_entity_type(TEST_2X2_ID, Vector2i(2, 2))  # 汎用テスト用2x2エンティティ
 	_ghost.update_target_cell(Vector2i(63, 63))
 	# 範囲外は配置不可 → _is_valid = false
 	assert_bool(_ghost._is_valid).is_false()

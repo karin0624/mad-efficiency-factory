@@ -16,10 +16,10 @@ func before_test() -> void:
 	_belt_grid = BeltGrid.new()
 	_sut = MachinePortTransfer.new()
 
-	# 採掘機(ID=1)を (2,2) 北向きで配置: 出力ポート world_pos=(3,3), dir=S
-	# 接続先ベルト = (3,4)
+	# 採掘機(ID=1, 1x1)を (2,2) 北向きで配置: 出力ポート world_pos=(2,2), dir=S
+	# 接続先ベルト = (2,3)
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 
@@ -56,7 +56,7 @@ func test_output_transfer_adds_item_to_belt() -> void:
 	var port: Dictionary = output_ports[0]
 	port["item_id"] = 5
 	_sut.process_output_ports(_port_grid, _belt_grid)
-	var belt_tile := _belt_grid.get_tile(Vector2i(3, 4))
+	var belt_tile := _belt_grid.get_tile(Vector2i(2, 3))
 	assert_int(belt_tile.item_id).is_equal(5)
 
 
@@ -65,7 +65,7 @@ func test_output_transfer_skipped_when_belt_full() -> void:
 	var output_ports := _port_grid.get_active_output_ports()
 	var port: Dictionary = output_ports[0]
 	port["item_id"] = 1
-	_belt_grid.set_item(Vector2i(3, 4), 99)  # ベルト満杯
+	_belt_grid.set_item(Vector2i(2, 3), 99)  # ベルト満杯
 	var transferred := _sut.process_output_ports(_port_grid, _belt_grid)
 	assert_int(transferred).is_equal(0)
 
@@ -75,7 +75,7 @@ func test_output_port_buffer_maintained_when_belt_full() -> void:
 	var output_ports := _port_grid.get_active_output_ports()
 	var port: Dictionary = output_ports[0]
 	port["item_id"] = 1
-	_belt_grid.set_item(Vector2i(3, 4), 99)
+	_belt_grid.set_item(Vector2i(2, 3), 99)
 	_sut.process_output_ports(_port_grid, _belt_grid)
 	assert_int(port["item_id"]).is_equal(1)
 

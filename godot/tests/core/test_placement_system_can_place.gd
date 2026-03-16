@@ -7,10 +7,14 @@ var _grid: CoreGrid
 var _registry: EntityRegistry
 var _system: PlacementSystem
 
+## 汎用テスト用2x2エンティティのID
+const TEST_2X2_ID := 99
+
 
 func before_test() -> void:
 	_grid = CoreGrid.new()
 	_registry = EntityRegistry.create_default()
+	_registry.register(EntityDefinition.new(TEST_2X2_ID, "TestMachine2x2", Vector2i(2, 2)))
 	_system = PlacementSystem.new(_grid, _registry)
 
 
@@ -27,8 +31,8 @@ func test_can_place_1x1_on_empty_cell_returns_true() -> void:
 
 
 func test_can_place_2x2_on_empty_area_returns_true() -> void:
-	# Miner(ID=1)は2x2
-	var result := _system.can_place(1, Vector2i(0, 0))
+	# 汎用テスト用2x2エンティティ
+	var result := _system.can_place(TEST_2X2_ID, Vector2i(0, 0))
 	assert_bool(result).is_true()
 
 
@@ -40,21 +44,21 @@ func test_can_place_returns_false_on_occupied_cell() -> void:
 
 
 func test_can_place_2x2_returns_false_when_partial_overlap() -> void:
-	# (1,1)にベルトを配置して、(0,0)にMiner(2x2)を置こうとする
+	# (1,1)にベルトを配置して、(0,0)に汎用2x2を置こうとする
 	_grid.occupy_rect(Vector2i(1, 1), Vector2i(1, 1), 999)
-	var result := _system.can_place(1, Vector2i(0, 0))
+	var result := _system.can_place(TEST_2X2_ID, Vector2i(0, 0))
 	assert_bool(result).is_false()
 
 
 func test_can_place_out_of_bounds_returns_false() -> void:
-	# グリッドは64x64、基準セル(63,63)に2x2エンティティを置こうとする
-	var result := _system.can_place(1, Vector2i(63, 63))
+	# グリッドは64x64、基準セル(63,63)に汎用2x2エンティティを置こうとする → 範囲外
+	var result := _system.can_place(TEST_2X2_ID, Vector2i(63, 63))
 	assert_bool(result).is_false()
 
 
 func test_can_place_at_grid_edge_valid_2x2_returns_true() -> void:
 	# 2x2が収まる最大位置 (62, 62)
-	var result := _system.can_place(1, Vector2i(62, 62))
+	var result := _system.can_place(TEST_2X2_ID, Vector2i(62, 62))
 	assert_bool(result).is_true()
 
 
@@ -76,8 +80,8 @@ func test_can_place_invalid_entity_type_id_returns_false() -> void:
 
 
 func test_can_place_is_query_only_no_side_effects() -> void:
-	# can_place()はグリッド状態を変更しない
-	_system.can_place(1, Vector2i(0, 0))
+	# can_place()はグリッド状態を変更しない（汎用2x2でチェック）
+	_system.can_place(TEST_2X2_ID, Vector2i(0, 0))
 	assert_bool(_grid.is_occupied(Vector2i(0, 0))).is_false()
 	assert_bool(_grid.is_occupied(Vector2i(1, 0))).is_false()
 	assert_bool(_grid.is_occupied(Vector2i(0, 1))).is_false()

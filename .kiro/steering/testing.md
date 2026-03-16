@@ -261,8 +261,8 @@ static func save(content: String, filename: String) -> void
   [SUMMARY MODE: tile_count=500, item_count=450]
 
 --- MACHINES (3 entities) ---
-  #1 Miner at (0,0) dir=N footprint=2x2
-  #2 Smelter at (4,0) dir=N footprint=2x2
+  #1 Miner at (0,0) dir=N footprint=1x1
+  #2 Smelter at (4,0) dir=N footprint=1x1
 
 --- PORTS (4 active, 3 connected) ---
   #1 OUTPUT at (1,1) dir=S item=none belt=(1,2) connected=true

@@ -29,7 +29,7 @@ func after_test() -> void:
 func test_output_transfer_success_when_belt_empty() -> void:
 	# 採掘機北向き: 出力ポートworld_pos=(3,3), world_dir=S, 接続先=(3,4)
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	# ポートにアイテムをセット
@@ -44,15 +44,15 @@ func test_output_transfer_success_when_belt_empty() -> void:
 	assert_int(output_ports[0]["item_id"]).is_equal(0)
 
 	# ベルトにアイテムが配置されている
-	var belt_tile := _belt_grid.get_tile(Vector2i(3, 4))
+	var belt_tile := _belt_grid.get_tile(Vector2i(2, 3))
 	assert_int(belt_tile.item_id).is_equal(5)
 
 
 ## 出力ポートにアイテムあり・接続先ベルト満杯 → 転送スキップ・ポートバッファ維持
 func test_output_transfer_skipped_when_belt_full() -> void:
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
-	_belt_grid.set_item(Vector2i(3, 4), 99)  # ベルト満杯
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
+	_belt_grid.set_item(Vector2i(2, 3), 99)  # ベルト満杯
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
@@ -65,7 +65,7 @@ func test_output_transfer_skipped_when_belt_full() -> void:
 	assert_int(output_ports[0]["item_id"]).is_equal(5)
 
 	# ベルトのアイテムは変化なし
-	var belt_tile := _belt_grid.get_tile(Vector2i(3, 4))
+	var belt_tile := _belt_grid.get_tile(Vector2i(2, 3))
 	assert_int(belt_tile.item_id).is_equal(99)
 
 
@@ -86,7 +86,7 @@ func test_output_transfer_skipped_when_no_connection() -> void:
 ## 出力ポートにアイテムなし → 転送なし
 func test_output_transfer_skipped_when_no_item() -> void:
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	# item_id=0 (空)のまま
@@ -97,7 +97,7 @@ func test_output_transfer_skipped_when_no_item() -> void:
 ## 転送前後のアイテム総数が保存される（出力ポート-1、ベルト+1）
 func test_output_transfer_item_conservation() -> void:
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
@@ -214,8 +214,8 @@ func test_input_transfer_item_conservation() -> void:
 ## 出力先ベルト満杯→空き発生→転送自動再開
 func test_backpressure_output_resumes_when_belt_space_available() -> void:
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
-	_belt_grid.set_item(Vector2i(3, 4), 99)  # 満杯
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
+	_belt_grid.set_item(Vector2i(2, 3), 99)  # 満杯
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
@@ -227,7 +227,7 @@ func test_backpressure_output_resumes_when_belt_space_available() -> void:
 	assert_int(output_ports[0]["item_id"]).is_equal(5)
 
 	# ベルトを空に → 転送再開
-	_belt_grid.clear_item(Vector2i(3, 4))
+	_belt_grid.clear_item(Vector2i(2, 3))
 	var count2 := _transfer.process_output_ports(_port_grid, _belt_grid)
 	assert_int(count2).is_equal(1)
 	assert_int(output_ports[0]["item_id"]).is_equal(0)
@@ -259,8 +259,8 @@ func test_backpressure_input_resumes_when_port_emptied() -> void:
 ## バックプレッシャー発生中のアイテム消失なし
 func test_no_item_loss_during_backpressure() -> void:
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
-	_belt_grid.set_item(Vector2i(3, 4), 99)  # 満杯
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
+	_belt_grid.set_item(Vector2i(2, 3), 99)  # 満杯
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
@@ -273,7 +273,7 @@ func test_no_item_loss_during_backpressure() -> void:
 	# ポートのアイテムは維持
 	assert_int(output_ports[0]["item_id"]).is_equal(5)
 	# ベルトのアイテムも維持
-	assert_int(_belt_grid.get_tile(Vector2i(3, 4)).item_id).is_equal(99)
+	assert_int(_belt_grid.get_tile(Vector2i(2, 3)).item_id).is_equal(99)
 
 
 ## 複数ティックにわたる転送でアイテム総数が保存される
@@ -281,7 +281,7 @@ func test_item_count_preserved_across_multiple_ticks() -> void:
 	# 採掘機 + ベルト + 精錬機の縦列構成
 	# 採掘機北向き: 出力ポート (3,3) → 接続先(3,4)
 	_port_grid.register_machine(1, 1, Vector2i(2, 2), Enums.Direction.N)
-	_belt_grid.add_tile(Vector2i(3, 4), Enums.Direction.S)
+	_belt_grid.add_tile(Vector2i(2, 3), Enums.Direction.S)
 	_port_grid.rebuild_connections_if_dirty(_belt_grid)
 
 	var output_ports := _port_grid.get_active_output_ports()
@@ -293,6 +293,6 @@ func test_item_count_preserved_across_multiple_ticks() -> void:
 		var count := _transfer.process_output_ports(_port_grid, _belt_grid)
 		total_transferred += count
 		# ベルトを空にして次の転送を可能にする
-		_belt_grid.clear_item(Vector2i(3, 4))
+		_belt_grid.clear_item(Vector2i(2, 3))
 
 	assert_int(total_transferred).is_equal(3)

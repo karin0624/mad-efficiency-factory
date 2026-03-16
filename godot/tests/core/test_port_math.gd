@@ -43,16 +43,42 @@ func test_rotate_offset_four_rotations_returns_original() -> void:
 
 
 func test_rotate_offset_miner_output_north() -> void:
-	# 採掘機北向き: 出力ポートoffset=(1,1), 変化なし
+	# 採掘機北向き: 出力ポートoffset=(1,1), 変化なし（2x2回帰テスト）
 	var result := PortMath.rotate_offset(Vector2i(1, 1), Vector2i(2, 2), Enums.Direction.N)
 	assert_that(result).is_equal(Vector2i(1, 1))
 
 
 func test_rotate_offset_miner_output_east() -> void:
-	# 採掘機東向き: 出力ポートoffset=(1,1)がどうなるか
+	# 採掘機東向き: 出力ポートoffset=(1,1)がどうなるか（2x2回帰テスト）
 	# E: (size_y-1-y, x) = (2-1-1, 1) = (0, 1)
 	var result := PortMath.rotate_offset(Vector2i(1, 1), Vector2i(2, 2), Enums.Direction.E)
 	assert_that(result).is_equal(Vector2i(0, 1))
+
+
+## 1x1機械 offset=(0,0) のidentity変換テスト（全4方向で(0,0)のまま）
+
+func test_rotate_offset_1x1_north_identity() -> void:
+	# 1x1機械でのoffset=(0,0)のidentity変換 - 北向き
+	var result := PortMath.rotate_offset(Vector2i(0, 0), Vector2i(1, 1), Enums.Direction.N)
+	assert_that(result).is_equal(Vector2i(0, 0))
+
+
+func test_rotate_offset_1x1_east_identity() -> void:
+	# 1x1機械でのoffset=(0,0)のidentity変換 - 東向き: (size_y-1-y, x) = (0, 0)
+	var result := PortMath.rotate_offset(Vector2i(0, 0), Vector2i(1, 1), Enums.Direction.E)
+	assert_that(result).is_equal(Vector2i(0, 0))
+
+
+func test_rotate_offset_1x1_south_identity() -> void:
+	# 1x1機械でのoffset=(0,0)のidentity変換 - 南向き: (size_x-1-x, size_y-1-y) = (0, 0)
+	var result := PortMath.rotate_offset(Vector2i(0, 0), Vector2i(1, 1), Enums.Direction.S)
+	assert_that(result).is_equal(Vector2i(0, 0))
+
+
+func test_rotate_offset_1x1_west_identity() -> void:
+	# 1x1機械でのoffset=(0,0)のidentity変換 - 西向き: (y, size_x-1-x) = (0, 0)
+	var result := PortMath.rotate_offset(Vector2i(0, 0), Vector2i(1, 1), Enums.Direction.W)
+	assert_that(result).is_equal(Vector2i(0, 0))
 
 
 func test_rotate_direction_north_no_change() -> void:
