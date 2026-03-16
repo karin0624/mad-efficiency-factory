@@ -35,9 +35,9 @@ def tmp_spec(tmp_path: Path):
 class TestDetectImplementResume:
     """Test all 7+ resume point patterns from implement.md."""
 
-    def test_validated_resumes_at_commit(self, tmp_spec):
+    def test_validated_resumes_at_tests(self, tmp_spec):
         spec = tmp_spec({"feature_name": "f", "phase": "validated", "approvals": {}})
-        assert detect_implement_resume(spec) == IRP.C_COMMIT
+        assert detect_implement_resume(spec) == IRP.T_TESTS
 
     def test_impl_completed_resumes_at_validate(self, tmp_spec):
         spec = tmp_spec({"feature_name": "f", "phase": "impl-completed", "approvals": {}})
@@ -100,12 +100,12 @@ class TestDetectModifyResume:
         })
         assert detect_modify_resume(spec) is None
 
-    def test_analysis_completed_resumes_at_cascade(self, tmp_spec):
+    def test_analysis_completed_resumes_at_adr_gate(self, tmp_spec):
         spec = tmp_spec({
             "feature_name": "f", "phase": "tasks-generated", "approvals": {},
             "modifications": [{"modify_phase": "analysis-completed"}],
         })
-        assert detect_modify_resume(spec) == MRP.M2_CASCADE
+        assert detect_modify_resume(spec) == MRP.ADR_GATE
 
     def test_spec_cascaded_resumes_at_delta_tasks(self, tmp_spec):
         spec = tmp_spec({
@@ -128,12 +128,12 @@ class TestDetectModifyResume:
         })
         assert detect_modify_resume(spec) == MRP.B2_VALIDATE
 
-    def test_validated_resumes_at_commit(self, tmp_spec):
+    def test_validated_resumes_at_tests(self, tmp_spec):
         spec = tmp_spec({
             "feature_name": "f", "phase": "tasks-generated", "approvals": {},
             "modifications": [{"modify_phase": "validated"}],
         })
-        assert detect_modify_resume(spec) == MRP.C_COMMIT
+        assert detect_modify_resume(spec) == MRP.T_TESTS
 
     def test_completed_returns_none(self, tmp_spec):
         """completed modify_phase means nothing to resume."""
@@ -152,7 +152,7 @@ class TestDetectModifyResume:
                 {"modify_phase": "analysis-completed"},
             ],
         })
-        assert detect_modify_resume(spec) == MRP.M2_CASCADE
+        assert detect_modify_resume(spec) == MRP.ADR_GATE
 
 
 # ── Spec state operations ─────────────────────────────────────────

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # エスケープハッチ: SKIP_TEST_GATE=1 でバイパス（インフラ障害・フレイキーテスト時）
 [[ "${SKIP_TEST_GATE:-}" != "1" ]] || exit 0

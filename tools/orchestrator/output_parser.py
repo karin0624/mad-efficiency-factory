@@ -56,6 +56,10 @@ RE_CASCADE_FAILED = re.compile(r"\bCASCADE_FAILED\b")
 # M3 (delta tasks)
 RE_DELTA_TASKS_DONE = re.compile(r"\bDELTA_TASKS_DONE\b")
 
+# Test-fix markers
+RE_TEST_FIX_PASSED = re.compile(r"\bTEST_FIX_PASSED\b")
+RE_TEST_FIX_FAILED = re.compile(r"\bTEST_FIX_FAILED\b")
+
 # L4 Human Review pattern in tasks.md
 RE_L4_HUMAN_REVIEW = re.compile(r"^- \[ \] \d+\.\d+ Human review:", re.MULTILINE)
 
@@ -231,6 +235,14 @@ class ParsedOutput:
     def mp1e_done(self) -> bool:
         return self.markers.get("MP1E_DONE", False)
 
+    @property
+    def test_fix_passed(self) -> bool:
+        return self.markers.get("TEST_FIX_PASSED", False)
+
+    @property
+    def test_fix_failed(self) -> bool:
+        return self.markers.get("TEST_FIX_FAILED", False)
+
 
 def parse_agent_output(text: str) -> ParsedOutput:
     """Extract structured markers and values from agent output text."""
@@ -257,6 +269,9 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("MP1_DONE", RE_MP1_DONE),
         ("MP2_DONE", RE_MP2_DONE),
         ("MP1E_DONE", RE_MP1E_DONE),
+        # Test-fix markers
+        ("TEST_FIX_PASSED", RE_TEST_FIX_PASSED),
+        ("TEST_FIX_FAILED", RE_TEST_FIX_FAILED),
     ]:
         if pattern.search(text):
             result.markers[name] = True
