@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -214,62 +213,56 @@ class ModifyPipeline(Pipeline):
 
     # ── ADR Gate ──────────────────────────────────────────────────
 
-    def _accept_adr(self, wt_path: Path, adr_path: str) -> bool:
-        """ADR の構造を検証し status: proposed → accepted に更新。"""
-        adr_file = wt_path / adr_path if not Path(adr_path).is_absolute() else Path(adr_path)
-
+    @staticmethod
+    def _read_adr_status(adr_file: Path) -> str | None:
+        """Read the status field from an ADR file's YAML frontmatter."""
         if not adr_file.exists():
-            self.progress.print_warning(f"ADR file not found: {adr_file}")
-            return False
-
+            return None
         content = adr_file.read_text()
-
-        # フロントマター検証
         if not content.startswith("---"):
-            self.progress.print_warning(f"ADR has no YAML frontmatter: {adr_path}")
-            return False
+            return None
         try:
             end_idx = content.index("---", 3)
         except ValueError:
-            self.progress.print_warning(f"ADR has malformed frontmatter: {adr_path}")
-            return False
-
+            return None
         frontmatter = content[3:end_idx]
+        m = re.search(r"^status:\s*(\S+)\s*$", frontmatter, re.MULTILINE)
+        return m.group(1) if m else None
 
-        # status: proposed の存在確認
-        re_proposed = re.compile(r"^status:\s*proposed\s*$", re.MULTILINE)
-        if not re_proposed.search(frontmatter):
-            re_accepted = re.compile(r"^status:\s*accepted\s*$", re.MULTILINE)
-            if re_accepted.search(frontmatter):
-                self.progress.print_info(f"ADR already accepted: {adr_path}")
-                return True
-            self.progress.print_warning(f"ADR status is not 'proposed': {adr_path}")
-            return False
+    async def _run_adr_review(self, wt_path: Path, adr_path: str) -> bool:
+        """decision-create review スキルでヒューマンレビューを実施。accepted なら True。"""
+        from claude_agent_sdk import ClaudeAgentOptions, query
 
-        # 必須セクション検証
-        required = ["## Context", "## Decision Drivers", "## Decision", "## Consequences"]
-        body = content[end_idx + 3:]
-        missing = [s for s in required if s not in body]
-        if missing:
-            self.progress.print_warning(f"ADR missing sections: {', '.join(missing)}")
-            return False
+        adr_file = wt_path / adr_path if not Path(adr_path).is_absolute() else Path(adr_path)
+        rel_path = str(adr_file.relative_to(wt_path))
 
-        # status と date を更新
-        today = date.today().isoformat()
-        new_fm = re_proposed.sub("status: accepted", frontmatter)
-        re_date = re.compile(r'^date:\s*"?[\d-]+"?\s*$', re.MULTILINE)
-        new_fm = re_date.sub(f'date: "{today}"', new_fm)
+        prompt = (
+            f"以下のSkillを実行してください:\n"
+            f'Skill(skill="kiro:decision-create", args="review {rel_path}")\n\n'
+            f"ADRのレビュー結果を報告してください。"
+        )
 
-        adr_file.write_text("---" + new_fm + "---" + body)
+        # decision-create スキルは AskUserQuestion が必要
+        allowed = list(self.config.allowed_tools)
+        if "AskUserQuestion" not in allowed:
+            allowed.append("AskUserQuestion")
 
-        # ディスク上で検証
-        verify = adr_file.read_text()
-        if not re.search(r"^status:\s*accepted\s*$", verify, re.MULTILINE):
-            self.progress.print_error(f"ADR status update verification failed: {adr_path}")
-            return False
+        options = ClaudeAgentOptions(
+            model=self.config.resolve_model("sonnet"),
+            cwd=str(wt_path),
+            setting_sources=["project"],
+            permission_mode=self.config.permission_mode,
+            allowed_tools=allowed,
+            max_turns=30,
+            system_prompt={"type": "preset", "preset": "claude_code"},
+        )
 
-        self.progress.print_info(f"ADR accepted: {adr_path}")
-        return True
+        async for _ in query(prompt=prompt, options=options):
+            pass  # テキスト出力は判定に使わない
+
+        # ファイルの実際の status で判定（テキスト出力に依存しない）
+        status = self._read_adr_status(adr_file)
+        return status == "accepted"
 
     async def _run_adr_gate(
         self,
@@ -319,7 +312,7 @@ class ModifyPipeline(Pipeline):
             return None
 
         # Run ADR review
-        accepted = self._accept_adr(wt_path, adr_path)
+        accepted = await self._run_adr_review(wt_path, adr_path)
         if not accepted:
             raise PipelineError("ADR rejected", wt_path)
 

@@ -1,10 +1,10 @@
-"""Tests for ModifyPipeline._accept_adr method."""
+"""Tests for ModifyPipeline._read_adr_status and _run_adr_review methods."""
 
+import asyncio
 import sys
-from datetime import date
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,7 +20,9 @@ sys.modules.setdefault("claude_agent_sdk", _sdk_stub)
 from tools.orchestrator.pipelines.modify import ModifyPipeline  # noqa: E402
 
 
-VALID_ADR = """\
+# ── Fixtures ──────────────────────────────────────────────────────
+
+PROPOSED_ADR = """\
 ---
 title: "Test ADR"
 status: proposed
@@ -36,7 +38,6 @@ Some context here.
 ## Decision Drivers
 
 - Driver 1
-- Driver 2
 
 ## Decision
 
@@ -44,105 +45,110 @@ We decided to do X.
 
 ## Consequences
 
-### Positive
-
 - Good thing
-
-### Negative
-
-- Bad thing
 """
+
+ACCEPTED_ADR = PROPOSED_ADR.replace("status: proposed", "status: accepted")
 
 
 @pytest.fixture
 def pipeline() -> ModifyPipeline:
     p = object.__new__(ModifyPipeline)
     p.config = MagicMock()
+    p.config.allowed_tools = ["Read", "Write", "Edit", "Bash"]
+    p.config.resolve_model.return_value = "sonnet"
+    p.config.permission_mode = "auto"
     p.progress = MagicMock()
     return p
 
 
-class TestAcceptProposedAdr:
-    def test_accept_proposed_adr(self, pipeline: ModifyPipeline, tmp_path: Path):
-        adr_file = tmp_path / "adr.md"
-        adr_file.write_text(VALID_ADR)
+# ── _read_adr_status tests ───────────────────────────────────────
 
-        result = pipeline._accept_adr(tmp_path, "adr.md")
+class TestReadAdrStatus:
+    def test_read_status_proposed(self, tmp_path: Path):
+        adr = tmp_path / "adr.md"
+        adr.write_text(PROPOSED_ADR)
+        assert ModifyPipeline._read_adr_status(adr) == "proposed"
+
+    def test_read_status_accepted(self, tmp_path: Path):
+        adr = tmp_path / "adr.md"
+        adr.write_text(ACCEPTED_ADR)
+        assert ModifyPipeline._read_adr_status(adr) == "accepted"
+
+    def test_read_status_missing_file(self, tmp_path: Path):
+        adr = tmp_path / "nonexistent.md"
+        assert ModifyPipeline._read_adr_status(adr) is None
+
+    def test_read_status_no_frontmatter(self, tmp_path: Path):
+        adr = tmp_path / "adr.md"
+        adr.write_text("# No frontmatter\n\nJust content.")
+        assert ModifyPipeline._read_adr_status(adr) is None
+
+    def test_read_status_malformed_frontmatter(self, tmp_path: Path):
+        adr = tmp_path / "adr.md"
+        adr.write_text("---\ntitle: test\nstatus: proposed\n\nNo closing fence.")
+        assert ModifyPipeline._read_adr_status(adr) is None
+
+    def test_regression_accepted_in_body(self, tmp_path: Path):
+        """Body に 'accepted' があっても frontmatter の status を返す。"""
+        content = PROPOSED_ADR.replace("status: proposed", "status: deprecated")
+        content += "\nThis has accepted trade-offs.\n"
+        adr = tmp_path / "adr.md"
+        adr.write_text(content)
+        assert ModifyPipeline._read_adr_status(adr) == "deprecated"
+
+
+# ── _run_adr_review tests ────────────────────────────────────────
+
+def _run(coro):
+    """Helper to run async coroutine in sync test."""
+    return asyncio.get_event_loop().run_until_complete(coro)
+
+
+class TestRunAdrReview:
+    def test_review_accepted(self, pipeline: ModifyPipeline, tmp_path: Path):
+        """skill 実行後に status: accepted ならば True を返す。"""
+        adr = tmp_path / "adr.md"
+        adr.write_text(ACCEPTED_ADR)
+
+        async def fake_query(**kwargs):
+            return
+            yield  # make it an async generator
+
+        with patch.object(_sdk_stub, "query", fake_query):
+            result = _run(pipeline._run_adr_review(tmp_path, "adr.md"))
 
         assert result is True
-        content = adr_file.read_text()
-        assert "status: accepted" in content
-        assert "status: proposed" not in content
 
-    def test_accept_already_accepted(self, pipeline: ModifyPipeline, tmp_path: Path):
-        adr_file = tmp_path / "adr.md"
-        adr_file.write_text(VALID_ADR.replace("status: proposed", "status: accepted"))
+    def test_review_not_accepted(self, pipeline: ModifyPipeline, tmp_path: Path):
+        """skill 実行後に status: proposed のままなら False を返す。"""
+        adr = tmp_path / "adr.md"
+        adr.write_text(PROPOSED_ADR)
 
-        result = pipeline._accept_adr(tmp_path, "adr.md")
+        async def fake_query(**kwargs):
+            return
+            yield
 
-        assert result is True
-        assert "status: accepted" in adr_file.read_text()
-
-
-class TestAcceptAdrRejections:
-    def test_reject_missing_file(self, pipeline: ModifyPipeline, tmp_path: Path):
-        result = pipeline._accept_adr(tmp_path, "nonexistent.md")
-
-        assert result is False
-        pipeline.progress.print_warning.assert_called()
-
-    def test_reject_no_frontmatter(self, pipeline: ModifyPipeline, tmp_path: Path):
-        adr_file = tmp_path / "adr.md"
-        adr_file.write_text("# No frontmatter\n\nJust content.")
-
-        result = pipeline._accept_adr(tmp_path, "adr.md")
+        with patch.object(_sdk_stub, "query", fake_query):
+            result = _run(pipeline._run_adr_review(tmp_path, "adr.md"))
 
         assert result is False
 
-    def test_reject_malformed_frontmatter(self, pipeline: ModifyPipeline, tmp_path: Path):
-        adr_file = tmp_path / "adr.md"
-        adr_file.write_text("---\ntitle: test\nstatus: proposed\n\nNo closing fence.")
+    def test_allowed_tools_includes_ask_user_question(
+        self, pipeline: ModifyPipeline, tmp_path: Path
+    ):
+        """ClaudeAgentOptions の allowed_tools に AskUserQuestion が含まれる。"""
+        adr = tmp_path / "adr.md"
+        adr.write_text(PROPOSED_ADR)
 
-        result = pipeline._accept_adr(tmp_path, "adr.md")
+        async def fake_query(**kwargs):
+            return
+            yield
 
-        assert result is False
+        with patch.object(_sdk_stub, "query", fake_query), \
+             patch.object(_sdk_stub, "ClaudeAgentOptions") as mock_opts:
+            mock_opts.return_value = MagicMock()
+            _run(pipeline._run_adr_review(tmp_path, "adr.md"))
 
-    def test_reject_missing_sections(self, pipeline: ModifyPipeline, tmp_path: Path):
-        adr_file = tmp_path / "adr.md"
-        adr_file.write_text(
-            "---\nstatus: proposed\ndate: \"2025-01-01\"\n---\n\n## Context\n\nSome context.\n"
-        )
-
-        result = pipeline._accept_adr(tmp_path, "adr.md")
-
-        assert result is False
-        warning_msg = pipeline.progress.print_warning.call_args[0][0]
-        assert "ADR missing sections" in warning_msg
-
-
-class TestAcceptAdrDateUpdate:
-    def test_date_updated_on_accept(self, pipeline: ModifyPipeline, tmp_path: Path):
-        adr_file = tmp_path / "adr.md"
-        adr_file.write_text(VALID_ADR)
-
-        pipeline._accept_adr(tmp_path, "adr.md")
-
-        content = adr_file.read_text()
-        today = date.today().isoformat()
-        assert f'date: "{today}"' in content
-
-
-class TestAcceptAdrRegression:
-    def test_regression_accepted_trade_offs(self, pipeline: ModifyPipeline, tmp_path: Path):
-        """Regression: 'accepted trade-offs' in body should NOT fool status check."""
-        adr_content = VALID_ADR.replace("status: proposed", "status: deprecated")
-        adr_content = adr_content.replace(
-            "## Consequences",
-            "## Consequences\n\nThis has accepted trade-offs that are well understood.",
-        )
-        adr_file = tmp_path / "adr.md"
-        adr_file.write_text(adr_content)
-
-        result = pipeline._accept_adr(tmp_path, "adr.md")
-
-        assert result is False
+            call_kwargs = mock_opts.call_args[1]
+            assert "AskUserQuestion" in call_kwargs["allowed_tools"]
