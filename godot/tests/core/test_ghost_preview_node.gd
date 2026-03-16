@@ -3,13 +3,13 @@ extends GdUnitTestSuite
 ## GhostPreviewNode のL2テスト
 ## ゴーストプレビューノードの状態変化を検証する
 
+## 汎用テスト用2x2エンティティのID
+const TEST_2X2_ID := 99
+
 var _grid: CoreGrid
 var _registry: EntityRegistry
 var _system: PlacementSystem
 var _ghost: GhostPreviewNode
-
-## 汎用テスト用2x2エンティティのID
-const TEST_2X2_ID := 99
 
 
 func before_test() -> void:

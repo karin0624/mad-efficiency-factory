@@ -3,12 +3,12 @@ extends GdUnitTestSuite
 ## PlacementSystem.rotate_cw() のユニットテスト (Layer 1)
 ## 回転ロジックが正しく機能することを検証する
 
+## 汎用テスト用2x2エンティティのID
+const TEST_2X2_ID := 99
+
 var _grid: CoreGrid
 var _registry: EntityRegistry
 var _system: PlacementSystem
-
-## 汎用テスト用2x2エンティティのID
-const TEST_2X2_ID := 99
 
 
 func before_test() -> void:
