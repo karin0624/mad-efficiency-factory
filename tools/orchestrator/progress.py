@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 from rich.console import Console
 from rich.table import Table
@@ -64,10 +65,90 @@ class PipelineProgress:
             f"  [bold cyan]▶[/] {step.name} [dim]({step.model})[/]"
         )
 
-    def log_tool_call(self, step: StepRecord, tool_name: str) -> None:
+    def log_tool_call(
+        self,
+        step: StepRecord,
+        tool_name: str,
+        tool_input: dict[str, object] | None = None,
+    ) -> None:
         """Log a tool call during step execution."""
         step.tool_calls.append(tool_name)
-        self.console.print(f"    [dim]↳ {tool_name}[/]")
+        detail = self._format_tool_detail(tool_name, tool_input)
+        if detail:
+            self.console.print(f"    [dim]↳ {tool_name}[/] [dim italic]{detail}[/]")
+        else:
+            self.console.print(f"    [dim]↳ {tool_name}[/]")
+
+    @staticmethod
+    def _format_tool_detail(
+        tool_name: str, tool_input: dict[str, object] | None
+    ) -> str:
+        """Extract a short human-readable detail string from tool input."""
+        if not tool_input:
+            return ""
+        # Map tool names to the most informative parameter(s)
+        key_map: dict[str, list[str]] = {
+            "Read": ["file_path"],
+            "Write": ["file_path"],
+            "Edit": ["file_path"],
+            "Glob": ["pattern"],
+            "Grep": ["pattern", "path"],
+            "Bash": ["description", "command"],
+            "Agent": ["description"],
+        }
+        keys = key_map.get(tool_name)
+        if not keys:
+            return ""
+        parts: list[str] = []
+        for k in keys:
+            v = tool_input.get(k)
+            if v is not None:
+                s = str(v)
+                # Truncate long values (e.g. Bash commands)
+                if len(s) > 80:
+                    s = s[:77] + "..."
+                parts.append(s)
+        return " ".join(parts)
+
+    def log_tool_result(
+        self,
+        tool_name: str,
+        result_block: Any,
+    ) -> None:
+        """Log tool result output. Skipped for Read (file content is noise)."""
+        if tool_name == "Read":
+            return
+        content = self._extract_result_content(result_block)
+        if not content:
+            return
+        # Show truncated output lines with │ prefix
+        lines = content.splitlines()
+        max_lines = 5
+        for line in lines[:max_lines]:
+            if len(line) > 120:
+                line = line[:117] + "..."
+            self.console.print(f"      [dim]│ {line}[/]")
+        if len(lines) > max_lines:
+            self.console.print(f"      [dim]│ ... ({len(lines) - max_lines} more lines)[/]")
+
+    @staticmethod
+    def _extract_result_content(result_block: Any) -> str:
+        """Extract displayable text from a ToolResultBlock."""
+        content = getattr(result_block, "content", None)
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        # list[dict] — e.g. MCP tool responses with [{type: "text", text: "..."}]
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, dict):
+                    text = item.get("text", "")
+                    if text:
+                        parts.append(str(text))
+            return "\n".join(parts)
+        return str(content)
 
     def complete_step(
         self, step: StepRecord, input_tokens: int = 0, output_tokens: int = 0

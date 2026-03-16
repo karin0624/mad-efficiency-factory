@@ -12,7 +12,9 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ResultMessage,
     TextBlock,
+    ToolResultBlock,
     ToolUseBlock,
+    UserMessage,
     query,
 )
 
@@ -105,6 +107,8 @@ class AgentRunner:
         result = AgentResult()
 
         text_parts: list[str] = []
+        # Track tool_use_id → tool_name for matching results to calls
+        tool_use_names: dict[str, str] = {}
 
         try:
             async for message in query(prompt=prompt, options=options):
@@ -113,8 +117,21 @@ class AgentRunner:
                         if isinstance(block, TextBlock):
                             text_parts.append(block.text)
                         elif isinstance(block, ToolUseBlock):
+                            tool_use_names[block.id] = block.name
                             if progress and step_record:
-                                progress.log_tool_call(step_record, block.name)
+                                progress.log_tool_call(step_record, block.name, block.input)
+                        elif isinstance(block, ToolResultBlock):
+                            if progress and step_record:
+                                name = tool_use_names.get(block.tool_use_id, "")
+                                progress.log_tool_result(name, block)
+
+                elif isinstance(message, UserMessage):
+                    if isinstance(message.content, list):
+                        for block in message.content:
+                            if isinstance(block, ToolResultBlock):
+                                if progress and step_record:
+                                    name = tool_use_names.get(block.tool_use_id, "")
+                                    progress.log_tool_result(name, block)
 
                 elif isinstance(message, ResultMessage):
                     usage = message.usage or {}
