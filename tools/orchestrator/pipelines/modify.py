@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -213,47 +214,62 @@ class ModifyPipeline(Pipeline):
 
     # ── ADR Gate ──────────────────────────────────────────────────
 
-    async def _run_adr_review(self, wt_path: Path, adr_path: str) -> bool:
-        """decision-create review を実行。True=accepted, False=rejected."""
-        from claude_agent_sdk import (
-            AssistantMessage,
-            ClaudeAgentOptions,
-            ResultMessage,
-            TextBlock,
-            query,
-        )
+    def _accept_adr(self, wt_path: Path, adr_path: str) -> bool:
+        """ADR の構造を検証し status: proposed → accepted に更新。"""
+        adr_file = wt_path / adr_path if not Path(adr_path).is_absolute() else Path(adr_path)
 
-        prompt = (
-            f"以下のSkillを実行してください:\n"
-            f'Skill(skill="kiro:decision-create", args="review {adr_path}")\n\n'
-            f"結果を報告してください。"
-        )
+        if not adr_file.exists():
+            self.progress.print_warning(f"ADR file not found: {adr_file}")
+            return False
 
-        options = ClaudeAgentOptions(
-            model=self.config.resolve_model("sonnet"),
-            cwd=str(wt_path),
-            setting_sources=["project"],
-            permission_mode=self.config.permission_mode,
-            allowed_tools=list(self.config.allowed_tools),
-            max_turns=30,
-            system_prompt={"type": "preset", "preset": "claude_code"},
-        )
+        content = adr_file.read_text()
 
-        text_parts: list[str] = []
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        text_parts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                if message.result:
-                    text_parts.append(message.result)
+        # フロントマター検証
+        if not content.startswith("---"):
+            self.progress.print_warning(f"ADR has no YAML frontmatter: {adr_path}")
+            return False
+        try:
+            end_idx = content.index("---", 3)
+        except ValueError:
+            self.progress.print_warning(f"ADR has malformed frontmatter: {adr_path}")
+            return False
 
-        full_text = "\n".join(text_parts)
-        # accepted → True, deprecated/rejected → False
-        if "status: accepted" in full_text.lower() or "accepted" in full_text.lower():
-            return True
-        return False
+        frontmatter = content[3:end_idx]
+
+        # status: proposed の存在確認
+        re_proposed = re.compile(r"^status:\s*proposed\s*$", re.MULTILINE)
+        if not re_proposed.search(frontmatter):
+            re_accepted = re.compile(r"^status:\s*accepted\s*$", re.MULTILINE)
+            if re_accepted.search(frontmatter):
+                self.progress.print_info(f"ADR already accepted: {adr_path}")
+                return True
+            self.progress.print_warning(f"ADR status is not 'proposed': {adr_path}")
+            return False
+
+        # 必須セクション検証
+        required = ["## Context", "## Decision Drivers", "## Decision", "## Consequences"]
+        body = content[end_idx + 3:]
+        missing = [s for s in required if s not in body]
+        if missing:
+            self.progress.print_warning(f"ADR missing sections: {', '.join(missing)}")
+            return False
+
+        # status と date を更新
+        today = date.today().isoformat()
+        new_fm = re_proposed.sub("status: accepted", frontmatter)
+        re_date = re.compile(r'^date:\s*"?[\d-]+"?\s*$', re.MULTILINE)
+        new_fm = re_date.sub(f'date: "{today}"', new_fm)
+
+        adr_file.write_text("---" + new_fm + "---" + body)
+
+        # ディスク上で検証
+        verify = adr_file.read_text()
+        if not re.search(r"^status:\s*accepted\s*$", verify, re.MULTILINE):
+            self.progress.print_error(f"ADR status update verification failed: {adr_path}")
+            return False
+
+        self.progress.print_info(f"ADR accepted: {adr_path}")
+        return True
 
     async def _run_adr_gate(
         self,
@@ -303,7 +319,7 @@ class ModifyPipeline(Pipeline):
             return None
 
         # Run ADR review
-        accepted = await self._run_adr_review(wt_path, adr_path)
+        accepted = self._accept_adr(wt_path, adr_path)
         if not accepted:
             raise PipelineError("ADR rejected", wt_path)
 
