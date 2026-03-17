@@ -229,23 +229,6 @@ class ModifyPipeline(Pipeline):
         m = re.search(r"^status:\s*(\S+)\s*$", frontmatter, re.MULTILINE)
         return m.group(1) if m else None
 
-    async def _run_adr_review(self, wt_path: Path, adr_path: str) -> bool:
-        """decision-create review スキルでヒューマンレビューを実施。accepted なら True。"""
-        adr_file = wt_path / adr_path if not Path(adr_path).is_absolute() else Path(adr_path)
-        rel_path = str(adr_file.relative_to(wt_path))
-
-        prompt = (
-            f"以下のSkillを実行してください:\n"
-            f'Skill(skill="kiro:decision-create", args="review {rel_path}")\n\n'
-            f"ADRのレビュー結果を報告してください。"
-        )
-
-        await self._run_interactive_skill(prompt, cwd=wt_path)
-
-        # ファイルの実際の status で判定（テキスト出力に依存しない）
-        status = self._read_adr_status(adr_file)
-        return status == "accepted"
-
     async def _run_adr_gate(
         self,
         m1: M1Result,
@@ -255,7 +238,7 @@ class ModifyPipeline(Pipeline):
         plan_specs: list[str] | None = None,
         all_m1_outputs: str | None = None,
     ) -> str | None:
-        """ADR生成+レビューゲート。accepted→ADRパス, 不要→None, rejected→PipelineError"""
+        """ADR生成ゲート。decision-create で生成+対話+確定を一本化。"""
         if not m1.adr_required:
             self.skip_step("ADR: gate", "sonnet", "ADR not required")
             return None
@@ -264,47 +247,102 @@ class ModifyPipeline(Pipeline):
             f"ADR required: {m1.adr_category} — {m1.adr_reason}"
         )
 
-        feature_names = m1.feature_name
+        # decision-create に渡すコンテキスト
         m1_output = all_m1_outputs if all_m1_outputs else m1.m1_output
+        context_parts = [
+            f"category={m1.adr_category}",
+            f"feature={m1.feature_name}",
+            f"{m1.adr_reason}",
+        ]
+        if scope == "plan" and plan_specs:
+            context_parts.append(f"scope=plan specs={','.join(plan_specs)}")
 
-        result_adr = await self._run_or_fail(
-            "ADR: auto-generate",
-            "tools/orchestrator/prompts/modify-adr.md",
-            "sonnet",
-            {
-                "FEATURE_NAMES": feature_names,
-                "CHANGE_DESCRIPTION": m1.change_description,
-                "ADR_CATEGORY": m1.adr_category,
-                "ADR_REASON": m1.adr_reason,
-                "DELTA_SUMMARY": m1.delta_summary,
-                "M1_OUTPUT": m1_output,
-                "SPEC_DIFF": "",
-                "ADR_SCOPE": scope,
-            },
-            wt_path,
+        context_arg = " ".join(context_parts)
+
+        prompt = (
+            f"以下のSkillを実行してください:\n"
+            f'Skill(skill="kiro:decision-create", args="new {context_arg}")\n\n'
+            f"変更の説明:\n{m1.change_description}\n\n"
+            f"M1分析サマリー:\n{m1.delta_summary}\n\n"
+            f"M1分析全文:\n{m1_output}\n\n"
+            f"完了時に必ず ADR_PATH=<作成されたADRファイルの相対パス> を出力してください。"
         )
 
-        if not result_adr.parsed.markers.get("ADR_CREATED"):
-            self.progress.print_warning("ADR generation failed — continuing without ADR")
-            return None
+        # decision-create がドラフト生成→質問→フィードバック反映→確定を全て実施
+        record = None
+        if self.progress:
+            record = self.progress.add_step("ADR: decision-create", "opus")
+            self.progress.start_step(record)
 
-        adr_path = result_adr.parsed.adr_path
+        result_text = await self._run_interactive_skill(
+            prompt,
+            cwd=wt_path,
+            model="opus",
+        )
+
+        if self.progress and record:
+            self.progress.complete_step(record, 0, 0)
+
+        # 結果から ADR パスを抽出（マーカー → glob フォールバック）
+        adr_path = self._extract_adr_path_from_output(result_text)
         if not adr_path:
-            self.progress.print_warning("ADR_PATH not found in output — continuing without ADR")
-            return None
+            adr_path = self._find_new_adr_file(wt_path)
+        if not adr_path:
+            raise PipelineError(
+                "ADR was required but decision-create did not produce a file", wt_path
+            )
 
-        # Run ADR review
-        accepted = await self._run_adr_review(wt_path, adr_path)
-        if not accepted:
-            raise PipelineError("ADR rejected", wt_path)
+        # ステータス確認
+        adr_file = wt_path / adr_path
+        status = self._read_adr_status(adr_file)
 
-        # Update modify_phase for spec-level ADR
+        if status != "accepted":
+            raise PipelineError(
+                f"ADR not accepted (status={status})", wt_path
+            )
+
         if scope == "spec":
             wt_spec = find_spec_by_name(wt_path, m1.feature_name)
             if wt_spec:
                 wt_spec.set_modify_phase(ModifyPhase.ADR_ACCEPTED)
 
         return adr_path
+
+    @staticmethod
+    def _extract_adr_path_from_output(text: str) -> str | None:
+        """出力テキストから ADR_PATH=... を抽出。"""
+        m = re.search(r"ADR_PATH=(\S+)", text)
+        return m.group(1) if m else None
+
+    @staticmethod
+    def _find_new_adr_file(wt_path: Path) -> str | None:
+        """ワークツリー内の .kiro/decisions/ を glob し、新規 ADR ファイルを検出する。"""
+        import subprocess
+
+        decisions_dir = wt_path / ".kiro" / "decisions"
+        if not decisions_dir.exists():
+            return None
+
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=A", "HEAD"],
+            cwd=str(wt_path),
+            capture_output=True,
+            text=True,
+        )
+        new_files = [
+            f for f in result.stdout.strip().splitlines()
+            if f.startswith(".kiro/decisions/") and f.endswith(".md")
+        ]
+        if not new_files:
+            # HEAD がない場合（初回コミット前）は untracked を検出
+            all_adrs = sorted(decisions_dir.rglob("*.md"), key=lambda p: p.stat().st_mtime)
+            if all_adrs:
+                return str(all_adrs[-1].relative_to(wt_path))
+            return None
+
+        # 複数あれば最後（番号が最大）のものを返す
+        new_files.sort()
+        return new_files[-1]
 
     # ── Spec implementation (M2→B2) ───────────────────────────────
 
