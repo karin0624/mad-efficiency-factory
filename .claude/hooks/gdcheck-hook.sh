@@ -6,9 +6,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# DEBUG: hook発火確認用（検証後に削除）
-echo "[GDCHECK HOOK] fired at $(date '+%H:%M:%S') | cwd=$(pwd) | REPO_ROOT=$REPO_ROOT" >> /tmp/hook-debug.log
-
 # Read JSON from stdin
 input="$(cat)"
 
