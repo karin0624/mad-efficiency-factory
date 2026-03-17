@@ -231,8 +231,6 @@ class ModifyPipeline(Pipeline):
 
     async def _run_adr_review(self, wt_path: Path, adr_path: str) -> bool:
         """decision-create review スキルでヒューマンレビューを実施。accepted なら True。"""
-        from claude_agent_sdk import ClaudeAgentOptions, query
-
         adr_file = wt_path / adr_path if not Path(adr_path).is_absolute() else Path(adr_path)
         rel_path = str(adr_file.relative_to(wt_path))
 
@@ -242,23 +240,7 @@ class ModifyPipeline(Pipeline):
             f"ADRのレビュー結果を報告してください。"
         )
 
-        # decision-create スキルは AskUserQuestion が必要
-        allowed = list(self.config.allowed_tools)
-        if "AskUserQuestion" not in allowed:
-            allowed.append("AskUserQuestion")
-
-        options = ClaudeAgentOptions(
-            model=self.config.resolve_model("sonnet"),
-            cwd=str(wt_path),
-            setting_sources=["project"],
-            permission_mode=self.config.permission_mode,
-            allowed_tools=allowed,
-            max_turns=30,
-            system_prompt={"type": "preset", "preset": "claude_code"},
-        )
-
-        async for _ in query(prompt=prompt, options=options):
-            pass  # テキスト出力は判定に使わない
+        await self._run_interactive_skill(prompt, cwd=wt_path)
 
         # ファイルの実際の status で判定（テキスト出力に依存しない）
         status = self._read_adr_status(adr_file)
@@ -840,15 +822,7 @@ class ModifyPipeline(Pipeline):
             return "(diff unavailable)"
 
     async def _run_scene_review(self, wt_path: Path, feature_name: str) -> bool:
-        """Run scene-review via a query() call that invokes the Skill."""
-        from claude_agent_sdk import (
-            AssistantMessage,
-            ClaudeAgentOptions,
-            ResultMessage,
-            TextBlock,
-            query,
-        )
-
+        """Run scene-review via ClaudeSDKClient to invoke the Skill."""
         prompt = (
             f"以下のSkillを実行してください:\n"
             f'Skill(skill="kiro:scene-review", args="{feature_name}")\n\n'
@@ -856,28 +830,8 @@ class ModifyPipeline(Pipeline):
             f"全項目合格なら SCENE_REVIEW_PASSED と出力してください。"
         )
 
-        options = ClaudeAgentOptions(
-            model=self.config.resolve_model("sonnet"),
-            cwd=str(wt_path),
-            setting_sources=["project"],
-            permission_mode=self.config.permission_mode,
-            allowed_tools=list(self.config.allowed_tools),
-            max_turns=30,
-            system_prompt={"type": "preset", "preset": "claude_code"},
-        )
-
-        text_parts: list[str] = []
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        text_parts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                if message.result:
-                    text_parts.append(message.result)
-
-        full_text = "\n".join(text_parts)
-        return "SCENE_REVIEW_FAILED" not in full_text
+        full_text = await self._run_interactive_skill(prompt, cwd=wt_path)
+        return "SCENE_REVIEW_PASSED" in full_text
 
     @staticmethod
     def _extract_pr_url(text: str) -> str:

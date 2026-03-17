@@ -256,56 +256,19 @@ class ImplementPipeline(Pipeline):
         return result
 
     async def _run_scene_review(self, wt_path: Path, feature_name: str) -> bool:
-        """Run scene-review via a query() call that invokes the Skill.
+        """Run scene-review via ClaudeSDKClient to invoke the Skill.
 
         Returns True if all items passed, False otherwise.
         """
-        result = await self.runner.run_step(
-            AgentStep(
-                name="scene-review",
-                instruction_path="tools/orchestrator/prompts/impl-commit.md",
-                model="sonnet",
-                params={},
-            ),
-            cwd=wt_path,
-        )
-        # Scene-review is interactive — send a prompt that calls the Skill
         prompt = (
             f"以下のSkillを実行してください:\n"
             f'Skill(skill="kiro:scene-review", args="{feature_name}")\n\n'
             f"結果を報告してください。不合格の項目があれば SCENE_REVIEW_FAILED と出力し、"
             f"全項目合格なら SCENE_REVIEW_PASSED と出力してください。"
         )
-        from claude_agent_sdk import (
-            AssistantMessage,
-            ClaudeAgentOptions,
-            ResultMessage,
-            TextBlock,
-            query,
-        )
 
-        options = ClaudeAgentOptions(
-            model=self.config.resolve_model("sonnet"),
-            cwd=str(wt_path),
-            setting_sources=["project"],
-            permission_mode=self.config.permission_mode,
-            allowed_tools=list(self.config.allowed_tools),
-            max_turns=30,
-            system_prompt={"type": "preset", "preset": "claude_code"},
-        )
-
-        text_parts: list[str] = []
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        text_parts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                if message.result:
-                    text_parts.append(message.result)
-
-        full_text = "\n".join(text_parts)
-        return "SCENE_REVIEW_FAILED" not in full_text
+        full_text = await self._run_interactive_skill(prompt, cwd=wt_path)
+        return "SCENE_REVIEW_PASSED" in full_text
 
     @staticmethod
     def _extract_pr_url(text: str) -> str:

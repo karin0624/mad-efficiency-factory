@@ -69,6 +69,61 @@ class Pipeline(ABC):
             record = self.progress.add_step(name, model)
             self.progress.skip_step(record, reason)
 
+    async def _run_interactive_skill(
+        self,
+        prompt: str,
+        *,
+        cwd: Path,
+        extra_allowed_tools: list[str] | None = None,
+        model: str = "sonnet",
+        max_turns: int = 30,
+    ) -> str:
+        """ClaudeSDKClient を使ってインタラクティブなスキルを実行する。
+
+        query() と異なり stdin を維持するため AskUserQuestion が動作する。
+        テキスト出力を収集して返す。
+        """
+        from claude_agent_sdk import (
+            AssistantMessage,
+            ClaudeAgentOptions,
+            ClaudeSDKClient,
+            ResultMessage,
+            TextBlock,
+        )
+
+        allowed = list(self.config.allowed_tools)
+        if "AskUserQuestion" not in allowed:
+            allowed.append("AskUserQuestion")
+        if extra_allowed_tools:
+            for tool in extra_allowed_tools:
+                if tool not in allowed:
+                    allowed.append(tool)
+
+        options = ClaudeAgentOptions(
+            model=self.config.resolve_model(model),
+            cwd=str(cwd),
+            setting_sources=["project"],
+            permission_mode=self.config.permission_mode,
+            allowed_tools=allowed,
+            max_turns=max_turns,
+            system_prompt={"type": "preset", "preset": "claude_code"},
+        )
+
+        text_parts: list[str] = []
+        async with ClaudeSDKClient(options) as client:
+            await client.query(prompt)
+            async for message in client.receive_messages():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            text_parts.append(block.text)
+                elif isinstance(message, ResultMessage):
+                    if message.result:
+                        text_parts.append(message.result)
+                    break
+
+        return "\n".join(text_parts)
+
     def _run_tests_subprocess(self, wt_path: Path) -> tuple[bool, str]:
         """scripts/run-tests.sh をsubprocessで実行。(passed, output) を返す。"""
         script = wt_path / "scripts" / "run-tests.sh"

@@ -4,15 +4,16 @@ import asyncio
 import sys
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 # Stub claude_agent_sdk before importing the pipeline module
 _sdk_stub = ModuleType("claude_agent_sdk")
 for attr in (
-    "AssistantMessage", "ClaudeAgentOptions", "ResultMessage",
-    "TextBlock", "ToolResultBlock", "ToolUseBlock", "UserMessage", "query",
+    "AssistantMessage", "ClaudeAgentOptions", "ClaudeSDKClient",
+    "ResultMessage", "TextBlock", "ToolResultBlock", "ToolUseBlock",
+    "UserMessage", "query",
 ):
     setattr(_sdk_stub, attr, MagicMock())
 sys.modules.setdefault("claude_agent_sdk", _sdk_stub)
@@ -111,11 +112,7 @@ class TestRunAdrReview:
         adr = tmp_path / "adr.md"
         adr.write_text(ACCEPTED_ADR)
 
-        async def fake_query(**kwargs):
-            return
-            yield  # make it an async generator
-
-        with patch.object(_sdk_stub, "query", fake_query):
+        with patch.object(pipeline, "_run_interactive_skill", new=AsyncMock(return_value="")):
             result = _run(pipeline._run_adr_review(tmp_path, "adr.md"))
 
         assert result is True
@@ -125,11 +122,7 @@ class TestRunAdrReview:
         adr = tmp_path / "adr.md"
         adr.write_text(PROPOSED_ADR)
 
-        async def fake_query(**kwargs):
-            return
-            yield
-
-        with patch.object(_sdk_stub, "query", fake_query):
+        with patch.object(pipeline, "_run_interactive_skill", new=AsyncMock(return_value="")):
             result = _run(pipeline._run_adr_review(tmp_path, "adr.md"))
 
         assert result is False
@@ -137,18 +130,61 @@ class TestRunAdrReview:
     def test_allowed_tools_includes_ask_user_question(
         self, pipeline: ModifyPipeline, tmp_path: Path
     ):
-        """ClaudeAgentOptions の allowed_tools に AskUserQuestion が含まれる。"""
+        """_run_interactive_skill は常に AskUserQuestion を allowed_tools に含める。"""
         adr = tmp_path / "adr.md"
         adr.write_text(PROPOSED_ADR)
 
-        async def fake_query(**kwargs):
-            return
-            yield
+        with patch.object(_sdk_stub, "ClaudeAgentOptions") as mock_opts, \
+             patch.object(_sdk_stub, "ClaudeSDKClient") as mock_client_cls:
+            # ClaudeSDKClient を非同期コンテキストマネージャとして設定
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.query = AsyncMock()
 
-        with patch.object(_sdk_stub, "query", fake_query), \
-             patch.object(_sdk_stub, "ClaudeAgentOptions") as mock_opts:
+            async def empty_receive():
+                return
+                yield  # make it an async generator
+
+            mock_client.receive_messages = empty_receive
+            mock_client_cls.return_value = mock_client
             mock_opts.return_value = MagicMock()
+
             _run(pipeline._run_adr_review(tmp_path, "adr.md"))
 
             call_kwargs = mock_opts.call_args[1]
             assert "AskUserQuestion" in call_kwargs["allowed_tools"]
+
+
+# ── _run_scene_review tests ──────────────────────────────────────
+
+class TestRunSceneReview:
+    def test_passed_marker_returns_true(self, pipeline: ModifyPipeline, tmp_path: Path):
+        """SCENE_REVIEW_PASSED が含まれる出力なら True を返す。"""
+        with patch.object(
+            pipeline, "_run_interactive_skill",
+            new=AsyncMock(return_value="全項目合格。SCENE_REVIEW_PASSED"),
+        ):
+            result = _run(pipeline._run_scene_review(tmp_path, "my-feature"))
+
+        assert result is True
+
+    def test_no_marker_returns_false(self, pipeline: ModifyPipeline, tmp_path: Path):
+        """マーカーなし（空出力）は default-fail で False を返す。"""
+        with patch.object(
+            pipeline, "_run_interactive_skill",
+            new=AsyncMock(return_value=""),
+        ):
+            result = _run(pipeline._run_scene_review(tmp_path, "my-feature"))
+
+        assert result is False
+
+    def test_failed_marker_returns_false(self, pipeline: ModifyPipeline, tmp_path: Path):
+        """SCENE_REVIEW_FAILED が含まれ PASSED がなければ False を返す。"""
+        with patch.object(
+            pipeline, "_run_interactive_skill",
+            new=AsyncMock(return_value="不合格あり。SCENE_REVIEW_FAILED"),
+        ):
+            result = _run(pipeline._run_scene_review(tmp_path, "my-feature"))
+
+        assert result is False
