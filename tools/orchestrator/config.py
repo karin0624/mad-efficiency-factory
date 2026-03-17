@@ -22,6 +22,9 @@ DEFAULT_ALLOWED_TOOLS: list[str] = [
     "Skill",
     "Agent",
     "TodoWrite",
+    "WebSearch",
+    "WebFetch",
+    "mcp__gopeak__*",
 ]
 
 
@@ -32,7 +35,7 @@ class OrchestratorConfig:
     project_root: Path
     model_map: dict[str, str] = field(default_factory=lambda: dict(MODEL_MAP))
     max_turns: int = 200
-    permission_mode: str = "acceptEdits"
+    permission_mode: str = "bypassPermissions"
     allowed_tools: list[str] = field(
         default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS)
     )
