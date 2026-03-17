@@ -29,7 +29,6 @@ class ModifyPhase(str, Enum):
     DELTA_TASKS_GENERATED = "delta-tasks-generated"
     IMPL_COMPLETED = "impl-completed"
     VALIDATED = "validated"
-    TESTS_PASSED = "tests-passed"
     COMPLETED = "completed"
 
 
@@ -44,7 +43,6 @@ class ImplementResumePoint(str, Enum):
     A3_TASKS_APPROVAL = "a3-tasks-approval"
     B_IMPL = "b-impl"
     B2_VALIDATE = "b2-validate"
-    T_TESTS = "t-tests"
     C_COMMIT = "c-commit"
 
 
@@ -56,7 +54,6 @@ class ModifyResumePoint(str, Enum):
     M3_DELTA_TASKS = "m3-delta-tasks"
     B_IMPL = "b-impl"
     B2_VALIDATE = "b2-validate"
-    T_TESTS = "t-tests"
     C_COMMIT = "c-commit"
 
 
@@ -147,7 +144,7 @@ def detect_implement_resume(spec: SpecState) -> ImplementResumePoint:
     phase = spec.phase
 
     if phase == Phase.VALIDATED:
-        return ImplementResumePoint.T_TESTS
+        return ImplementResumePoint.C_COMMIT
 
     if phase == Phase.IMPL_COMPLETED:
         return ImplementResumePoint.B2_VALIDATE
@@ -187,11 +184,8 @@ def detect_modify_resume(spec: SpecState) -> ModifyResumePoint | None:
 
     modify_phase = ModifyPhase(modify_phase_str)
 
-    if modify_phase == ModifyPhase.TESTS_PASSED:
-        return ModifyResumePoint.C_COMMIT
-
     if modify_phase == ModifyPhase.VALIDATED:
-        return ModifyResumePoint.T_TESTS
+        return ModifyResumePoint.C_COMMIT
 
     if modify_phase == ModifyPhase.IMPL_COMPLETED:
         return ModifyResumePoint.B2_VALIDATE

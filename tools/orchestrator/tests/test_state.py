@@ -35,9 +35,9 @@ def tmp_spec(tmp_path: Path):
 class TestDetectImplementResume:
     """Test all 7+ resume point patterns from implement.md."""
 
-    def test_validated_resumes_at_tests(self, tmp_spec):
+    def test_validated_resumes_at_commit(self, tmp_spec):
         spec = tmp_spec({"feature_name": "f", "phase": "validated", "approvals": {}})
-        assert detect_implement_resume(spec) == IRP.T_TESTS
+        assert detect_implement_resume(spec) == IRP.C_COMMIT
 
     def test_impl_completed_resumes_at_validate(self, tmp_spec):
         spec = tmp_spec({"feature_name": "f", "phase": "impl-completed", "approvals": {}})
@@ -128,12 +128,12 @@ class TestDetectModifyResume:
         })
         assert detect_modify_resume(spec) == MRP.B2_VALIDATE
 
-    def test_validated_resumes_at_tests(self, tmp_spec):
+    def test_validated_resumes_at_commit(self, tmp_spec):
         spec = tmp_spec({
             "feature_name": "f", "phase": "tasks-generated", "approvals": {},
             "modifications": [{"modify_phase": "validated"}],
         })
-        assert detect_modify_resume(spec) == MRP.T_TESTS
+        assert detect_modify_resume(spec) == MRP.C_COMMIT
 
     def test_completed_returns_none(self, tmp_spec):
         """completed modify_phase means nothing to resume."""

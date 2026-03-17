@@ -406,21 +406,6 @@ class ModifyPipeline(Pipeline):
         else:
             self.skip_step("B2: validate", "opus", "resume")
 
-        # ── T — Tests ──────────────────────────────────────────────
-        skip_tests = m1.cascade_depth == "requirements-only"
-        if skip_tests:
-            self.skip_step("T: tests", "-", "CASCADE_DEPTH=requirements-only")
-        elif resume_point is None or resume_point in (
-            MRP.ADR_GATE, MRP.M2_CASCADE, MRP.M3_DELTA_TASKS,
-            MRP.B_IMPL, MRP.B2_VALIDATE, MRP.T_TESTS,
-        ):
-            await self.run_test_step(wt_path)
-            wt_spec = find_spec_by_name(wt_path, m1.feature_name)
-            if wt_spec:
-                wt_spec.set_modify_phase(ModifyPhase.TESTS_PASSED)
-        else:
-            self.skip_step("T: tests", "-", "resume")
-
     # ── Delivery (Commit → L4 → scene-review → Push-PR → Cleanup) ─
 
     async def _run_delivery(
@@ -641,7 +626,7 @@ class ModifyPipeline(Pipeline):
         if resume_point is None or resume_point == MRP.ADR_GATE:
             adr_path = await self._run_adr_gate(m1, wt_path)
         elif resume_point and resume_point in (
-            MRP.M2_CASCADE, MRP.M3_DELTA_TASKS, MRP.B_IMPL, MRP.B2_VALIDATE, MRP.T_TESTS, MRP.C_COMMIT,
+            MRP.M2_CASCADE, MRP.M3_DELTA_TASKS, MRP.B_IMPL, MRP.B2_VALIDATE, MRP.C_COMMIT,
         ):
             adr_path = self._find_existing_adr(wt_path, feature_name)
 

@@ -1,4 +1,4 @@
-"""Core agent execution engine — wraps Claude Agent SDK query()."""
+"""Core agent execution engine — wraps Claude Agent SDK ClaudeSDKClient."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from typing import Any
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    ClaudeSDKClient,
     ResultMessage,
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
-    query,
 )
 
 from .config import OrchestratorConfig
@@ -49,7 +49,7 @@ class AgentResult:
 
 
 class AgentRunner:
-    """Executes agent steps via Claude Agent SDK query()."""
+    """Executes agent steps via Claude Agent SDK ClaudeSDKClient."""
 
     def __init__(self, config: OrchestratorConfig) -> None:
         self.config = config
@@ -91,7 +91,7 @@ class AgentRunner:
         step_record: StepRecord | None = None,
         cwd: Path | None = None,
     ) -> AgentResult:
-        """Execute a single agent step via query().
+        """Execute a single agent step via ClaudeSDKClient.
 
         Args:
             step: The step definition.
@@ -111,38 +111,41 @@ class AgentRunner:
         tool_use_names: dict[str, str] = {}
 
         try:
-            async for message in query(prompt=prompt, options=options):
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            text_parts.append(block.text)
-                        elif isinstance(block, ToolUseBlock):
-                            tool_use_names[block.id] = block.name
-                            if progress and step_record:
-                                progress.log_tool_call(step_record, block.name, block.input)
-                        elif isinstance(block, ToolResultBlock):
-                            if progress and step_record:
-                                name = tool_use_names.get(block.tool_use_id, "")
-                                progress.log_tool_result(name, block)
-
-                elif isinstance(message, UserMessage):
-                    if isinstance(message.content, list):
+            async with ClaudeSDKClient(options) as client:
+                await client.query(prompt)
+                async for message in client.receive_messages():
+                    if isinstance(message, AssistantMessage):
                         for block in message.content:
-                            if isinstance(block, ToolResultBlock):
+                            if isinstance(block, TextBlock):
+                                text_parts.append(block.text)
+                            elif isinstance(block, ToolUseBlock):
+                                tool_use_names[block.id] = block.name
+                                if progress and step_record:
+                                    progress.log_tool_call(step_record, block.name, block.input)
+                            elif isinstance(block, ToolResultBlock):
                                 if progress and step_record:
                                     name = tool_use_names.get(block.tool_use_id, "")
                                     progress.log_tool_result(name, block)
 
-                elif isinstance(message, ResultMessage):
-                    usage = message.usage or {}
-                    result.input_tokens = usage.get("input_tokens", 0)
-                    result.output_tokens = usage.get("output_tokens", 0)
-                    result.duration_ms = message.duration_ms
-                    result.num_turns = message.num_turns
-                    result.session_id = message.session_id
-                    result.is_error = message.is_error
-                    if message.result:
-                        text_parts.append(message.result)
+                    elif isinstance(message, UserMessage):
+                        if isinstance(message.content, list):
+                            for block in message.content:
+                                if isinstance(block, ToolResultBlock):
+                                    if progress and step_record:
+                                        name = tool_use_names.get(block.tool_use_id, "")
+                                        progress.log_tool_result(name, block)
+
+                    elif isinstance(message, ResultMessage):
+                        usage = message.usage or {}
+                        result.input_tokens = usage.get("input_tokens", 0)
+                        result.output_tokens = usage.get("output_tokens", 0)
+                        result.duration_ms = message.duration_ms
+                        result.num_turns = message.num_turns
+                        result.session_id = message.session_id
+                        result.is_error = message.is_error
+                        if message.result:
+                            text_parts.append(message.result)
+                        break
 
         except Exception as e:
             result.is_error = True

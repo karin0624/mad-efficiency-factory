@@ -1,7 +1,7 @@
 """Implement pipeline: Plan → cc-sdd full execution.
 
 Steps: Preflight → Plan resolve → Worktree → A1(WHAT) → A2(HOW) → A3(Tasks)
-       → B(Impl) → B2(Validate) → T(Tests) → [L4 check] → C(Commit) → D(Push+PR)
+       → B(Impl) → B2(Validate) → [L4 check] → C(Commit) → D(Push+PR)
 """
 
 from __future__ import annotations
@@ -38,7 +38,6 @@ _RUN_A2 = _RUN_A1 | {RP.A2_HOW_FULL, RP.A2_HOW_REVIEW_ONLY}
 _RUN_A3 = _RUN_A2 | {RP.A3_TASKS, RP.A3_TASKS_APPROVAL}
 _RUN_B = _RUN_A3 | {RP.B_IMPL}
 _RUN_B2 = _RUN_B | {RP.B2_VALIDATE}
-_RUN_T = _RUN_B2 | {RP.T_TESTS}
 # C (commit) always runs — it's idempotent (skips if no changes)
 
 
@@ -160,12 +159,6 @@ class ImplementPipeline(Pipeline):
                 )
         else:
             self.skip_step("B2: validate", "opus", "resume")
-
-        # ── Step 4.6: T — Tests ──────────────────────────────────
-        if resume_point in _RUN_T:
-            await self.run_test_step(wt_path)
-        else:
-            self.skip_step("T: tests", "-", "resume")
 
         # ── Step 4.75: Steering sync ─────────────────────────────
         await self._run_steering_sync(wt_path)
