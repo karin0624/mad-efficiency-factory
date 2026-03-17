@@ -81,12 +81,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Max agentic turns per step (default: 200)",
     )
 
-    # spike (Phase 0 verification)
-    sub.add_parser(
-        "spike",
-        help="Run SDK parity spike (Phase 0 verification)",
-    )
-
     return parser
 
 
@@ -154,13 +148,6 @@ async def _run_modify_plan(args: argparse.Namespace, config: OrchestratorConfig)
         return 1
 
 
-async def _run_spike() -> int:
-    from .spike import run_spike
-
-    await run_spike()
-    return 0
-
-
 async def _async_main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
@@ -178,8 +165,6 @@ async def _async_main() -> int:
         return await _run_modify(args, config)
     elif args.command in ("modify-plan", "mp"):
         return await _run_modify_plan(args, config)
-    elif args.command == "spike":
-        return await _run_spike()
     else:
         parser.print_help()
         return 1

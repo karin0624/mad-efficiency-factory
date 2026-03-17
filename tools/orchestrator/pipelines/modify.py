@@ -2,7 +2,7 @@
 
 Steps: Preflight → Feature resolve → M1(Analysis) → Worktree
        → ADR Gate → M2(Cascade) → M3(Delta tasks) → B(Impl) → B2(Validate)
-       → T(Tests) → [L4 check] → C(Commit) → D(Push+PR)
+       → [L4 check] → C(Commit) → D(Push+PR)
 """
 
 from __future__ import annotations
