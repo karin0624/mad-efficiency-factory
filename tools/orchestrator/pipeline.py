@@ -68,6 +68,18 @@ def _parse_ask_user_marker(text: str) -> dict | None:
     return {"question": question, "options": options} if question else None
 
 
+def _print_pre_marker_text(turn_text: str) -> None:
+    """<<ASK_USER>> マーカーより前のLLMテキスト出力をユーザーに表示する。"""
+    m = _ASK_USER_RE.search(turn_text)
+    if not m:
+        return
+    pre_text = turn_text[: m.start()].strip()
+    if pre_text:
+        from .human_input import console as _console
+
+        _console.print(pre_text)
+
+
 def _collect_user_input(question: str, options: list[str]) -> str:
     """ターミナルでユーザー入力を収集する。
 
@@ -208,6 +220,8 @@ class Pipeline(ABC):
                     marker = _parse_ask_user_marker(turn_text)
 
                     if marker:
+                        # マーカー前のテキスト（ドラフト、詳細質問等）を表示
+                        _print_pre_marker_text(turn_text)
                         # ユーザー入力を収集
                         user_response = _collect_user_input(
                             marker["question"], marker["options"]

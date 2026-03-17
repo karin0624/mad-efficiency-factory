@@ -23,6 +23,7 @@ from tools.orchestrator.pipeline import (  # noqa: E402
     PipelineAborted,
     _collect_user_input,
     _parse_ask_user_marker,
+    _print_pre_marker_text,
 )
 from tools.orchestrator.pipelines.modify import M1Result, ModifyPipeline  # noqa: E402
 
@@ -389,6 +390,52 @@ class TestAskUserMarkerParsing:
         assert result["options"] == ["はい", "いいえ"]
 
 
+# ── _print_pre_marker_text tests ─────────────────────────────────
+
+class TestPrintPreMarkerText:
+    def test_prints_text_before_marker(self):
+        """マーカー前のテキスト（ドラフト等）が console.print で表示される。"""
+        turn_text = (
+            "## ADR ドラフト\n"
+            "Decision: フットプリントを1x1にする\n\n"
+            "### 質問\n"
+            "1. 受入基準7.1の変更は妥当ですか？\n"
+            "2. 既存テストへの影響をどう評価しますか？\n\n"
+            "<<ASK_USER>>\n"
+            "question: 上記ドラフトを確認してください。\n"
+            "options:\n"
+            "- 承認\n"
+            "- 却下\n"
+            "<</ASK_USER>>"
+        )
+        with patch("tools.orchestrator.human_input.console") as mock_console:
+            _print_pre_marker_text(turn_text)
+        mock_console.print.assert_called_once()
+        printed = mock_console.print.call_args[0][0]
+        assert "ADR ドラフト" in printed
+        assert "受入基準7.1の変更は妥当ですか？" in printed
+        assert "既存テストへの影響" in printed
+
+    def test_no_marker_does_nothing(self):
+        """マーカーがないテキストでは何も表示しない。"""
+        with patch("tools.orchestrator.human_input.console") as mock_console:
+            _print_pre_marker_text("普通のテキスト")
+        mock_console.print.assert_not_called()
+
+    def test_no_pre_text_does_nothing(self):
+        """マーカー前にテキストがない場合は何も表示しない。"""
+        turn_text = (
+            "<<ASK_USER>>\n"
+            "question: 質問\n"
+            "options:\n"
+            "- A\n"
+            "<</ASK_USER>>"
+        )
+        with patch("tools.orchestrator.human_input.console") as mock_console:
+            _print_pre_marker_text(turn_text)
+        mock_console.print.assert_not_called()
+
+
 # ── _collect_user_input tests ────────────────────────────────────
 
 class TestCollectUserInput:
@@ -471,11 +518,17 @@ class TestRunInteractiveSkillMultiTurn:
             )}), patch(
                 "tools.orchestrator.pipeline._collect_user_input",
                 return_value="はい",
-            ) as mock_input:
+            ) as mock_input, patch(
+                "tools.orchestrator.pipeline._print_pre_marker_text",
+            ) as mock_print_pre:
                 result = _run(pipeline._run_interactive_skill(
                     "test prompt", cwd=Path("/tmp"),
                 ))
 
+            # マーカー前のテキストが表示された
+            mock_print_pre.assert_called_once()
+            pre_arg = mock_print_pre.call_args[0][0]
+            assert "ドラフト生成完了" in pre_arg
             # ユーザー入力が収集された
             mock_input.assert_called_once_with("承認しますか？", ["はい", "いいえ"])
             # query が2回呼ばれた（初回 + 応答注入）
