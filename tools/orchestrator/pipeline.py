@@ -87,6 +87,37 @@ class Pipeline(ABC):
         except Exception as e:
             return (False, f"Test execution error: {e}")
 
+    async def _run_steering_sync(self, wt_path: Path) -> None:
+        """/kiro:steering スキルを呼び出してsteering同期を実行する。"""
+        from claude_agent_sdk import (
+            ClaudeAgentOptions,
+            query,
+        )
+
+        record = None
+        if self.progress:
+            record = self.progress.add_step("steering-sync", "sonnet")
+            self.progress.start_step(record)
+
+        options = ClaudeAgentOptions(
+            model=self.config.resolve_model("sonnet"),
+            cwd=str(wt_path),
+            setting_sources=["project"],
+            permission_mode=self.config.permission_mode,
+            allowed_tools=list(self.config.allowed_tools),
+            max_turns=50,
+            system_prompt={"type": "preset", "preset": "claude_code"},
+        )
+
+        async for _ in query(
+            prompt='以下のSkillを実行してください:\nSkill(skill="kiro:steering")',
+            options=options,
+        ):
+            pass
+
+        if self.progress and record:
+            self.progress.complete_step(record, 0, 0)
+
     async def run_test_step(
         self,
         wt_path: Path,

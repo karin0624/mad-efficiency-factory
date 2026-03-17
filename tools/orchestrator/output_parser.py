@@ -45,10 +45,6 @@ RE_ADR_REASON = re.compile(r"\bADR_REASON:\s*(.+)")
 RE_ADR_CREATED = re.compile(r"\bADR_CREATED\b")
 RE_ADR_PATH = re.compile(r"\bADR_PATH:\s*(\S+)")
 
-# Steering sync
-RE_STEERING_SYNC_DONE = re.compile(r"\bSTEERING_SYNC_DONE\b")
-RE_STEERING_SYNC_SKIPPED = re.compile(r"\bSTEERING_SYNC_SKIPPED\b")
-
 # M2 (cascade)
 RE_CASCADE_DONE = re.compile(r"\bCASCADE_DONE\b")
 RE_CASCADE_FAILED = re.compile(r"\bCASCADE_FAILED\b")
@@ -173,10 +169,6 @@ class ParsedOutput:
     def adr_path(self) -> str:
         return self.values.get("ADR_PATH", "")
 
-    @property
-    def steering_sync_done(self) -> bool:
-        return self.markers.get("STEERING_SYNC_DONE", False)
-
     # ── Modify-plan pipeline properties ───────────────────────────
 
     @property
@@ -260,8 +252,6 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("CASCADE_FAILED", RE_CASCADE_FAILED),
         ("DELTA_TASKS_DONE", RE_DELTA_TASKS_DONE),
         ("ADR_CREATED", RE_ADR_CREATED),
-        ("STEERING_SYNC_DONE", RE_STEERING_SYNC_DONE),
-        ("STEERING_SYNC_SKIPPED", RE_STEERING_SYNC_SKIPPED),
         # Modify-plan markers
         ("MP0_DONE", RE_MP0_DONE),
         ("MP0_NO_MATCH", RE_MP0_NO_MATCH),

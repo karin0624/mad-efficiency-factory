@@ -457,11 +457,7 @@ class ModifyPipeline(Pipeline):
 
         # ── Steering sync ─────────────────────────────────────────
         if cascade_depth not in ("requirements-only",):
-            await self._run_or_fail(
-                "steering-sync", "tools/orchestrator/prompts/impl-steering-sync.md", "sonnet",
-                {"WORKTREE_PATH": str(wt_path), "FEATURE_NAMES": ",".join(feature_names)},
-                wt_path,
-            )
+            await self._run_steering_sync(wt_path)
         else:
             self.skip_step("steering-sync", "sonnet", "CASCADE_DEPTH=requirements-only")
 
