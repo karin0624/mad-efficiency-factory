@@ -302,6 +302,92 @@ class TestAskUserMarkerParsing:
         text = "<<ASK_USER>>\noptions:\n- A\n<</ASK_USER>>"
         assert _parse_ask_user_marker(text) is None
 
+    def test_multiline_question_yaml_pipe(self):
+        """YAML ブロックスカラー ``|`` で question が複数行になるケース。"""
+        text = (
+            "<<ASK_USER>>\n"
+            "question: |\n"
+            "  ドラフトを確認してください。\n"
+            "  Decision DriversにXを含めましたが妥当ですか？\n"
+            "  Option AをBより優先した根拠は性能です。\n"
+            "options:\n"
+            "- 承認（このまま accepted にする）\n"
+            "- proposed のまま保留する\n"
+            "- 修正指示をテキストで回答\n"
+            "<</ASK_USER>>"
+        )
+        result = _parse_ask_user_marker(text)
+        assert result is not None
+        assert "ドラフトを確認してください。" in result["question"]
+        assert "Option AをBより優先した根拠は性能です。" in result["question"]
+        assert len(result["options"]) == 3
+
+    def test_multiline_question_yaml_gt(self):
+        """YAML 折りたたみスカラー ``>`` で question が複数行になるケース。"""
+        text = (
+            "<<ASK_USER>>\n"
+            "question: >\n"
+            "  整合性チェック結果を確認してください。\n"
+            "  既存ADRとの矛盾はありません。\n"
+            "options:\n"
+            "- 承認（accepted）\n"
+            "- 却下（deprecated）\n"
+            "<</ASK_USER>>"
+        )
+        result = _parse_ask_user_marker(text)
+        assert result is not None
+        assert "整合性チェック結果を確認してください。" in result["question"]
+        assert "既存ADRとの矛盾はありません。" in result["question"]
+        assert len(result["options"]) == 2
+
+    def test_multiline_question_no_yaml_indicator(self):
+        """``|`` / ``>`` なしで question が複数行にわたるケース。"""
+        text = (
+            "<<ASK_USER>>\n"
+            "question: 以下について確認してください:\n"
+            "  1. フットプリントサイズの変更は妥当か\n"
+            "  2. 受入基準の更新が必要か\n"
+            "options:\n"
+            "- はい\n"
+            "- いいえ\n"
+            "<</ASK_USER>>"
+        )
+        result = _parse_ask_user_marker(text)
+        assert result is not None
+        assert "以下について確認してください:" in result["question"]
+        assert "フットプリントサイズの変更は妥当か" in result["question"]
+        assert "受入基準の更新が必要か" in result["question"]
+
+    def test_multiline_question_options_without_header(self):
+        """``options:`` ヘッダなしで直接 ``- `` が来るケース。"""
+        text = (
+            "<<ASK_USER>>\n"
+            "question: |\n"
+            "  この変更を承認しますか？\n"
+            "- 承認\n"
+            "- 却下\n"
+            "<</ASK_USER>>"
+        )
+        result = _parse_ask_user_marker(text)
+        assert result is not None
+        assert result["question"] == "この変更を承認しますか？"
+        assert result["options"] == ["承認", "却下"]
+
+    def test_single_line_question_unchanged(self):
+        """既存の単一行 question が壊れていないことを確認。"""
+        text = (
+            "<<ASK_USER>>\n"
+            "question: 承認しますか？\n"
+            "options:\n"
+            "- はい\n"
+            "- いいえ\n"
+            "<</ASK_USER>>"
+        )
+        result = _parse_ask_user_marker(text)
+        assert result is not None
+        assert result["question"] == "承認しますか？"
+        assert result["options"] == ["はい", "いいえ"]
+
 
 # ── _collect_user_input tests ────────────────────────────────────
 

@@ -33,22 +33,38 @@ _ASK_USER_RE = re.compile(
 
 
 def _parse_ask_user_marker(text: str) -> dict | None:
-    """<<ASK_USER>> マーカーをパースして question と options を返す。"""
+    """<<ASK_USER>> マーカーをパースして question と options を返す。
+
+    question: の値が複数行にわたる場合（YAML ブロックスカラー ``|`` / ``>``
+    や、単に改行で続く場合）も正しく収集する。``options:`` ヘッダまたは
+    ``- `` リスト項目が現れるまでを question テキストとして扱う。
+    """
     m = _ASK_USER_RE.search(text)
     if not m:
         return None
 
     body = m.group(1)
-    question = ""
+    question_lines: list[str] = []
     options: list[str] = []
+    in_question = False
 
     for line in body.split("\n"):
-        line = line.strip()
-        if line.startswith("question:"):
-            question = line[len("question:"):].strip()
-        elif line.startswith("- "):
-            options.append(line[2:].strip())
+        stripped = line.strip()
+        if stripped.startswith("question:"):
+            in_question = True
+            # question: の後のテキストを取得（``|`` / ``>`` は除去）
+            first = stripped[len("question:"):].strip()
+            if first and first not in ("|", ">"):
+                question_lines.append(first)
+        elif stripped.startswith("options:"):
+            in_question = False
+        elif stripped.startswith("- "):
+            in_question = False
+            options.append(stripped[2:].strip())
+        elif in_question and stripped:
+            question_lines.append(stripped)
 
+    question = "\n".join(question_lines)
     return {"question": question, "options": options} if question else None
 
 
