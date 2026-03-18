@@ -41,6 +41,7 @@ class OrchestratorConfig:
     )
     worktree_base: str = ".claude/worktrees"
     plans_dir: str = "docs/plans"
+    session_dir: str = ".claude/orchestrator/sessions"
 
     def resolve_model(self, alias: str) -> str:
         """Resolve a short model alias to a full model ID."""

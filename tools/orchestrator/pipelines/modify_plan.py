@@ -1,8 +1,8 @@
-"""Modify-plan pipeline: investigate → plan-gen → review → feedback loop.
+"""Modify-plan pipeline: investigate -> plan-gen -> review -> feedback loop (checkpoint-based).
 
-Steps: Change resolve → MP0(Investigate) → User confirm
-       → MP1×N(Plan-gen, parallel) → MP2×N(Review, parallel)
-       → Result display → User accept/feedback → [MP1e → MP2 loop]
+Steps: Change resolve -> MP0(Investigate) -> User confirm
+       -> MP1xN(Plan-gen, parallel) -> MP2xN(Review, parallel)
+       -> Result display -> User accept/feedback -> [MP1e -> MP2 loop]
 """
 
 from __future__ import annotations
@@ -13,11 +13,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from ..agent_runner import AgentRunner, AgentStep, AgentResult
+from ..agent_runner import AgentStep, AgentResult
 from ..config import OrchestratorConfig
-from ..human_input import ask_choice, ask_text
-from ..pipeline import Pipeline, PipelineError
-from ..progress import PipelineProgress
+from ..pipeline import InterruptiblePipeline
+from ..session import PipelineSession
 
 
 def _next_plan_id(plans_base: Path) -> str:
@@ -30,196 +29,375 @@ def _next_plan_id(plans_base: Path) -> str:
     return f"m{max(existing, default=0) + 1}"
 
 
-class ModifyPlanPipeline(Pipeline):
+class ModifyPlanPipeline(InterruptiblePipeline):
     """Modify-plan pipeline: investigate affected specs and generate plans."""
 
-    async def run(
+    def __init__(
         self,
-        *,
-        change_description: str = "",
-    ) -> dict[str, Any]:
-        self.progress = PipelineProgress("Modify-Plan Pipeline")
-        self.progress.print_header()
+        config: OrchestratorConfig,
+        session: PipelineSession,
+        session_dir: Path,
+    ) -> None:
+        super().__init__(config, session, session_dir)
 
-        # ── Step 0: Change description resolution ─────────────────
-        if not change_description:
-            change_description = ask_text("どのような変更を計画していますか？")
-        self.progress.print_info(f"Change: {change_description[:80]}")
+    async def run_until_checkpoint(self) -> dict[str, Any]:
+        cp = self.session.checkpoint
 
-        # ── Step 1: MP0 — Investigate ─────────────────────────────
-        result_mp0 = await self._run_or_fail(
-            "MP0: investigate",
-            "tools/orchestrator/prompts/modify-plan-investigate.md",
-            "opus",
-            {"CHANGE_DESCRIPTION": change_description},
-            self.config.project_root,
-        )
+        if cp:
+            result = self._handle_resume(cp)
+            if result is not None:
+                return result
+            cp = self.session.checkpoint
 
-        # Handle special cases
-        if result_mp0.parsed.mp0_no_match:
-            self.progress.print_info(
-                "対象specが見つかりませんでした。`/plan` で新規featureとして作成してください。"
+        segments = [
+            ("start", self._seg_start),
+            ("MP0", self._seg_MP0),
+            ("confirm_specs", self._seg_confirm_specs),
+            ("output_dir", self._seg_output_dir),
+            ("MP1", self._seg_MP1),
+            ("MP2", self._seg_MP2),
+            ("review", self._seg_review),
+            ("write_index", self._seg_write_index),
+        ]
+
+        start_from = cp if cp in [n for n, _ in segments] else ""
+        result = await self._run_segments(segments, start_from)
+        if result is not None:
+            return result
+
+        return self._complete_pipeline()
+
+    # ── Resume handling ──────────────────────────────────────────
+
+    def _handle_resume(self, cp: str) -> dict[str, Any] | None:
+        user_input = self.session.checkpoint_data.get("user_input", "")
+
+        if cp == "change_description_needed":
+            if user_input:
+                self.session.params["change"] = user_input
+                self.session.checkpoint = "MP0"
+                self._save()
+                return None
+            return self.make_interaction(
+                checkpoint="change_description_needed",
+                question="どのような変更を計画していますか？",
             )
-            self.progress.print_summary()
-            return {"status": "no-match", "change": change_description}
 
-        if result_mp0.parsed.mp0_new_spec_recommended:
-            self.progress.print_info(
-                "この変更は新規featureとして実装することを推奨します。`/plan` を使用してください。"
+        if cp == "mp0_confirm_specs":
+            if user_input == "キャンセル":
+                return self.make_completed({
+                    "status": "cancelled",
+                    "change": self.session.params.get("change", ""),
+                })
+            if user_input == "はい、進める":
+                self.session.checkpoint = "output_dir"
+                self._save()
+                return None
+            # Freetext feedback — re-run MP0
+            self.session.checkpoint_data["mp0_feedback"] = user_input
+            self.session.checkpoint = "MP0"
+            self._save()
+            return None
+
+        if cp == "output_dir_conflict":
+            if user_input and user_input != "上書き":
+                # User provided a new slug
+                self.session.checkpoint_data["slug"] = user_input
+            self.session.checkpoint = "MP1"
+            self._save()
+            return None
+
+        if cp == "mp1_partial_failure":
+            if "キャンセル" in user_input:
+                return self.make_completed({
+                    "status": "cancelled-partial-failure",
+                    "change": self.session.params.get("change", ""),
+                })
+            # Skip failures and continue
+            self.session.checkpoint = "MP2"
+            self._save()
+            return None
+
+        if cp == "mp2_review_decision":
+            if "Accept" in user_input or "確定" in user_input:
+                self.session.checkpoint = "write_index"
+                self._save()
+                return None
+            # Feedback — ask for details
+            self.session.checkpoint_data["feedback_requested"] = True
+            return self.make_interaction(
+                checkpoint="mp2_feedback_specs",
+                question="修正内容と対象spec名を入力してください (例: 'spec-nameのXXを修正')",
             )
-            self.progress.print_summary()
-            return {"status": "new-spec-recommended", "change": change_description}
 
-        if not result_mp0.parsed.mp0_done:
-            raise PipelineError("MP0: 調査結果のマーカーが見つかりません。")
-
-        target_specs_str = result_mp0.parsed.target_specs
-        execution_order_str = result_mp0.parsed.execution_order
-        propagation_map = result_mp0.parsed.propagation_map
-
-        self.progress.print_info(f"Target specs: {target_specs_str}")
-        self.progress.print_info(f"Execution order: {execution_order_str}")
-
-        # Parse target specs into list
-        target_specs = self._parse_target_specs(target_specs_str)
-        if not target_specs:
-            raise PipelineError("MP0: 対象specリストの解析に失敗しました。")
-
-        # ── Step 2: User confirmation (with feedback re-run loop) ──
-        while True:
-            spec_list_display = "\n".join(
-                f"  - {name} ({conf})" for name, conf in target_specs
+        if cp == "mp2_feedback_specs":
+            if user_input:
+                self.session.checkpoint_data["feedback_text"] = user_input
+                self.session.checkpoint = "review"
+                self.session.checkpoint_data["do_feedback_loop"] = True
+                self._save()
+                return None
+            return self.make_interaction(
+                checkpoint="mp2_feedback_specs",
+                question="修正内容を入力してください",
             )
-            self.progress.print_info(f"対象spec:\n{spec_list_display}")
 
-            confirm = ask_choice(
-                "この対象specリストで進めますか？",
-                ["はい、進める", "キャンセル"],
-                allow_freetext=True,
+        if cp.startswith("step_") and cp.endswith("_failed"):
+            step_name = cp[5:].rsplit("_", 1)[0]
+            return self._handle_step_error_resume(step_name)
+
+        return None
+
+    # ── Segments ─────────────────────────────────────────────────
+
+    async def _seg_start(self) -> dict[str, Any] | None:
+        """Change description resolution."""
+        change = self.session.params.get("change", "")
+        if not change:
+            return self.make_interaction(
+                checkpoint="change_description_needed",
+                question="どのような変更を計画していますか？",
             )
-            if confirm == "キャンセル":
-                self.progress.print_info("キャンセルしました。")
-                self.progress.print_summary()
-                return {"status": "cancelled", "change": change_description}
+        return None
 
-            if confirm == "はい、進める":
-                break
+    async def _seg_MP0(self) -> dict[str, Any] | None:
+        """MP0 investigate."""
+        change = self.session.params.get("change", "")
+        feedback = self.session.checkpoint_data.pop("mp0_feedback", "")
 
-            # Free text feedback — re-run MP0 with user's correction
-            self.progress.print_info(f"フィードバックを反映してMP0を再実行します...")
-            feedback_prompt = (
-                f"{change_description}\n\n"
+        if feedback:
+            change = (
+                f"{change}\n\n"
                 f"--- ユーザーフィードバック ---\n"
-                f"前回の調査結果に対する修正指示: {confirm}"
+                f"前回の調査結果に対する修正指示: {feedback}"
             )
-            result_mp0 = await self._run_or_fail(
-                "MP0: investigate (retry)",
+
+        result = await self.run_agent_step(
+            AgentStep(
+                "MP0: investigate",
                 "tools/orchestrator/prompts/modify-plan-investigate.md",
                 "opus",
-                {"CHANGE_DESCRIPTION": feedback_prompt},
-                self.config.project_root,
+                {"CHANGE_DESCRIPTION": change},
+            ),
+            cwd=self.config.project_root,
+        )
+
+        if result.is_error:
+            return self.make_error(
+                checkpoint="step_MP0_failed",
+                error=result.error_message,
+                step_output=result.output_text[-2000:],
             )
 
-            if result_mp0.parsed.mp0_no_match:
-                self.progress.print_info("対象specが見つかりませんでした。")
-                self.progress.print_summary()
-                return {"status": "no-match", "change": change_description}
+        if result.parsed.mp0_no_match:
+            return self.make_completed({
+                "status": "no-match",
+                "change": self.session.params.get("change", ""),
+                "message": "対象specが見つかりませんでした。`/plan` で新規featureとして作成してください。",
+            })
 
-            if not result_mp0.parsed.mp0_done:
-                raise PipelineError("MP0: 調査結果のマーカーが見つかりません。")
+        if result.parsed.mp0_new_spec_recommended:
+            return self.make_completed({
+                "status": "new-spec-recommended",
+                "change": self.session.params.get("change", ""),
+                "message": "この変更は新規featureとして実装することを推奨します。",
+            })
 
-            target_specs_str = result_mp0.parsed.target_specs
-            execution_order_str = result_mp0.parsed.execution_order
-            propagation_map = result_mp0.parsed.propagation_map
+        if not result.parsed.mp0_done:
+            return self.make_failed(
+                error_message="MP0: 調査結果のマーカーが見つかりません。"
+            )
 
-            self.progress.print_info(f"Target specs: {target_specs_str}")
-            target_specs = self._parse_target_specs(target_specs_str)
-            if not target_specs:
-                raise PipelineError("MP0: 対象specリストの解析に失敗しました。")
+        target_specs_str = result.parsed.target_specs
+        execution_order_str = result.parsed.execution_order
+        propagation_map = result.parsed.propagation_map
 
-        # ── Step 3: Output directory resolution ───────────────────
+        target_specs = self._parse_target_specs(target_specs_str)
+        if not target_specs:
+            return self.make_failed(
+                error_message="MP0: 対象specリストの解析に失敗しました。"
+            )
+
+        self.session.checkpoint_data["target_specs_str"] = target_specs_str
+        self.session.checkpoint_data["target_specs"] = [
+            {"name": n, "confidence": c} for n, c in target_specs
+        ]
+        self.session.checkpoint_data["execution_order_str"] = execution_order_str
+        self.session.checkpoint_data["propagation_map"] = propagation_map
+        self.session.checkpoint_data["plan_slug"] = result.parsed.plan_slug or ""
+        self._save()
+        return None
+
+    async def _seg_confirm_specs(self) -> dict[str, Any] | None:
+        """User confirmation of target specs."""
+        target_specs = self.session.checkpoint_data.get("target_specs", [])
+        spec_list = "\n".join(
+            f"  - {s['name']} ({s['confidence']})" for s in target_specs
+        )
+        return self.make_interaction(
+            checkpoint="mp0_confirm_specs",
+            question=f"この対象specリストで進めますか？\n{spec_list}",
+            options=["はい、進める", "キャンセル"],
+            context="自由入力でフィードバックを返すとMP0を再実行します",
+        )
+
+    async def _seg_output_dir(self) -> dict[str, Any] | None:
+        """Output directory resolution."""
         plans_base = self.config.project_root / "docs" / "modify-plans"
-        slug = result_mp0.parsed.plan_slug or _next_plan_id(plans_base)
+        slug = self.session.checkpoint_data.get("slug") or \
+               self.session.checkpoint_data.get("plan_slug") or \
+               _next_plan_id(plans_base)
         output_dir = plans_base / slug
 
-        if output_dir.exists():
-            dir_action = ask_choice(
-                f"出力ディレクトリ '{slug}' は既に存在します。",
-                ["上書き", "別名で作成"],
+        if output_dir.exists() and "slug" not in self.session.checkpoint_data:
+            return self.make_interaction(
+                checkpoint="output_dir_conflict",
+                question=f"出力ディレクトリ '{slug}' は既に存在します。上書きしますか？",
+                options=["上書き"],
+                context="別名を自由入力で指定できます",
             )
-            if dir_action == "別名で作成":
-                new_slug = ask_text("新しいslugを入力してください")
-                slug = new_slug
-                output_dir = self.config.project_root / "docs" / "modify-plans" / slug
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        self.progress.print_info(f"Output: docs/modify-plans/{slug}/")
+        self.session.checkpoint_data["slug"] = slug
+        self.session.checkpoint_data["output_dir"] = str(output_dir)
+        self._save()
+        return None
 
-        # ── Step 4: MP1 × N — Plan generation (parallel) ─────────
-        spec_names = [name for name, _ in target_specs]
-        mp1_results, mp1_failures = await self._run_mp1_parallel(
-            spec_names, change_description, propagation_map, output_dir,
-            target_specs_str,
+    async def _seg_MP1(self) -> dict[str, Any] | None:
+        """MP1 x N: plan generation (parallel)."""
+        target_specs = self.session.checkpoint_data.get("target_specs", [])
+        spec_names = [s["name"] for s in target_specs]
+        change = self.session.params.get("change", "")
+        propagation_map = self.session.checkpoint_data.get("propagation_map", "")
+        target_specs_str = self.session.checkpoint_data.get("target_specs_str", "")
+        output_dir = Path(self.session.checkpoint_data["output_dir"])
+
+        successes, failures = await self._run_mp1_parallel(
+            spec_names, change, propagation_map, output_dir, target_specs_str,
         )
 
-        if not mp1_results and mp1_failures:
-            raise PipelineError(
-                "MP1: 全てのplan生成が失敗しました。\n"
-                + "\n".join(f"  - {name}: {err}" for name, err in mp1_failures)
+        if not successes and failures:
+            return self.make_failed(
+                error_message=(
+                    "MP1: 全てのplan生成が失敗しました。\n"
+                    + "\n".join(f"  - {name}: {err}" for name, err in failures)
+                )
             )
 
-        if mp1_failures:
-            fail_names = [name for name, _ in mp1_failures]
-            self.progress.print_info(
-                f"MP1: 一部失敗 — {', '.join(fail_names)}"
-            )
-            retry = ask_choice(
-                "失敗したspecをどうしますか？",
-                ["スキップして続行", "キャンセル"],
-            )
-            if retry == "キャンセル":
-                self.progress.print_summary()
-                return {"status": "cancelled-partial-failure", "change": change_description}
+        # Store success data
+        mp1_data: dict[str, dict] = {}
+        for name, result in successes:
+            mp1_data[name] = {
+                "summary": result.parsed.mp1_summary,
+                "gaps": result.parsed.mp1_gaps,
+            }
+        self.session.checkpoint_data["mp1_results"] = mp1_data
+        self.session.checkpoint_data["mp1_succeeded"] = [n for n, _ in successes]
+        self._save()
 
-        # ── Step 5: MP2 × N — Plan review (parallel) ──────────────
-        all_summaries = self._collect_mp1_summaries(mp1_results)
+        if failures:
+            fail_names = [name for name, _ in failures]
+            return self.make_interaction(
+                checkpoint="mp1_partial_failure",
+                question=f"MP1: 一部失敗 — {', '.join(fail_names)}。どうしますか？",
+                options=["スキップして続行", "キャンセル"],
+            )
+
+        return None
+
+    async def _seg_MP2(self) -> dict[str, Any] | None:
+        """MP2 x N: plan review (parallel)."""
+        mp1_succeeded = self.session.checkpoint_data.get("mp1_succeeded", [])
+        mp1_data = self.session.checkpoint_data.get("mp1_results", {})
+        change = self.session.params.get("change", "")
+        propagation_map = self.session.checkpoint_data.get("propagation_map", "")
+        output_dir = Path(self.session.checkpoint_data["output_dir"])
+
+        # Collect summaries for cross-spec review
+        all_summaries = "\n\n".join(
+            f"## {name}\n{data.get('summary', '')}\nGaps: {data.get('gaps', '')}"
+            for name, data in mp1_data.items()
+        )
+
         mp2_results = await self._run_mp2_parallel(
-            mp1_results, change_description, propagation_map, all_summaries,
+            mp1_succeeded, change, propagation_map, all_summaries, output_dir,
         )
 
-        # ── Step 6: Result display ────────────────────────────────
-        self._display_results(mp2_results, output_dir)
+        # Store MP2 results
+        mp2_data: dict[str, dict] = {}
+        for name, result in mp2_results:
+            mp2_data[name] = {
+                "status": result.parsed.mp2_status or "unknown",
+                "changes": result.parsed.mp2_changes or "",
+            }
+        self.session.checkpoint_data["mp2_results"] = mp2_data
+        self._save()
+        return None
 
-        # ── Step 7: User decision — Accept / Feedback loop ────────
-        result = await self._feedback_loop(
-            mp2_results, change_description, propagation_map, all_summaries,
-            output_dir,
+    async def _seg_review(self) -> dict[str, Any] | None:
+        """User review decision — Accept or Feedback."""
+        mp2_data = self.session.checkpoint_data.get("mp2_results", {})
+
+        # Check if we need to run feedback loop
+        if self.session.checkpoint_data.pop("do_feedback_loop", False):
+            feedback_text = self.session.checkpoint_data.pop("feedback_text", "")
+            await self._run_feedback_iteration(feedback_text)
+            mp2_data = self.session.checkpoint_data.get("mp2_results", {})
+
+        # Build results summary
+        results_summary = "\n".join(
+            f"  - {name}: {data.get('status', 'unknown')}"
+            for name, data in mp2_data.items()
         )
 
-        # Write _index.md
+        revise_specs = [
+            name for name, data in mp2_data.items()
+            if data.get("status") == "REVISE"
+        ]
+
+        context = f"結果:\n{results_summary}"
+        if revise_specs:
+            context += f"\n\nREVISE対象: {', '.join(revise_specs)}"
+
+        return self.make_interaction(
+            checkpoint="mp2_review_decision",
+            question="planを確認してください。",
+            options=["Accept — 確定", "Feedback — 修正指示"],
+            context=context,
+        )
+
+    async def _seg_write_index(self) -> dict[str, Any] | None:
+        """Write _index.md."""
+        output_dir = Path(self.session.checkpoint_data["output_dir"])
+        slug = self.session.checkpoint_data["slug"]
+        change = self.session.params.get("change", "")
+        target_specs = self.session.checkpoint_data.get("target_specs", [])
+        propagation_map = self.session.checkpoint_data.get("propagation_map", "")
+        execution_order_str = self.session.checkpoint_data.get("execution_order_str", "")
+        mp2_data = self.session.checkpoint_data.get("mp2_results", {})
+
         self._write_index(
-            output_dir, slug, change_description, target_specs,
-            propagation_map, execution_order_str, mp2_results,
+            output_dir, slug, change,
+            [(s["name"], s["confidence"]) for s in target_specs],
+            propagation_map, execution_order_str, mp2_data,
         )
+        return None
 
-        self.progress.print_summary()
-        self.progress.print_success(f"Plan出力: docs/modify-plans/{slug}/")
-        self.progress.print_info(
-            f"=== 次のステップ ===\n"
-            f"1. docs/modify-plans/{slug}/_index.md を確認してください\n"
-            f"2. 各planファイルの内容を確認・修正してください\n"
-            f"3. 準備ができたら: make modify plan={slug}"
-        )
+    # ── Completion ───────────────────────────────────────────────
 
-        return {
+    def _complete_pipeline(self) -> dict[str, Any]:
+        slug = self.session.checkpoint_data.get("slug", "")
+        target_specs = self.session.checkpoint_data.get("target_specs", [])
+        return self.make_completed({
             "status": "completed",
-            "change": change_description,
+            "change": self.session.params.get("change", ""),
             "slug": slug,
-            "specs": [name for name, _ in target_specs],
-            "output_dir": str(output_dir),
-        }
+            "specs": [s["name"] for s in target_specs],
+            "output_dir": self.session.checkpoint_data.get("output_dir", ""),
+            "next_step": f"make modify plan={slug}",
+        })
 
-    # ── Parallel execution helpers ────────────────────────────────
+    # ── Parallel execution ───────────────────────────────────────
 
     async def _run_mp1_parallel(
         self,
@@ -229,7 +407,6 @@ class ModifyPlanPipeline(Pipeline):
         output_dir: Path,
         all_target_specs: str,
     ) -> tuple[list[tuple[str, AgentResult]], list[tuple[str, str]]]:
-        """Run MP1 plan-gen in parallel for each spec."""
 
         async def run_single(name: str) -> tuple[str, AgentResult | Exception]:
             plan_path = output_dir / f"{name}.md"
@@ -276,17 +453,15 @@ class ModifyPlanPipeline(Pipeline):
 
     async def _run_mp2_parallel(
         self,
-        mp1_results: list[tuple[str, AgentResult]],
+        spec_names: list[str],
         change_description: str,
         propagation_map: str,
         all_summaries: str,
+        output_dir: Path,
     ) -> list[tuple[str, AgentResult]]:
-        """Run MP2 review in parallel for each successfully generated plan."""
 
-        async def run_single(
-            name: str, mp1_result: AgentResult
-        ) -> tuple[str, AgentResult | Exception]:
-            plan_path = self._get_plan_path_from_results(name)
+        async def run_single(name: str) -> tuple[str, AgentResult | Exception]:
+            plan_path = str(output_dir / f"{name}.md")
             try:
                 result = await self.run_agent_step(
                     AgentStep(
@@ -307,7 +482,7 @@ class ModifyPlanPipeline(Pipeline):
             except Exception as e:
                 return name, e
 
-        tasks = [run_single(name, result) for name, result in mp1_results]
+        tasks = [run_single(name) for name in spec_names]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: list[tuple[str, AgentResult]] = []
@@ -316,137 +491,104 @@ class ModifyPlanPipeline(Pipeline):
                 continue
             name, result = item
             if isinstance(result, Exception):
-                self.progress.print_info(f"MP2: {name} レビュー失敗 — {result}")
                 continue
             results.append((name, result))
 
         return results
 
-    # ── Feedback loop ─────────────────────────────────────────────
+    # ── Feedback loop ────────────────────────────────────────────
 
-    async def _feedback_loop(
-        self,
-        mp2_results: list[tuple[str, AgentResult]],
-        change_description: str,
-        propagation_map: str,
-        all_summaries: str,
-        output_dir: Path,
-    ) -> list[tuple[str, AgentResult]]:
-        """Handle accept/feedback user decision loop."""
-        current_results = mp2_results
+    async def _run_feedback_iteration(self, feedback: str) -> None:
+        """Run MP1e + MP2 for specs that need revision."""
+        mp2_data = self.session.checkpoint_data.get("mp2_results", {})
+        output_dir = Path(self.session.checkpoint_data["output_dir"])
+        change = self.session.params.get("change", "")
+        propagation_map = self.session.checkpoint_data.get("propagation_map", "")
+        mp1_data = self.session.checkpoint_data.get("mp1_results", {})
 
-        while True:
-            # Check for REVISE status
-            revise_specs = [
-                name for name, r in current_results
-                if r.parsed.mp2_status == "REVISE"
-            ]
+        # Determine which specs to edit
+        revise_specs = [
+            name for name, data in mp2_data.items()
+            if data.get("status") == "REVISE"
+        ]
+        if not revise_specs:
+            # Try to parse spec names from feedback
+            all_specs = list(mp2_data.keys())
+            revise_specs = all_specs  # Default to all
 
-            if revise_specs:
-                self.progress.print_info(
-                    f"REVISE対象: {', '.join(revise_specs)}"
-                )
+        all_summaries = "\n\n".join(
+            f"## {name}\n{data.get('summary', '')}\nGaps: {data.get('gaps', '')}"
+            for name, data in mp1_data.items()
+        )
 
-            choice = ask_choice(
-                "planを確認してください。",
-                ["Accept — 確定", "Feedback — 修正指示"],
-            )
+        for spec_name in revise_specs:
+            review_changes = mp2_data.get(spec_name, {}).get("changes", "")
+            plan_path = str(output_dir / f"{spec_name}.md")
 
-            if choice.startswith("Accept"):
-                return current_results
-
-            # Get feedback
-            feedback = ask_text("修正内容を入力してください")
-
-            # Determine which specs to re-edit
-            if revise_specs:
-                edit_specs = revise_specs
-            else:
-                edit_target = ask_text(
-                    f"対象spec名 (カンマ区切り、または 'all'): "
-                )
-                if edit_target.strip().lower() == "all":
-                    edit_specs = [name for name, _ in current_results]
-                else:
-                    edit_specs = [s.strip() for s in edit_target.split(",")]
-
-            # Run MP1e for target specs
-            for spec_name in edit_specs:
-                mp2_result = next(
-                    (r for name, r in current_results if name == spec_name),
-                    None,
-                )
-                review_changes = mp2_result.parsed.mp2_changes if mp2_result else ""
-
-                plan_path = str(output_dir / f"{spec_name}.md")
-                result_mp1e = await self._run_or_fail(
-                    f"MP1e: {spec_name}",
-                    "tools/orchestrator/prompts/modify-plan-edit.md",
-                    "sonnet",
-                    {
+            # MP1e: edit
+            await self.run_agent_step(
+                AgentStep(
+                    name=f"MP1e: {spec_name}",
+                    instruction_path="tools/orchestrator/prompts/modify-plan-edit.md",
+                    model="sonnet",
+                    params={
                         "FEATURE_NAME": spec_name,
                         "PLAN_PATH": plan_path,
                         "FEEDBACK": feedback,
                         "REVIEW_CHANGES": review_changes,
                         "PROPAGATION_MAP": propagation_map,
                     },
-                    self.config.project_root,
-                )
+                ),
+                cwd=self.config.project_root,
+            )
 
-                # Re-run MP2 for edited spec
-                result_mp2 = await self.run_agent_step(
-                    AgentStep(
-                        name=f"MP2: {spec_name} (re-review)",
-                        instruction_path="tools/orchestrator/prompts/modify-plan-review.md",
-                        model="opus",
-                        params={
-                            "FEATURE_NAME": spec_name,
-                            "PLAN_PATH": plan_path,
-                            "CHANGE_DESCRIPTION": change_description,
-                            "PROPAGATION_MAP": propagation_map,
-                            "ALL_PLANS_SUMMARY": all_summaries,
-                        },
-                    ),
-                    cwd=self.config.project_root,
-                )
+            # MP2: re-review
+            result_mp2 = await self.run_agent_step(
+                AgentStep(
+                    name=f"MP2: {spec_name} (re-review)",
+                    instruction_path="tools/orchestrator/prompts/modify-plan-review.md",
+                    model="opus",
+                    params={
+                        "FEATURE_NAME": spec_name,
+                        "PLAN_PATH": plan_path,
+                        "CHANGE_DESCRIPTION": change,
+                        "PROPAGATION_MAP": propagation_map,
+                        "ALL_PLANS_SUMMARY": all_summaries,
+                    },
+                ),
+                cwd=self.config.project_root,
+            )
 
-                # Update results
-                current_results = [
-                    (spec_name, result_mp2) if name == spec_name else (name, r)
-                    for name, r in current_results
-                ]
+            mp2_data[spec_name] = {
+                "status": result_mp2.parsed.mp2_status or "unknown",
+                "changes": result_mp2.parsed.mp2_changes or "",
+            }
 
-            self._display_results(current_results, output_dir)
+        self.session.checkpoint_data["mp2_results"] = mp2_data
+        self._save()
 
-    # ── Index file generation ─────────────────────────────────────
+    # ── Index file generation ────────────────────────────────────
 
+    @staticmethod
     def _write_index(
-        self,
         output_dir: Path,
         slug: str,
         change_description: str,
         target_specs: list[tuple[str, str]],
         propagation_map: str,
         execution_order: str,
-        mp2_results: list[tuple[str, AgentResult]],
+        mp2_data: dict[str, dict],
     ) -> None:
-        """Write _index.md execution guide."""
         today = date.today().isoformat()
 
-        # Build spec table
         spec_rows: list[str] = []
         for name, confidence in target_specs:
-            status = "READY"
-            for rname, r in mp2_results:
-                if rname == name:
-                    status = r.parsed.mp2_status or "READY"
-                    break
+            status = mp2_data.get(name, {}).get("status", "READY")
             spec_rows.append(
                 f"| {name} | {confidence} | [{name}.md](./{name}.md) | {status} |"
             )
         spec_table = "\n".join(spec_rows)
 
-        # Build execution order list
         exec_order = [s.strip() for s in execution_order.split(",")]
         exec_list = "\n".join(f"{i}. {name}" for i, name in enumerate(exec_order, 1))
 
@@ -470,31 +612,13 @@ make modify plan={slug}
 
 {exec_list}
 """
-
         index_path = output_dir / "_index.md"
         index_path.write_text(content)
 
-    # ── Display helpers ───────────────────────────────────────────
-
-    def _display_results(
-        self,
-        mp2_results: list[tuple[str, AgentResult]],
-        output_dir: Path,
-    ) -> None:
-        """Display review results summary."""
-        for name, r in mp2_results:
-            status = r.parsed.mp2_status or "unknown"
-            icon = "[green]READY[/]" if status == "READY" else "[yellow]REVISE[/]"
-            if self.progress:
-                self.progress.console.print(
-                    f"  {icon} {name} → docs/modify-plans/.../{name}.md"
-                )
-
-    # ── Parsing helpers ───────────────────────────────────────────
+    # ── Parsing helpers ──────────────────────────────────────────
 
     @staticmethod
     def _parse_target_specs(specs_str: str) -> list[tuple[str, str]]:
-        """Parse 'spec2 (high), spec1 (medium)' into [(name, confidence)]."""
         result: list[tuple[str, str]] = []
         for item in specs_str.split(","):
             item = item.strip()
@@ -507,11 +631,9 @@ make modify plan={slug}
 
     @staticmethod
     def _extract_propagation_entry(propagation_map: str, spec_name: str) -> str:
-        """Extract the propagation map entry for a specific spec."""
         lines = propagation_map.split("\n")
         entry_lines: list[str] = []
         capturing = False
-
         for line in lines:
             if line.startswith(f"## {spec_name}"):
                 capturing = True
@@ -520,45 +642,4 @@ make modify plan={slug}
                 break
             elif capturing:
                 entry_lines.append(line)
-
         return "\n".join(entry_lines).strip() if entry_lines else ""
-
-    def _get_plan_path_from_results(self, spec_name: str) -> str:
-        """Resolve plan file path for a spec name."""
-        # Walk up from progress to find output_dir — stored via convention
-        # Simplification: reconstruct from project root
-        plans_dir = self.config.project_root / "docs" / "modify-plans"
-        for d in sorted(plans_dir.iterdir(), reverse=True):
-            if d.is_dir():
-                candidate = d / f"{spec_name}.md"
-                if candidate.exists():
-                    return str(candidate)
-        return str(plans_dir / f"{spec_name}.md")
-
-    def _collect_mp1_summaries(
-        self, mp1_results: list[tuple[str, AgentResult]]
-    ) -> str:
-        """Collect MP1 summaries for cross-spec review."""
-        parts: list[str] = []
-        for name, result in mp1_results:
-            summary = result.parsed.mp1_summary
-            gaps = result.parsed.mp1_gaps
-            parts.append(f"## {name}\n{summary}\nGaps: {gaps}")
-        return "\n\n".join(parts)
-
-    async def _run_or_fail(
-        self,
-        name: str,
-        instruction_path: str,
-        model: str,
-        params: dict[str, str],
-        cwd: Path,
-    ) -> AgentResult:
-        """Run an agent step; raise PipelineError on failure."""
-        result = await self.run_agent_step(
-            AgentStep(name=name, instruction_path=instruction_path, model=model, params=params),
-            cwd=cwd,
-        )
-        if result.is_error:
-            raise PipelineError(f"{name} failed: {result.error_message}")
-        return result

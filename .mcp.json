@@ -7,6 +7,10 @@
     "gopeak": {
       "command": "env",
       "args": ["-u", "WAYLAND_DISPLAY", "-u", "XDG_RUNTIME_DIR", "xvfb-run", "--auto-servernum", "npx", "gopeak"]
+    },
+    "sdd": {
+      "command": ".venv/bin/python",
+      "args": ["-m", "tools.orchestrator"]
     }
   }
 }

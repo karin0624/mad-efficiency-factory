@@ -1,165 +1,196 @@
-"""Pipeline base class — shared run structure and error handling."""
+"""InterruptiblePipeline base class — checkpoint-based execution."""
 
 from __future__ import annotations
 
-import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
 from .agent_runner import AgentRunner, AgentStep, AgentResult
 from .config import OrchestratorConfig
-from .progress import PipelineProgress, StepRecord
+from .progress import StepTracker
+from .response import (
+    error_occurred,
+    interaction_required,
+    pipeline_completed,
+    pipeline_failed,
+)
+from .session import PipelineSession, save_session
 
 
 class PipelineError(Exception):
-    """Raised when a pipeline step fails fatally."""
+    """Raised when a pipeline step fails fatally (caught by server.py)."""
 
     def __init__(self, message: str, worktree_path: Path | None = None) -> None:
         super().__init__(message)
         self.worktree_path = worktree_path
 
 
-class PipelineAborted(Exception):
-    """Raised when the user cancels an interactive input."""
-    pass
+class InterruptiblePipeline(ABC):
+    """Base class for checkpoint-based interruptible pipelines."""
 
-
-# ── ASK_USER marker helpers ──────────────────────────────────────
-
-_ASK_USER_RE = re.compile(
-    r"<<ASK_USER>>\s*\n(.*?)<</ASK_USER>>", re.DOTALL
-)
-
-
-def _parse_ask_user_marker(text: str) -> dict | None:
-    """<<ASK_USER>> マーカーをパースして question と options を返す。
-
-    question: の値が複数行にわたる場合（YAML ブロックスカラー ``|`` / ``>``
-    や、単に改行で続く場合）も正しく収集する。``options:`` ヘッダまたは
-    ``- `` リスト項目が現れるまでを question テキストとして扱う。
-    """
-    m = _ASK_USER_RE.search(text)
-    if not m:
-        return None
-
-    body = m.group(1)
-    question_lines: list[str] = []
-    options: list[str] = []
-    in_question = False
-
-    for line in body.split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("question:"):
-            in_question = True
-            # question: の後のテキストを取得（``|`` / ``>`` は除去）
-            first = stripped[len("question:"):].strip()
-            if first and first not in ("|", ">"):
-                question_lines.append(first)
-        elif stripped.startswith("options:"):
-            in_question = False
-        elif stripped.startswith("- "):
-            in_question = False
-            options.append(stripped[2:].strip())
-        elif in_question and stripped:
-            question_lines.append(stripped)
-
-    question = "\n".join(question_lines)
-    return {"question": question, "options": options} if question else None
-
-
-def _print_pre_marker_text(turn_text: str) -> None:
-    """<<ASK_USER>> マーカーより前のLLMテキスト出力をユーザーに表示する。"""
-    m = _ASK_USER_RE.search(turn_text)
-    if not m:
-        return
-    pre_text = turn_text[: m.start()].strip()
-    if pre_text:
-        from .human_input import console as _console
-
-        _console.print(pre_text)
-
-
-def _collect_user_input(question: str, options: list[str]) -> str:
-    """ターミナルでユーザー入力を収集する。
-
-    Raises:
-        PipelineAborted: ユーザーが Ctrl+C / EOF で入力を中断した場合。
-    """
-    from .human_input import ask_choice, ask_text
-
-    try:
-        if options:
-            return ask_choice(question, options, allow_freetext=True)
-        else:
-            return ask_text(question)
-    except (KeyboardInterrupt, EOFError):
-        raise PipelineAborted("User cancelled interactive input")
-
-
-class Pipeline(ABC):
-    """Base class for orchestration pipelines."""
-
-    def __init__(self, config: OrchestratorConfig) -> None:
+    def __init__(
+        self,
+        config: OrchestratorConfig,
+        session: PipelineSession,
+        session_dir: Path,
+    ) -> None:
         self.config = config
+        self.session = session
+        self.session_dir = session_dir
         self.runner = AgentRunner(config)
-        self.progress: PipelineProgress | None = None
+        self.tracker = StepTracker()
 
     @abstractmethod
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Execute the pipeline. Returns a result summary dict."""
+    async def run_until_checkpoint(self) -> dict[str, Any]:
+        """Execute pipeline from current checkpoint until next checkpoint or completion."""
         ...
+
+    # ── Response helpers ─────────────────────────────────────────
+
+    def make_interaction(
+        self,
+        checkpoint: str,
+        question: str,
+        options: list[str] | None = None,
+        context: str = "",
+    ) -> dict[str, Any]:
+        """Pause at checkpoint and return InteractionRequired response."""
+        self.session.checkpoint = checkpoint
+        self.session.status = "paused"
+        self._save()
+        return interaction_required(
+            session_id=self.session.session_id,
+            pipeline=self.session.pipeline,
+            current_step=checkpoint,
+            question=question,
+            options=options,
+            context=context,
+            progress=self.tracker.to_progress_list(),
+        )
+
+    def make_error(
+        self,
+        checkpoint: str,
+        error: str,
+        step_output: str = "",
+        recoverable: bool = True,
+        suggested_actions: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Pause at error checkpoint and return ErrorOccurred response."""
+        self.session.checkpoint = checkpoint
+        self.session.status = "paused"
+        self._save()
+        return error_occurred(
+            session_id=self.session.session_id,
+            pipeline=self.session.pipeline,
+            current_step=checkpoint,
+            error_message=error,
+            step_output=step_output,
+            recoverable=recoverable,
+            suggested_actions=suggested_actions,
+            progress=self.tracker.to_progress_list(),
+        )
+
+    def make_completed(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Mark pipeline as completed and return response."""
+        self.session.checkpoint = "done"
+        self.session.status = "completed"
+        self.session.completed_steps = self.tracker.to_progress_list()
+        self._save()
+        return pipeline_completed(
+            session_id=self.session.session_id,
+            pipeline=self.session.pipeline,
+            current_step="done",
+            result=result,
+            progress=self.tracker.to_progress_list(),
+        )
+
+    def make_failed(self, error_message: str) -> dict[str, Any]:
+        """Mark pipeline as failed and return response."""
+        self.session.status = "failed"
+        self._save()
+        return pipeline_failed(
+            session_id=self.session.session_id,
+            pipeline=self.session.pipeline,
+            current_step=self.session.checkpoint or "unknown",
+            error_message=error_message,
+            progress=self.tracker.to_progress_list(),
+        )
+
+    # ── Step execution ───────────────────────────────────────────
 
     async def run_agent_step(
         self,
         step: AgentStep,
         cwd: Path | None = None,
     ) -> AgentResult:
-        """Execute an agent step with progress tracking.
-
-        Creates a StepRecord, starts it, runs the step, and marks
-        it as completed or failed.
-        """
-        record = None
-        if self.progress:
-            record = self.progress.add_step(step.name, step.model)
-            self.progress.start_step(record)
+        """Execute an agent step with tracking."""
+        record = self.tracker.add_step(step.name, step.model)
+        self.tracker.start_step(record)
 
         result = await self.runner.run_step(
             step,
-            progress=self.progress,
+            progress=self.tracker,
             step_record=record,
             cwd=cwd,
         )
 
-        if self.progress and record:
-            if result.is_error:
-                self.progress.fail_step(record, result.error_message)
-            else:
-                self.progress.complete_step(record, result.input_tokens, result.output_tokens)
+        if result.is_error:
+            self.tracker.fail_step(record, result.error_message)
+        else:
+            self.tracker.complete_step(
+                record, result.input_tokens, result.output_tokens
+            )
 
         return result
 
     def skip_step(self, name: str, model: str, reason: str = "") -> None:
-        """Register and immediately skip a step."""
-        if self.progress:
-            record = self.progress.add_step(name, model)
-            self.progress.skip_step(record, reason)
+        """Register and skip a step."""
+        record = self.tracker.add_step(name, model)
+        self.tracker.skip_step(record, reason)
 
-    async def _run_interactive_skill(
+    def _save(self) -> None:
+        """Persist session state to disk."""
+        save_session(self.session, self.session_dir)
+
+    # ── Segment runner ───────────────────────────────────────────
+
+    async def _run_segments(
         self,
-        prompt: str,
-        *,
-        cwd: Path,
-        extra_allowed_tools: list[str] | None = None,
-        model: str = "sonnet",
-        max_turns: int = 30,
-    ) -> str:
-        """ClaudeSDKClient でマルチターン対話可能なスキルを実行する。
+        segments: list[tuple[str, Any]],
+        start_from: str = "",
+    ) -> dict[str, Any] | None:
+        """Run ordered segments from start_from. Returns checkpoint response or None."""
+        start_idx = 0
+        if start_from:
+            for i, (name, _) in enumerate(segments):
+                if name == start_from:
+                    start_idx = i
+                    break
 
-        AskUserQuestion の代わりに <<ASK_USER>> マーカーを使用し、
-        Python 側でユーザー入力を収集して同一セッションに注入する。
-        """
+        for i in range(start_idx, len(segments)):
+            name, handler = segments[i]
+            result = await handler()
+            if result is not None:
+                return result
+            # Segment completed — update checkpoint to next
+            if i + 1 < len(segments):
+                self.session.checkpoint = segments[i + 1][0]
+                self._save()
+
+        return None  # All segments completed
+
+    # ── Skill step runner ────────────────────────────────────────
+
+    async def _run_skill_step(
+        self,
+        name: str,
+        prompt: str,
+        cwd: Path,
+        model: str = "sonnet",
+    ) -> str:
+        """Run a skill as a single agent step via ClaudeSDKClient."""
         from claude_agent_sdk import (
             AssistantMessage,
             ClaudeAgentOptions,
@@ -168,92 +199,12 @@ class Pipeline(ABC):
             TextBlock,
         )
 
-        # AskUserQuestion を除外（SDK サブプロセスでは動作しない）
-        allowed = [t for t in self.config.allowed_tools if t != "AskUserQuestion"]
-        if extra_allowed_tools:
-            for tool in extra_allowed_tools:
-                if tool not in allowed and tool != "AskUserQuestion":
-                    allowed.append(tool)
-
-        # ラッパープロンプト: AskUserQuestion → マーカー変換指示
-        wrapped_prompt = (
-            f"{prompt}\n\n"
-            "---\n"
-            "【環境制約】AskUserQuestion ツールはこの環境では利用できません。\n"
-            "ユーザー入力が必要な場合は、以下のフォーマットで質問を出力してください:\n\n"
-            "<<ASK_USER>>\n"
-            "question: [質問文]\n"
-            "options:\n"
-            "- [選択肢1]\n"
-            "- [選択肢2]\n"
-            "<</ASK_USER>>\n\n"
-            "マーカー出力後は応答を終了してください。\n"
-            "次のメッセージでユーザーの回答が提供されます。\n"
-        )
+        record = self.tracker.add_step(name, model)
+        self.tracker.start_step(record)
 
         options = ClaudeAgentOptions(
             model=self.config.resolve_model(model),
             cwd=str(cwd),
-            setting_sources=["project"],
-            permission_mode=self.config.permission_mode,
-            allowed_tools=allowed,
-            max_turns=max_turns,
-            system_prompt={"type": "preset", "preset": "claude_code"},
-        )
-
-        text_parts: list[str] = []
-        current_turn_text: list[str] = []
-
-        async with ClaudeSDKClient(options) as client:
-            await client.query(wrapped_prompt)
-
-            # 単一の長寿命イテレータ — ResultMessage で閉じない
-            async for message in client.receive_messages():
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            text_parts.append(block.text)
-                            current_turn_text.append(block.text)
-
-                elif isinstance(message, ResultMessage):
-                    turn_text = "\n".join(current_turn_text)
-                    marker = _parse_ask_user_marker(turn_text)
-
-                    if marker:
-                        # マーカー前のテキスト（ドラフト、詳細質問等）を表示
-                        _print_pre_marker_text(turn_text)
-                        # ユーザー入力を収集
-                        user_response = _collect_user_input(
-                            marker["question"], marker["options"]
-                        )
-                        # 同一セッションに応答注入 → コンテキスト維持
-                        await client.query(f"ユーザーの回答: {user_response}")
-                        current_turn_text = []
-                        # break しない — receive_messages() が次のターンを返す
-                    else:
-                        # マーカーなし → スキル完了
-                        if message.result:
-                            text_parts.append(message.result)
-                        break
-
-        return "\n".join(text_parts)
-
-    async def _run_steering_sync(self, wt_path: Path) -> None:
-        """/kiro:steering スキルを呼び出してsteering同期を実行する。"""
-        from claude_agent_sdk import (
-            ClaudeAgentOptions,
-            ClaudeSDKClient,
-            ResultMessage,
-        )
-
-        record = None
-        if self.progress:
-            record = self.progress.add_step("steering-sync", "sonnet")
-            self.progress.start_step(record)
-
-        options = ClaudeAgentOptions(
-            model=self.config.resolve_model("sonnet"),
-            cwd=str(wt_path),
             setting_sources=["project"],
             permission_mode=self.config.permission_mode,
             allowed_tools=list(self.config.allowed_tools),
@@ -261,11 +212,89 @@ class Pipeline(ABC):
             system_prompt={"type": "preset", "preset": "claude_code"},
         )
 
+        text_parts: list[str] = []
         async with ClaudeSDKClient(options) as client:
-            await client.query('以下のSkillを実行してください:\nSkill(skill="kiro:steering")')
+            await client.query(prompt)
             async for message in client.receive_messages():
-                if isinstance(message, ResultMessage):
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            text_parts.append(block.text)
+                elif isinstance(message, ResultMessage):
+                    if message.result:
+                        text_parts.append(message.result)
                     break
 
-        if self.progress and record:
-            self.progress.complete_step(record, 0, 0)
+        self.tracker.complete_step(record, 0, 0)
+        return "\n".join(text_parts)
+
+    async def _run_steering_sync(self, wt_path: Path) -> None:
+        """/kiro:steering スキルを呼び出してsteering同期を実行する。"""
+        await self._run_skill_step(
+            "steering-sync",
+            '以下のSkillを実行してください:\nSkill(skill="kiro:steering")',
+            wt_path,
+        )
+
+    # ── Error resume helpers ─────────────────────────────────────
+
+    def _handle_step_error_resume(
+        self,
+        step_name: str,
+    ) -> dict[str, Any] | None:
+        """Handle resume from step_X_failed / step_X_rejected checkpoint.
+
+        Returns a response dict if another checkpoint is needed, or None to continue.
+        Sets self.session.checkpoint to the segment to continue from.
+        """
+        action = self.session.checkpoint_data.get("action", "retry")
+
+        if action == "abort":
+            return self.make_failed(
+                error_message=f"ユーザーがステップ '{step_name}' で中止しました。"
+            )
+
+        if action == "skip":
+            return self.make_interaction(
+                checkpoint=f"step_{step_name}_skip_confirm",
+                question=(
+                    f"ステップ '{step_name}' をスキップしますか？ "
+                    f"スキップすると後続ステップに影響がある可能性があります。"
+                ),
+                options=["スキップして続行", "リトライ", "中止"],
+            )
+
+        # retry (default) — re-run the same segment
+        self.session.checkpoint = step_name
+        self._save()
+        return None
+
+    def _handle_skip_confirm_resume(
+        self,
+        step_name: str,
+        segments: list[tuple[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Handle resume from step_X_skip_confirm checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+
+        if "スキップ" in user_input:
+            # Advance to the next segment
+            seg_names = [n for n, _ in segments]
+            try:
+                idx = seg_names.index(step_name)
+                next_seg = seg_names[idx + 1] if idx + 1 < len(seg_names) else "done"
+            except ValueError:
+                next_seg = step_name
+            self.session.checkpoint = next_seg
+            self._save()
+            return None
+
+        if "リトライ" in user_input:
+            self.session.checkpoint = step_name
+            self._save()
+            return None
+
+        # 中止
+        return self.make_failed(
+            error_message="ユーザーがパイプラインを中止しました。"
+        )

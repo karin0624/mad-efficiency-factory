@@ -1,17 +1,1 @@
-PYTHON := .venv/bin/python
-ORCH   := $(PYTHON) -m tools.orchestrator
-
-.PHONY: impl modify modify-plan
-
-impl:
-	$(ORCH) implement $(plan)
-
-modify:
-ifdef plan
-	$(ORCH) modify --plan $(plan)
-else
-	$(ORCH) modify $(feature) $(change)
-endif
-
-modify-plan:
-	$(ORCH) modify-plan $(change)
+# Orchestrator targets removed — use MCP tools (sdd_start, sdd_resume, sdd_status) instead.

@@ -1,5 +1,5 @@
-"""Allow running as `python -m tools.orchestrator`."""
+"""Allow running as `python -m tools.orchestrator` — starts MCP server."""
 
-from .cli import main
+from .server import mcp
 
-main()
+mcp.run(transport="stdio")

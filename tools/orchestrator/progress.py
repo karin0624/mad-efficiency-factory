@@ -1,4 +1,4 @@
-"""Rich console progress display for pipeline execution."""
+"""Step tracking — structured data collection for pipeline execution."""
 
 from __future__ import annotations
 
@@ -6,21 +6,16 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from rich.console import Console
-from rich.table import Table
-from rich.live import Live
-from rich.panel import Panel
-from rich.text import Text
-
 
 @dataclass
 class StepRecord:
+    """Record for a single pipeline step."""
+
     name: str
     model: str
     status: str = "pending"  # pending, running, completed, failed, skipped
     start_time: float = 0.0
     end_time: float = 0.0
-    tool_calls: list[str] = field(default_factory=list)
     error: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
@@ -32,38 +27,45 @@ class StepRecord:
         end = self.end_time if self.end_time > 0 else time.time()
         return end - self.start_time
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "status": self.status,
+            "elapsed_s": round(self.elapsed_s, 1),
+            "tokens": self.input_tokens + self.output_tokens,
+        }
 
-def _fmt_tokens(n: int) -> str:
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.1f}K"
-    return str(n)
 
+class StepTracker:
+    """Collects structured step data without UI output."""
 
-class PipelineProgress:
-    """Tracks and displays pipeline execution progress."""
-
-    def __init__(self, pipeline_name: str) -> None:
-        self.pipeline_name = pipeline_name
-        self.console = Console()
+    def __init__(self) -> None:
         self.steps: list[StepRecord] = []
-        self._current: StepRecord | None = None
 
     def add_step(self, name: str, model: str) -> StepRecord:
-        """Register a step (before it runs)."""
         step = StepRecord(name=name, model=model)
         self.steps.append(step)
         return step
 
     def start_step(self, step: StepRecord) -> None:
-        """Mark a step as running."""
         step.status = "running"
         step.start_time = time.time()
-        self._current = step
-        self.console.print(
-            f"  [bold cyan]▶[/] {step.name} [dim]({step.model})[/]"
-        )
+
+    def complete_step(
+        self, step: StepRecord, input_tokens: int = 0, output_tokens: int = 0
+    ) -> None:
+        step.status = "completed"
+        step.end_time = time.time()
+        step.input_tokens = input_tokens
+        step.output_tokens = output_tokens
+
+    def fail_step(self, step: StepRecord, error: str = "") -> None:
+        step.status = "failed"
+        step.end_time = time.time()
+        step.error = error
+
+    def skip_step(self, step: StepRecord, reason: str = "") -> None:
+        step.status = "skipped"
 
     def log_tool_call(
         self,
@@ -71,194 +73,15 @@ class PipelineProgress:
         tool_name: str,
         tool_input: dict[str, object] | None = None,
     ) -> None:
-        """Log a tool call during step execution."""
-        step.tool_calls.append(tool_name)
-        detail = self._format_tool_detail(tool_name, tool_input)
-        if detail:
-            self.console.print(f"    [dim]↳ {tool_name}[/] [dim italic]{detail}[/]")
-        else:
-            self.console.print(f"    [dim]↳ {tool_name}[/]")
+        """No-op — tool call logging not needed in MCP mode."""
 
-    @staticmethod
-    def _format_tool_detail(
-        tool_name: str, tool_input: dict[str, object] | None
-    ) -> str:
-        """Extract a short human-readable detail string from tool input."""
-        if not tool_input:
-            return ""
-        # Map tool names to the most informative parameter(s)
-        key_map: dict[str, list[str]] = {
-            "Read": ["file_path"],
-            "Write": ["file_path"],
-            "Edit": ["file_path"],
-            "Glob": ["pattern"],
-            "Grep": ["pattern", "path"],
-            "Bash": ["description", "command"],
-            "Agent": ["description"],
-        }
-        keys = key_map.get(tool_name)
-        if not keys:
-            return ""
-        parts: list[str] = []
-        for k in keys:
-            v = tool_input.get(k)
-            if v is not None:
-                s = str(v)
-                # Truncate long values (e.g. Bash commands)
-                if len(s) > 80:
-                    s = s[:77] + "..."
-                parts.append(s)
-        return " ".join(parts)
+    def log_tool_result(self, tool_name: str, result_block: Any) -> None:
+        """No-op — tool result logging not needed in MCP mode."""
 
-    def log_tool_result(
-        self,
-        tool_name: str,
-        result_block: Any,
-    ) -> None:
-        """Log tool result output. Skipped for Read (file content is noise)."""
-        if tool_name == "Read":
-            return
-        content = self._extract_result_content(result_block)
-        if not content:
-            return
-        # Show truncated output lines with │ prefix
-        lines = content.splitlines()
-        max_lines = 5
-        for line in lines[:max_lines]:
-            if len(line) > 120:
-                line = line[:117] + "..."
-            self.console.print(f"      [dim]│ {line}[/]")
-        if len(lines) > max_lines:
-            self.console.print(f"      [dim]│ ... ({len(lines) - max_lines} more lines)[/]")
+    def to_progress_list(self) -> list[dict[str, Any]]:
+        """Convert completed steps to response progress format."""
+        return [s.to_dict() for s in self.steps]
 
-    @staticmethod
-    def _extract_result_content(result_block: Any) -> str:
-        """Extract displayable text from a ToolResultBlock."""
-        content = getattr(result_block, "content", None)
-        if content is None:
-            return ""
-        if isinstance(content, str):
-            return content
-        # list[dict] — e.g. MCP tool responses with [{type: "text", text: "..."}]
-        if isinstance(content, list):
-            parts: list[str] = []
-            for item in content:
-                if isinstance(item, dict):
-                    text = item.get("text", "")
-                    if text:
-                        parts.append(str(text))
-            return "\n".join(parts)
-        return str(content)
 
-    def complete_step(
-        self, step: StepRecord, input_tokens: int = 0, output_tokens: int = 0
-    ) -> None:
-        """Mark a step as completed."""
-        step.status = "completed"
-        step.end_time = time.time()
-        step.input_tokens = input_tokens
-        step.output_tokens = output_tokens
-        elapsed = step.elapsed_s
-        total_tok = input_tokens + output_tokens
-        tok_str = f" {_fmt_tokens(total_tok)} tok" if total_tok else ""
-        self.console.print(
-            f"  [bold green]✓[/] {step.name} "
-            f"[dim]({elapsed:.1f}s{tok_str})[/]"
-        )
-        self._current = None
-
-    def fail_step(self, step: StepRecord, error: str = "") -> None:
-        """Mark a step as failed."""
-        step.status = "failed"
-        step.end_time = time.time()
-        step.error = error
-        self.console.print(
-            f"  [bold red]✗[/] {step.name} "
-            f"[dim]({step.elapsed_s:.1f}s)[/]"
-        )
-        if error:
-            self.console.print(f"    [red]{error}[/]")
-        self._current = None
-
-    def skip_step(self, step: StepRecord, reason: str = "") -> None:
-        """Mark a step as skipped."""
-        step.status = "skipped"
-        msg = f"  [dim]⊘ {step.name} (skipped"
-        if reason:
-            msg += f": {reason}"
-        msg += ")[/]"
-        self.console.print(msg)
-
-    def print_header(self) -> None:
-        """Print pipeline header."""
-        self.console.print()
-        self.console.print(
-            Panel(
-                f"[bold]{self.pipeline_name}[/]",
-                style="blue",
-                width=60,
-            )
-        )
-        self.console.print()
-
-    def print_summary(self) -> None:
-        """Print final summary table."""
-        self.console.print()
-        table = Table(title="Pipeline Summary", show_lines=True)
-        table.add_column("Step", style="bold")
-        table.add_column("Status")
-        table.add_column("Time", justify="right")
-        table.add_column("Tokens (in/out)", justify="right")
-
-        total_in = 0
-        total_out = 0
-        total_time = 0.0
-
-        for step in self.steps:
-            status_str = {
-                "completed": "[green]✓[/]",
-                "failed": "[red]✗[/]",
-                "skipped": "[dim]⊘[/]",
-                "running": "[yellow]…[/]",
-                "pending": "[dim]·[/]",
-            }.get(step.status, step.status)
-
-            time_str = f"{step.elapsed_s:.1f}s" if step.elapsed_s > 0 else "-"
-            step_total = step.input_tokens + step.output_tokens
-            tok_str = (
-                f"{_fmt_tokens(step.input_tokens)} / {_fmt_tokens(step.output_tokens)}"
-                if step_total > 0
-                else "-"
-            )
-
-            table.add_row(step.name, status_str, time_str, tok_str)
-            total_in += step.input_tokens
-            total_out += step.output_tokens
-            total_time += step.elapsed_s
-
-        grand_total = total_in + total_out
-        table.add_row(
-            "[bold]Total[/]",
-            "",
-            f"[bold]{total_time:.1f}s[/]",
-            f"[bold]{_fmt_tokens(total_in)} / {_fmt_tokens(total_out)} ({_fmt_tokens(grand_total)})[/]",
-        )
-
-        self.console.print(table)
-        self.console.print()
-
-    def print_error(self, message: str) -> None:
-        """Print an error message."""
-        self.console.print(f"[bold red]Error:[/] {message}")
-
-    def print_info(self, message: str) -> None:
-        """Print an info message."""
-        self.console.print(f"[bold blue]Info:[/] {message}")
-
-    def print_warning(self, message: str) -> None:
-        """Print a warning message."""
-        self.console.print(f"[bold yellow]Warning:[/] {message}")
-
-    def print_success(self, message: str) -> None:
-        """Print a success message."""
-        self.console.print(f"[bold green]Success:[/] {message}")
+# Backward compatibility alias for agent_runner.py
+PipelineProgress = StepTracker
