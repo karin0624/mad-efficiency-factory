@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,14 @@ from .response import (
     pipeline_failed,
 )
 from .session import PipelineSession, save_session
+
+
+@dataclass
+class SkillStepResult:
+    """Result from _run_skill_step_with_session, including session_id for resume."""
+
+    text: str
+    session_id: str = ""
 
 
 class PipelineError(Exception):
@@ -227,6 +236,59 @@ class InterruptiblePipeline(ABC):
 
         self.tracker.complete_step(record, 0, 0)
         return "\n".join(text_parts)
+
+    async def _run_skill_step_with_session(
+        self,
+        name: str,
+        prompt: str,
+        cwd: Path,
+        model: str = "sonnet",
+        *,
+        resume_session_id: str | None = None,
+    ) -> SkillStepResult:
+        """Run a skill step, returning both text output and session_id."""
+        from claude_agent_sdk import (
+            AssistantMessage,
+            ClaudeAgentOptions,
+            ClaudeSDKClient,
+            ResultMessage,
+            TextBlock,
+        )
+
+        record = self.tracker.add_step(name, model)
+        self.tracker.start_step(record)
+
+        options = ClaudeAgentOptions(
+            model=self.config.resolve_model(model),
+            cwd=str(cwd),
+            setting_sources=["project"],
+            permission_mode=self.config.permission_mode,
+            allowed_tools=list(self.config.allowed_tools),
+            max_turns=50,
+            system_prompt={"type": "preset", "preset": "claude_code"},
+            resume=resume_session_id,
+        )
+
+        text_parts: list[str] = []
+        captured_session_id = ""
+        async with ClaudeSDKClient(options) as client:
+            await client.query(prompt)
+            async for message in client.receive_messages():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            text_parts.append(block.text)
+                elif isinstance(message, ResultMessage):
+                    captured_session_id = message.session_id or ""
+                    if message.result:
+                        text_parts.append(message.result)
+                    break
+
+        self.tracker.complete_step(record, 0, 0)
+        return SkillStepResult(
+            text="\n".join(text_parts),
+            session_id=captured_session_id,
+        )
 
     async def _run_steering_sync(self, wt_path: Path) -> None:
         """/kiro:steering スキルを呼び出してsteering同期を実行する。"""

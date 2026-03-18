@@ -8,10 +8,13 @@ Steps: Preflight -> Feature resolve -> M1(Analysis) -> Worktree
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from ..agent_runner import AgentStep
 from ..config import OrchestratorConfig
@@ -92,7 +95,7 @@ class ModifyPipeline(InterruptiblePipeline):
         cp = self.session.checkpoint
 
         if cp:
-            result = self._handle_resume(cp)
+            result = await self._handle_resume(cp)
             if result is not None:
                 return result
             cp = self.session.checkpoint
@@ -119,7 +122,7 @@ class ModifyPipeline(InterruptiblePipeline):
 
     # ── Resume handling ──────────────────────────────────────────
 
-    def _handle_resume(self, cp: str) -> dict[str, Any] | None:
+    async def _handle_resume(self, cp: str) -> dict[str, Any] | None:
         user_input = self.session.checkpoint_data.get("user_input", "")
 
         if cp == "preflight_behind":
@@ -160,10 +163,7 @@ class ModifyPipeline(InterruptiblePipeline):
             )
 
         if cp == "adr_review":
-            # User confirmed ADR is now accepted
-            self.session.checkpoint = "M2"
-            self._save()
-            return None
+            return await self._handle_adr_review_resume()
 
         if cp.startswith("step_") and (cp.endswith("_failed") or cp.endswith("_rejected")):
             step_name = cp[5:].rsplit("_", 1)[0]
@@ -191,6 +191,85 @@ class ModifyPipeline(InterruptiblePipeline):
                 return None
             return self.make_failed(error_message="ユーザーがパイプラインを中止しました。")
 
+        return None
+
+    # ── ADR review resume ────────────────────────────────────────
+
+    _ADR_ACCEPT_PHRASES = frozenset(["確認済み", "続行", "accept", "ok", "はい"])
+
+    @staticmethod
+    def _is_adr_accept_only(user_input: str) -> bool:
+        stripped = user_input.strip().lower()
+        if not stripped:
+            return True
+        return stripped in ModifyPipeline._ADR_ACCEPT_PHRASES
+
+    async def _handle_adr_review_resume(self) -> dict[str, Any] | None:
+        """Handle resume from adr_review checkpoint with optional feedback."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+        adr_path = self.session.checkpoint_data.get("adr_path")
+        adr_session_id = self.session.checkpoint_data.get("adr_session_id")
+
+        # Simple confirmation → proceed to M2
+        if self._is_adr_accept_only(user_input):
+            self.session.checkpoint = "M2"
+            self._save()
+            return None
+
+        # No session_id (legacy session) → fallback
+        if not adr_session_id:
+            logger.warning(
+                "adr_session_id not found in checkpoint_data "
+                "(legacy session or expired). User feedback will not be applied. "
+                "Falling back to M2."
+            )
+            self.session.checkpoint = "M2"
+            self._save()
+            return None
+
+        # Resume session with user feedback to revise ADR
+        wt_path = Path(self.session.worktree_path)
+        feedback_prompt = (
+            f"ユーザーからADRについてフィードバックがありました:\n\n"
+            f"{user_input}\n\n"
+            f"ADRファイル ({adr_path}) をフィードバックに基づいて修正してください。\n"
+            f"修正完了後、ADR_PATH={adr_path} を出力してください。"
+        )
+
+        try:
+            skill_result = await self._run_skill_step_with_session(
+                "ADR: revise", feedback_prompt, wt_path,
+                model="opus", resume_session_id=adr_session_id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to resume ADR session (session_id=%s). "
+                "Falling back to M2 — user feedback was not applied.",
+                adr_session_id,
+            )
+            self.session.checkpoint = "M2"
+            self._save()
+            return None
+
+        # Update session_id for potential next resume
+        if skill_result.session_id:
+            self.session.checkpoint_data["adr_session_id"] = skill_result.session_id
+
+        # Re-check ADR status after revision
+        adr_file = wt_path / adr_path
+        status = self._read_adr_status(adr_file)
+        if status != "accepted":
+            self._save()
+            return self.make_interaction(
+                checkpoint="adr_review",
+                question=f"ADR修正後のステータスが '{status}' です。確認してください。",
+                options=["確認済み — 続行", "フィードバックを入力"],
+                context=f"adr_path={adr_path}",
+            )
+
+        # accepted → proceed to M2
+        self.session.checkpoint = "M2"
+        self._save()
         return None
 
     # ── Single-spec segments ─────────────────────────────────────
@@ -629,7 +708,7 @@ class ModifyPipeline(InterruptiblePipeline):
         cp = self.session.checkpoint
 
         if cp:
-            result = self._handle_resume(cp)
+            result = await self._handle_resume(cp)
             if result is not None:
                 return result
             cp = self.session.checkpoint
@@ -981,9 +1060,10 @@ class ModifyPipeline(InterruptiblePipeline):
             f"完了時に必ず ADR_PATH=<作成されたADRファイルの相対パス> を出力してください。"
         )
 
-        result_text = await self._run_skill_step(
+        skill_result = await self._run_skill_step_with_session(
             "ADR: decision-create", prompt, wt_path, model="opus"
         )
+        result_text = skill_result.text
 
         adr_path = self._extract_adr_path_from_output(result_text)
         if not adr_path:
@@ -999,11 +1079,12 @@ class ModifyPipeline(InterruptiblePipeline):
 
         if status != "accepted":
             self.session.checkpoint_data["adr_path"] = adr_path
+            self.session.checkpoint_data["adr_session_id"] = skill_result.session_id
             self._save()
             return self.make_interaction(
                 checkpoint="adr_review",
                 question=f"ADRのステータスが '{status}' です。確認して修正してください。",
-                options=["確認済み — 続行"],
+                options=["確認済み — 続行", "フィードバックを入力"],
                 context=f"adr_path={adr_path}",
             )
 
