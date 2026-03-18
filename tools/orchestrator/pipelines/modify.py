@@ -179,18 +179,50 @@ class ModifyPipeline(InterruptiblePipeline):
             return self._handle_skip_confirm_resume(step_name, segments)
 
         if cp == "scene_review_failed":
-            if "続行" in user_input or "continue" in user_input.lower():
-                self.session.checkpoint_data["scene_review_skip"] = True
-                self.session.checkpoint = "delivery_push"
-                self._save()
-                return None
-            if "修正" in user_input or "retry" in user_input.lower():
-                self.session.checkpoint = "delivery"
-                self.session.checkpoint_data["delivery_stage"] = "scene_review"
-                self._save()
-                return None
+            return await self._handle_scene_review_resume()
+
+        if cp == "m2_cascade_review":
+            return await self._handle_m2_cascade_review_resume()
+
+        if cp == "validation_triage":
+            return await self._handle_validation_triage_resume()
+
+        if cp == "m1_review":
+            return await self._handle_m1_review_resume()
+
+        return None
+
+    async def _handle_scene_review_resume(self) -> dict[str, Any] | None:
+        """Handle resume from scene_review_failed checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+
+        if "続行" in user_input or "continue" in user_input.lower():
+            self.session.checkpoint_data["scene_review_skip"] = True
+            self.session.checkpoint = "delivery_push"
+            self._save()
+            return None
+
+        if "中止" in user_input or "abort" in user_input.lower():
             return self.make_failed(error_message="ユーザーがパイプラインを中止しました。")
 
+        # 修正 / retry — check for feedback + session_id
+        resume_sid = self.session.checkpoint_data.get("scene_review_session_id")
+        feedback = user_input.strip()
+
+        if feedback and resume_sid:
+            wt_path = Path(self.session.worktree_path)
+            feedback_prompt = (
+                f"ユーザーからフィードバックがありました:\n\n{feedback}\n\n"
+                f"フィードバックに基づいて修正を実行してください。"
+            )
+            await self._run_skill_step_with_session(
+                "scene-review: fix", feedback_prompt, wt_path,
+                model="sonnet", resume_session_id=resume_sid,
+            )
+
+        self.session.checkpoint = "delivery"
+        self.session.checkpoint_data["delivery_stage"] = "scene_review"
+        self._save()
         return None
 
     # ── ADR review resume ────────────────────────────────────────
@@ -269,6 +301,191 @@ class ModifyPipeline(InterruptiblePipeline):
 
         # accepted → proceed to M2
         self.session.checkpoint = "M2"
+        self._save()
+        return None
+
+    # ── M2 cascade review resume ─────────────────────────────────
+
+    async def _handle_m2_cascade_review_resume(self) -> dict[str, Any] | None:
+        """Handle resume from m2_cascade_review checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+        lower = user_input.lower().strip()
+
+        if "中止" in user_input or "abort" in lower:
+            return self.make_failed(error_message="ユーザーがパイプラインを中止しました。")
+
+        resume_sid = self.session.checkpoint_data.get("m2_session_id")
+
+        # Simple retry without context
+        if "リトライ" in user_input or (not user_input.strip()):
+            self.session.checkpoint = "M2"
+            self._save()
+            return None
+
+        # Feedback with session resume
+        if resume_sid and user_input.strip():
+            wt_path = Path(self.session.worktree_path)
+            feedback_prompt = (
+                f"ユーザーからフィードバックがありました:\n\n{user_input}\n\n"
+                f"フィードバックに基づいてカスケード処理を修正・再試行してください。\n"
+                f"完了したら CASCADE_DONE を、失敗したら CASCADE_FAILED を出力してください。"
+            )
+            try:
+                from ..output_parser import parse_agent_output
+                skill_result = await self._run_skill_step_with_session(
+                    "M2: cascade-retry", feedback_prompt, wt_path,
+                    model="opus", resume_session_id=resume_sid,
+                )
+                parsed = parse_agent_output(skill_result.text)
+                if parsed.cascade_done:
+                    self.session.checkpoint = "M3"
+                    self._save()
+                    return None
+                # Re-failed → loop back
+                return self._pause_with_session(
+                    checkpoint="m2_cascade_review",
+                    session_key="m2_session_id",
+                    session_id=skill_result.session_id,
+                    question="カスケード処理が再度失敗しました。",
+                    options=["フィードバックを入力して再試行", "リトライ (コンテキストなし)", "中止"],
+                    context=skill_result.text[-2000:],
+                )
+            except Exception:
+                logger.exception("Failed to resume M2 session. Falling back to M2 re-run.")
+
+        # Fallback
+        self.session.checkpoint = "M2"
+        self._save()
+        return None
+
+    # ── Validation triage resume ──────────────────────────────────
+
+    async def _handle_validation_triage_resume(self) -> dict[str, Any] | None:
+        """Handle resume from validation_triage checkpoint (modify pipeline)."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+        lower = user_input.lower().strip()
+
+        if "abort" in lower or "中止" in lower:
+            return self.make_failed(error_message="ユーザーがパイプラインを中止しました。")
+
+        if "retry" in lower or "再実行" in lower:
+            self.session.checkpoint = "B"
+            self._save()
+            return None
+
+        if "conditional" in lower:
+            resume_sid = self.session.checkpoint_data.get("b2_session_id")
+            if resume_sid and user_input.strip():
+                wt_path = Path(self.session.worktree_path)
+                record_prompt = (
+                    f"ユーザーが Conditional GO を選択しました。理由:\n\n{user_input}\n\n"
+                    f"この理由を impl-journal.md に記録してください。"
+                )
+                await self._run_skill_step_with_session(
+                    "B2: conditional-go", record_prompt, wt_path,
+                    model="sonnet", resume_session_id=resume_sid,
+                )
+            self.session.checkpoint = "delivery"
+            self._save()
+            return None
+
+        # GO or feedback
+        resume_sid = self.session.checkpoint_data.get("b2_session_id")
+        if "go" in lower or not user_input.strip():
+            self.session.checkpoint = "delivery"
+            self._save()
+            return None
+
+        # Feedback with session resume → re-validate
+        if resume_sid and user_input.strip():
+            wt_path = Path(self.session.worktree_path)
+            feedback_prompt = (
+                f"ユーザーからフィードバックがありました:\n\n{user_input}\n\n"
+                f"フィードバックに基づいて修正を実行してください。"
+            )
+            await self._run_skill_step_with_session(
+                "B2: feedback", feedback_prompt, wt_path,
+                model="sonnet", resume_session_id=resume_sid,
+            )
+            self.session.checkpoint = "B2"
+            self._save()
+            return None
+
+        self.session.checkpoint = "B2"
+        self._save()
+        return None
+
+    # ── M1 review resume ─────────────────────────────────────────
+
+    async def _handle_m1_review_resume(self) -> dict[str, Any] | None:
+        """Handle resume from m1_review checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+        resume_sid = self.session.checkpoint_data.get("m1_session_id")
+        pending_output = self.session.checkpoint_data.get("m1_pending_output", "")
+
+        # Simple confirmation → build M1Result from pending output
+        if not user_input.strip() or "確認" in user_input or "続行" in user_input:
+            if pending_output:
+                from ..output_parser import parse_agent_output
+                parsed = parse_agent_output(pending_output)
+                feature_name = self.session.feature_name or self.session.params.get("feature", "")
+                change = self.session.params.get("change", "")
+                m1 = M1Result(
+                    feature_name=feature_name,
+                    change_description=change,
+                    m1_output=pending_output,
+                    cascade_depth=parsed.cascade_depth,
+                    classification=parsed.classification,
+                    delta_summary=parsed.delta_summary,
+                    adr_required=parsed.adr_required,
+                    adr_category=parsed.adr_category,
+                    adr_reason=parsed.adr_reason,
+                )
+                self.session.m1_results = {"single": m1.to_dict()}
+                self.session.checkpoint = "worktree"
+                self._save()
+                return None
+            # No pending output — re-run M1
+            self.session.checkpoint = "M1"
+            self._save()
+            return None
+
+        # Feedback with session resume → revised analysis
+        if resume_sid and user_input.strip():
+            feedback_prompt = (
+                f"ユーザーからM1分析についてフィードバックがありました:\n\n{user_input}\n\n"
+                f"フィードバックに基づいて分析を修正してください。\n"
+                f"修正後は M1_CONFIDENCE: high を出力し、通常の出力形式で結果を出力してください。"
+            )
+            try:
+                from ..output_parser import parse_agent_output
+                skill_result = await self._run_skill_step_with_session(
+                    "M1: revise", feedback_prompt, self.config.project_root,
+                    model="opus", resume_session_id=resume_sid,
+                )
+                parsed = parse_agent_output(skill_result.text)
+                feature_name = self.session.feature_name or self.session.params.get("feature", "")
+                change = self.session.params.get("change", "")
+                m1 = M1Result(
+                    feature_name=feature_name,
+                    change_description=change,
+                    m1_output=skill_result.text,
+                    cascade_depth=parsed.cascade_depth,
+                    classification=parsed.classification,
+                    delta_summary=parsed.delta_summary,
+                    adr_required=parsed.adr_required,
+                    adr_category=parsed.adr_category,
+                    adr_reason=parsed.adr_reason,
+                )
+                self.session.m1_results = {"single": m1.to_dict()}
+                self.session.checkpoint = "worktree"
+                self._save()
+                return None
+            except Exception:
+                logger.exception("Failed to resume M1 session. Falling back to M1 re-run.")
+
+        # Fallback
+        self.session.checkpoint = "M1"
         self._save()
         return None
 
@@ -432,11 +649,13 @@ class ModifyPipeline(InterruptiblePipeline):
             )
 
         if result.parsed.cascade_failed:
-            return self.make_error(
-                checkpoint="step_M2_cascade_failed",
-                error="Cascade FAILED (design-review REJECT)",
-                step_output=result.output_text[-2000:],
-                suggested_actions=["retry", "abort"],
+            return self._pause_with_session(
+                checkpoint="m2_cascade_review",
+                session_key="m2_session_id",
+                session_id=result.session_id,
+                question="カスケード処理が失敗しました（design-review REJECT 等）。",
+                options=["フィードバックを入力して再試行", "リトライ (コンテキストなし)", "中止"],
+                context=result.output_text[-2000:],
             )
 
         return None
@@ -569,11 +788,14 @@ class ModifyPipeline(InterruptiblePipeline):
             )
 
         if result.parsed.validation_failed:
-            return self.make_error(
-                checkpoint="step_B2_failed",
-                error="Validation FAILED (NO-GO)",
-                step_output=result.output_text[-2000:],
-                suggested_actions=["retry", "abort"],
+            return self._pause_with_session(
+                checkpoint="validation_triage",
+                session_key="b2_session_id",
+                session_id=result.session_id,
+                question="バリデーションに失敗しました。",
+                options=["GO (問題を受容して続行)", "Conditional GO (理由を記録して続行)",
+                         "Retry (B から再実行)", "Abort"],
+                context=result.output_text[-2000:],
             )
 
         wt_spec = find_spec_by_name(wt_path, m1.feature_name)
@@ -627,14 +849,17 @@ class ModifyPipeline(InterruptiblePipeline):
                 f"結果を報告してください。不合格の項目があれば SCENE_REVIEW_FAILED と出力し、"
                 f"全項目合格なら SCENE_REVIEW_PASSED と出力してください。"
             )
-            full_text = await self._run_skill_step(
+            skill_result = await self._run_skill_step_with_session(
                 "scene-review", prompt, wt_path, model="sonnet"
             )
+            full_text = skill_result.text
             if "SCENE_REVIEW_PASSED" not in full_text:
-                return self.make_interaction(
+                return self._pause_with_session(
                     checkpoint="scene_review_failed",
+                    session_key="scene_review_session_id",
+                    session_id=skill_result.session_id,
                     question="Scene-review に不合格の項目があります。どうしますか？",
-                    options=["修正してリトライ", "続行 (不合格のまま)", "中止"],
+                    options=["修正してリトライ (フィードバック可)", "続行 (不合格のまま)", "中止"],
                     context=f"worktree={wt_path}",
                 )
         else:
@@ -1005,6 +1230,21 @@ class ModifyPipeline(InterruptiblePipeline):
         if not result.parsed.analysis_done:
             return self.make_failed(
                 error_message="M1: 分析結果のマーカーが見つかりません。"
+            )
+
+        if result.parsed.m1_confidence == "low":
+            return self._pause_with_session(
+                checkpoint="m1_review",
+                session_key="m1_session_id",
+                session_id=result.session_id,
+                question=(
+                    f"M1分析の確信度が低い項目があります:\n"
+                    f"CLASSIFICATION: {result.parsed.classification}\n"
+                    f"CASCADE_DEPTH: {result.parsed.cascade_depth}"
+                ),
+                options=["確認済み — 続行", "フィードバックを入力"],
+                context=result.output_text[-3000:],
+                m1_pending_output=result.output_text,
             )
 
         m1 = M1Result(

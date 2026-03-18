@@ -59,7 +59,7 @@ class ImplementPipeline(InterruptiblePipeline):
 
         # Handle resume from interactive/error checkpoints
         if cp:
-            result = self._handle_resume(cp)
+            result = await self._handle_resume(cp)
             if result is not None:
                 return result
             cp = self.session.checkpoint
@@ -78,7 +78,7 @@ class ImplementPipeline(InterruptiblePipeline):
 
     # ── Resume handling ──────────────────────────────────────────
 
-    def _handle_resume(self, cp: str) -> dict[str, Any] | None:
+    async def _handle_resume(self, cp: str) -> dict[str, Any] | None:
         """Handle resume input. Returns response or None to continue."""
         user_input = self.session.checkpoint_data.get("user_input", "")
 
@@ -120,16 +120,143 @@ class ImplementPipeline(InterruptiblePipeline):
             return self._handle_skip_confirm_resume(step_name, self._build_segments())
 
         if cp == "scene_review_failed":
-            if "続行" in user_input or "continue" in user_input.lower():
-                self.session.checkpoint = "D"
-                self._save()
-                return None
-            if "修正" in user_input or "retry" in user_input.lower():
-                self.session.checkpoint = "L4"
-                self._save()
-                return None
+            return await self._handle_scene_review_resume()
+
+        if cp == "validation_triage":
+            return await self._handle_validation_triage_resume()
+
+        if cp == "design_review":
+            return await self._handle_design_review_resume()
+
+        return None
+
+    async def _handle_scene_review_resume(self) -> dict[str, Any] | None:
+        """Handle resume from scene_review_failed checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+
+        if "続行" in user_input or "continue" in user_input.lower():
+            self.session.checkpoint = "D"
+            self._save()
+            return None
+
+        if "中止" in user_input or "abort" in user_input.lower():
             return self.make_failed(error_message="ユーザーがパイプラインを中止しました。")
 
+        # 修正 / retry — check for feedback + session_id
+        resume_sid = self.session.checkpoint_data.get("scene_review_session_id")
+        feedback = user_input.strip()
+
+        if feedback and resume_sid:
+            wt_path = Path(self.session.worktree_path)
+            feedback_prompt = (
+                f"ユーザーからフィードバックがありました:\n\n{feedback}\n\n"
+                f"フィードバックに基づいて修正を実行してください。"
+            )
+            await self._run_skill_step_with_session(
+                "scene-review: fix", feedback_prompt, wt_path,
+                model="sonnet", resume_session_id=resume_sid,
+            )
+
+        self.session.checkpoint = "L4"
+        self._save()
+        return None
+
+    async def _handle_validation_triage_resume(self) -> dict[str, Any] | None:
+        """Handle resume from validation_triage checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+        lower = user_input.lower().strip()
+
+        if "abort" in lower or "中止" in lower:
+            return self.make_failed(error_message="ユーザーがパイプラインを中止しました。")
+
+        if "retry" in lower or "再実行" in lower:
+            self.session.checkpoint = "B"
+            self._save()
+            return None
+
+        if "conditional" in lower:
+            # Conditional GO — record reason via session resume
+            resume_sid = self.session.checkpoint_data.get("b2_session_id")
+            if resume_sid and user_input.strip():
+                wt_path = Path(self.session.worktree_path)
+                record_prompt = (
+                    f"ユーザーが Conditional GO を選択しました。理由:\n\n{user_input}\n\n"
+                    f"この理由を impl-journal.md に記録してください。"
+                )
+                await self._run_skill_step_with_session(
+                    "B2: conditional-go", record_prompt, wt_path,
+                    model="sonnet", resume_session_id=resume_sid,
+                )
+            self.session.checkpoint = "steering"
+            self._save()
+            return None
+
+        # GO or feedback
+        resume_sid = self.session.checkpoint_data.get("b2_session_id")
+        if "go" in lower or not user_input.strip():
+            # Simple GO — proceed
+            self.session.checkpoint = "steering"
+            self._save()
+            return None
+
+        # Feedback with session resume → re-validate
+        if resume_sid and user_input.strip():
+            wt_path = Path(self.session.worktree_path)
+            feedback_prompt = (
+                f"ユーザーからフィードバックがありました:\n\n{user_input}\n\n"
+                f"フィードバックに基づいて修正を実行してください。"
+            )
+            await self._run_skill_step_with_session(
+                "B2: feedback", feedback_prompt, wt_path,
+                model="sonnet", resume_session_id=resume_sid,
+            )
+            self.session.checkpoint = "B2"
+            self._save()
+            return None
+
+        # Fallback — re-run B2
+        self.session.checkpoint = "B2"
+        self._save()
+        return None
+
+    async def _handle_design_review_resume(self) -> dict[str, Any] | None:
+        """Handle resume from design_review checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+        lower = user_input.lower().strip()
+
+        # Simple confirmation → proceed to A3
+        if not user_input.strip() or "確認" in user_input or "続行" in user_input:
+            self.session.checkpoint = "A3"
+            self._save()
+            return None
+
+        # Feedback with session resume
+        resume_sid = self.session.checkpoint_data.get("a2_session_id")
+        if resume_sid and user_input.strip():
+            wt_path = Path(self.session.worktree_path)
+            feedback_prompt = (
+                f"ユーザーからデザインレビューについてフィードバックがありました:\n\n{user_input}\n\n"
+                f"フィードバックに基づいてdesign.mdを修正し、design-reviewを再実行してください。\n"
+                f"完了したらAPPROVEまたはREJECTマーカーを出力してください。"
+            )
+            try:
+                skill_result = await self._run_skill_step_with_session(
+                    "A2: design-review-fix", feedback_prompt, wt_path,
+                    model="opus", resume_session_id=resume_sid,
+                )
+                if "REJECT" in skill_result.text:
+                    return self.make_error(
+                        checkpoint="step_A2_rejected",
+                        error="Design review REJECT (after feedback)",
+                        step_output=skill_result.text[-2000:],
+                        suggested_actions=["retry", "abort"],
+                    )
+            except Exception:
+                pass  # Fall through to A3
+
+        # Fallback → proceed to A3
+        self.session.checkpoint = "A3"
+        self._save()
         return None
 
     # ── Segment builders ─────────────────────────────────────────
@@ -269,6 +396,16 @@ class ImplementPipeline(InterruptiblePipeline):
                 step_output=result.output_text[-2000:],
             )
 
+        if result.parsed.review_needs_human:
+            return self._pause_with_session(
+                checkpoint="design_review",
+                session_key="a2_session_id",
+                session_id=result.session_id,
+                question="デザインレビューに人間の判断が必要な項目があります。",
+                options=["確認済み — 続行", "フィードバックを入力"],
+                context=result.output_text[-3000:],
+            )
+
         if result.parsed.has_reject:
             return self.make_error(
                 checkpoint="step_A2_rejected",
@@ -368,11 +505,14 @@ class ImplementPipeline(InterruptiblePipeline):
             )
 
         if result.parsed.validation_failed:
-            return self.make_error(
-                checkpoint="step_B2_failed",
-                error="Validation FAILED (NO-GO)",
-                step_output=result.output_text[-2000:],
-                suggested_actions=["retry", "abort"],
+            return self._pause_with_session(
+                checkpoint="validation_triage",
+                session_key="b2_session_id",
+                session_id=result.session_id,
+                question="バリデーションに失敗しました。",
+                options=["GO (問題を受容して続行)", "Conditional GO (理由を記録して続行)",
+                         "Retry (B から再実行)", "Abort"],
+                context=result.output_text[-2000:],
             )
 
         return None
@@ -424,15 +564,18 @@ class ImplementPipeline(InterruptiblePipeline):
             f"結果を報告してください。不合格の項目があれば SCENE_REVIEW_FAILED と出力し、"
             f"全項目合格なら SCENE_REVIEW_PASSED と出力してください。"
         )
-        full_text = await self._run_skill_step(
+        skill_result = await self._run_skill_step_with_session(
             "scene-review", prompt, wt_path, model="sonnet"
         )
+        full_text = skill_result.text
 
         if "SCENE_REVIEW_PASSED" not in full_text:
-            return self.make_interaction(
+            return self._pause_with_session(
                 checkpoint="scene_review_failed",
+                session_key="scene_review_session_id",
+                session_id=skill_result.session_id,
                 question="Scene-review に不合格の項目があります。どうしますか？",
-                options=["修正してリトライ", "続行 (不合格のまま)", "中止"],
+                options=["修正してリトライ (フィードバック可)", "続行 (不合格のまま)", "中止"],
                 context=f"worktree={wt_path}",
             )
 

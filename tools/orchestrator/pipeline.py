@@ -78,6 +78,27 @@ class InterruptiblePipeline(ABC):
             progress=self.tracker.to_progress_list(),
         )
 
+    def _pause_with_session(
+        self,
+        checkpoint: str,
+        session_key: str,
+        session_id: str,
+        question: str,
+        options: list[str] | None = None,
+        context: str = "",
+        **extra_data: Any,
+    ) -> dict[str, Any]:
+        """session_id を保存して interaction checkpoint で一時停止する。"""
+        self.session.checkpoint_data[session_key] = session_id
+        for k, v in extra_data.items():
+            self.session.checkpoint_data[k] = v
+        return self.make_interaction(
+            checkpoint=checkpoint,
+            question=question,
+            options=options,
+            context=context,
+        )
+
     def make_error(
         self,
         checkpoint: str,

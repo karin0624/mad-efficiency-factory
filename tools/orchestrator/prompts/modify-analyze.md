@@ -71,6 +71,18 @@ promptから以下を受け取る:
 
 **安全原則**: 深度が不確実な場合は、より深いカスケード（conservative）をデフォルトにする。
 
+### 5.5. 確信度の自己評価
+
+以下のいずれかに該当する場合 `M1_CONFIDENCE: low` を出力:
+- CLASSIFICATION が major/minor の境界（影響規模が微妙）
+- CASCADE_DEPTH が1段階上下しても妥当と言える
+- 変更記述が曖昧で複数の解釈が可能
+- 安全原則を適用してデフォルト値を選択した
+
+上記に該当しない場合 `M1_CONFIDENCE: high` を出力。
+
+**安全原則**: 判定に迷う場合は `low` をデフォルトにする。不要な一時停止のコストは低いが、誤った `high` による自動続行は影響分析の修正機会を失う。
+
 ### 6. 変更タイプの分類
 
 | タイプ | 説明 |
@@ -99,6 +111,7 @@ ANALYSIS_DONE
 CLASSIFICATION: major|minor
 CHANGE_TYPE: additive|modifying|removal|mixed
 CASCADE_DEPTH: requirements-only|requirements+design|requirements+design+tasks|full
+M1_CONFIDENCE: high|low
 AFFECTED_REQUIREMENTS: 1, 3, 5
 AFFECTED_DESIGN_SECTIONS: Components/MachinePortTransfer, SystemFlows/TickProcessing
 AFFECTED_TASKS: 4.1, 4.2, 5.1

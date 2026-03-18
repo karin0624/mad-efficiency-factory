@@ -13,6 +13,7 @@ from typing import Any
 RE_REJECT = re.compile(r"\bREJECT\b")
 RE_APPROVE = re.compile(r"\bAPPROVE\b")
 RE_REVISE = re.compile(r"\bREVISE\b")
+RE_REVIEW_NEEDS_HUMAN = re.compile(r"\bREVIEW_NEEDS_HUMAN\b")
 
 # B2 (validate-impl)
 RE_VALIDATION_PASSED = re.compile(r"\bVALIDATION_PASSED\b")
@@ -23,6 +24,7 @@ RE_VALIDATION_FAILED = re.compile(r"\bVALIDATION_FAILED\b")
 # M1 (change-analysis)
 RE_ANALYSIS_DONE = re.compile(r"\bANALYSIS_DONE\b")
 RE_CLASSIFICATION = re.compile(r"\bCLASSIFICATION:\s*(major|minor)\b")
+RE_M1_CONFIDENCE = re.compile(r"\bM1_CONFIDENCE:\s*(high|low)\b")
 RE_CHANGE_TYPE = re.compile(
     r"\bCHANGE_TYPE:\s*(additive|modifying|removal|mixed)\b"
 )
@@ -154,6 +156,14 @@ class ParsedOutput:
         return self.values.get("AFFECTED_TASKS", "")
 
     @property
+    def review_needs_human(self) -> bool:
+        return self.markers.get("REVIEW_NEEDS_HUMAN", False)
+
+    @property
+    def m1_confidence(self) -> str:
+        return self.values.get("M1_CONFIDENCE", "high")  # default = no pause
+
+    @property
     def adr_required(self) -> bool:
         return self.values.get("ADR_REQUIRED", "no") == "yes"
 
@@ -262,6 +272,8 @@ def parse_agent_output(text: str) -> ParsedOutput:
         # Test-fix markers
         ("TEST_FIX_PASSED", RE_TEST_FIX_PASSED),
         ("TEST_FIX_FAILED", RE_TEST_FIX_FAILED),
+        # Session resume markers
+        ("REVIEW_NEEDS_HUMAN", RE_REVIEW_NEEDS_HUMAN),
     ]:
         if pattern.search(text):
             result.markers[name] = True
@@ -283,6 +295,8 @@ def parse_agent_output(text: str) -> ParsedOutput:
         ("TARGET_SPECS", RE_TARGET_SPECS),
         ("EXECUTION_ORDER", RE_EXECUTION_ORDER),
         ("GAPS", RE_MP1_GAPS),
+        # Session resume values
+        ("M1_CONFIDENCE", RE_M1_CONFIDENCE),
     ]:
         m = pattern.search(text)
         if m:

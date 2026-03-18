@@ -222,6 +222,51 @@ class TestADRMarkers:
         p = parse_agent_output(text)
         assert not p.markers.get("ADR_CREATED")
 
+    def test_adr_path(self):
+        text = "ADR_PATH: .kiro/decisions/spec/0001-add-validation.md"
+        p = parse_agent_output(text)
+        assert p.adr_path == ".kiro/decisions/spec/0001-add-validation.md"
+
+
+# ── REVIEW_NEEDS_HUMAN marker ──────────────────────────────────
+
+class TestReviewNeedsHuman:
+    def test_detected(self):
+        text = "Some feedback items.\nREVIEW_NEEDS_HUMAN\nItem 1: design choice."
+        p = parse_agent_output(text)
+        assert p.review_needs_human
+
+    def test_not_present(self):
+        text = "APPROVE\nAll items resolved automatically."
+        p = parse_agent_output(text)
+        assert not p.review_needs_human
+
+    def test_embedded_in_word_not_detected(self):
+        # \b boundary: REVIEW_NEEDS_HUMAN followed by _ is NOT a word boundary
+        text = "The REVIEW_NEEDS_HUMAN_EXTRA flag is not standard."
+        p = parse_agent_output(text)
+        assert not p.review_needs_human
+
+
+# ── M1_CONFIDENCE marker ──────────────────────────────────────
+
+class TestM1Confidence:
+    def test_high(self):
+        text = "ANALYSIS_DONE\nM1_CONFIDENCE: high\nCLASSIFICATION: major"
+        p = parse_agent_output(text)
+        assert p.m1_confidence == "high"
+
+    def test_low(self):
+        text = "ANALYSIS_DONE\nM1_CONFIDENCE: low\nCLASSIFICATION: minor"
+        p = parse_agent_output(text)
+        assert p.m1_confidence == "low"
+
+    def test_not_present_defaults_to_high(self):
+        text = "ANALYSIS_DONE\nCLASSIFICATION: major"
+        p = parse_agent_output(text)
+        assert p.m1_confidence == "high"
+
+
     def test_full_m1_with_adr(self):
         text = """\
 ANALYSIS_DONE
