@@ -20,6 +20,12 @@
       "approved": false
     }
   },
+  "review": {
+    "requirements_generated": false,
+    "requirements_approved": false,
+    "design_generated": false,
+    "design_approved": false
+  },
   "ready_for_implementation": false
 }
 

@@ -45,6 +45,9 @@ reports/stryker-incremental.json
 docs/plans
 docs/modify-plans
 
+# Spec review documents (generated, not committed)
+*-review.md
+
 # Memory MCP database
 tools/memory-mcp/memory.db
 tools/memory-mcp/memory.db-wal

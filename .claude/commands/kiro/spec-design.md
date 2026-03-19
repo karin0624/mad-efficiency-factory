@@ -85,7 +85,7 @@ argument-hint: <feature-name> [-y]
 - `.kiro/settings/templates/specs/design.md` の構造を読み込む
 - `.kiro/settings/rules/design-principles.md` の原則を読み込む
 
-2. **設計ドキュメントの生成**:
+2. **設計ドキュメントの生成**（メタ情報の収集を同時に行う）:
 - **specs/design.mdテンプレートの構造と生成指示に厳密に従う**
 - **判断セクションのみを生成する**: 出力には以下のみを含める:
   - Overview (Purpose, Goals, Non-Goals)
@@ -96,7 +96,7 @@ argument-hint: <feature-name> [-y]
   - Testing Strategy（レイヤー分類の決定）
   - Security Considerations（方針レベル、optional）
   - Performance & Scalability（目標値・方針、optional）
-- **以下を生成しない**:
+- **以下を生成しない**（design.md からは除外するが、design-review.md に出力する）:
   - Mermaid図（Architecture Boundary Map, System Flows 等）
   - Requirements Traceability 表
   - 具体的シグネチャ・コード例（Service Interface, API Contract 等）
@@ -111,11 +111,49 @@ argument-hint: <feature-name> [-y]
   - 過去の教訓は本文の設計判断に吸収し、新しいdesign.mdには Implementation Changelog セクションを含めない
 - 設計ルールを適用: 型安全性、フォーマルなトーン
 - spec.jsonで指定された言語を使用
+- **メタ情報の収集**（設計生成と並行して、以下の情報を内部的に蓄積する）:
+  - **代替案評価結果**: research.md の代替案評価（パターン名 + 採用/却下 + 理由）
+  - **steeringとの差異**: steering コンテキストとの差異検出結果（差異箇所 + 理由）
+  - **責務境界判断**: コンポーネント間の責務境界判断（境界 + 代替案 + 判断理由）
 
-3. **spec.jsonのメタデータ更新**:
+3. **レビュー文書の生成**:
+- ステップ 3-2 で収集したメタ情報と design.md から除外されたセクションの内容を `.kiro/specs/$1/design-review.md` として出力する
+- 以下の構造で生成する:
+
+   ```markdown
+   # Design Review: <feature-name>
+
+   ## レビュー焦点
+
+   ### 🔴 設計判断（代替案があった箇所）
+   <!-- 採用パターン + 却下パターン + 理由 + 確認ポイント -->
+
+   ### 🟡 steering との差異
+   <!-- 差異箇所 + 理由 -->
+   <!-- 差異がない場合は「steering との差異なし」と記載 -->
+
+   ### 🟢 構造理解の補助（読み飛ばし可）
+   <!-- アーキテクチャ図、traceability 表等 -->
+
+   ## アーキテクチャ図 (Mermaid)
+   <!-- design.md から除外された Mermaid 図をここに出力 -->
+   <!-- Architecture Boundary Map, System Flows 等 -->
+
+   ## Requirements → Component トレーサビリティ表
+   <!-- 要件ID → コンポーネントのマッピング表 -->
+
+   ## 主要インターフェースシグネチャ概要
+   <!-- design.md から除外された具体的シグネチャの概要 -->
+   ```
+
+- spec.json で指定された言語を使用する
+- レビュー文書は git commit しない（`.gitignore` に登録済み）
+
+4. **spec.jsonのメタデータ更新**:
 - `phase: "design-generated"` を設定
 - `approvals.design.generated: true, approved: false` を設定
 - `approvals.requirements.approved: true` を設定
+- `review.design_generated: true` を設定
 - `updated_at` タイムスタンプを更新
 
 ## 重要な制約
@@ -147,8 +185,9 @@ spec.jsonで指定された言語で簡潔なサマリーを提供:
 1. **ステータス**: `.kiro/specs/$1/design.md` に設計ドキュメントが生成されたことを確認
 2. **ディスカバリータイプ**: 実行されたディスカバリープロセス（フル/ライト/最小）
 3. **主要な発見**: 設計に影響を与えた `research.md` からの2-3の重要な知見
-4. **次のアクション**: 承認ワークフローのガイダンス（「安全対策とフォールバック」を参照）
-5. **リサーチログ**: `research.md` が最新の決定で更新されたことを確認
+4. **レビューハイライト**: design-review.md の 🔴 設計判断項目の件数を表示する（例: "レビュー文書に3件の設計判断事項があります"）
+5. **次のアクション**: design-review.md を確認してから承認ワークフローのガイダンス（「安全対策とフォールバック」を参照）
+6. **リサーチログ**: `research.md` が最新の決定で更新されたことを確認
 
 **フォーマット**: 簡潔なMarkdown（200語以下） - これはコマンドの出力であり、設計ドキュメント自体ではない
 
