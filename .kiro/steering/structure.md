@@ -40,6 +40,14 @@
 - `tests/e2e/`: SceneRunnerによるフルシーンE2Eテスト（L3）
 **命名**: `test_<対象クラス名>.gd`（例: `test_belt_grid.gd`, `test_machine_port_e2e.gd`）
 
+### 意思決定記録 (`.kiro/decisions/`)
+**目的**: ADR（Architecture Decision Record）のみを格納する
+**ルール**:
+- ADRファイル以外（実装プラン、タスク一覧、作業手順書等）を配置してはならない
+- すべてのADRファイルは `.kiro/settings/templates/decisions/adr.md` のYAMLフロントマター（id, title, status, category等）を持つこと
+- ADRの作成は `/kiro:decision-create` コマンド経由で行う。直接ファイルを書き込まない
+- カテゴリごとにサブディレクトリを分ける: `spec/`, `architecture/`, `governance/`
+
 ### スペック (`.kiro/specs/`)
 **目的**: 機能ごとの仕様書（要件、設計、タスク）
 **パターン**: 機能ごとに1ディレクトリ、cc-sddパイプラインで管理

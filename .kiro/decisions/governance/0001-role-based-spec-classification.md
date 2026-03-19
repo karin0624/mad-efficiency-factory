@@ -1,7 +1,7 @@
 ---
 id: "governance/0001"
 title: "仕様管理の役割ベース分類 — 5層モデル"
-status: proposed
+status: accepted
 date: "2026-03-19"
 category: "governance"
 spec: null
@@ -145,57 +145,57 @@ enforcement: review
 
 N/A — レビューで確認。将来的には validate-impl で requirements ドリフト検出を自動化する可能性あり。
 
-## Open Items
+## Resolved Items
 
-本ADRの概念的フレームワークは確定しているが、以下の実装詳細は後続の設計フェーズで決定する。
+本ADRの概念的フレームワークに対し、以下の実装詳細を決定した（2026-03-19）。
 
-### OI-1: Requirements のドリフト管理フロー
+### OI-1: Requirements のドリフト管理フロー — 解決
 
-Requirements を「契約」として永続化する以上、コード変更に伴う契約の改訂プロセスが必要。
+validate-impl の traceability チェックを双方向に拡張する。
 
-- validate-impl で requirements.md との乖離を検出するか？
-- 乖離検出時に自動で requirements 更新を提案するか、人間の判断を求めるか？
-- 「意図的な契約改訂」と「暗黙的なドリフト」をどう区別するか？
+- 逆方向チェック（code → requirements）を追加し、「要件に無い実装」を検出して WARNING として報告
+- 人間が「requirements に追加するか」を判断する
+- フィードバック対象は「要求認識のズレ」に限定（制約上の不成立、暗黙的な実装固定、エラー時の抜け漏れ等）
+- design drift よりかなり限定的なもののみ。単なる内部実装の詳細は報告しない
+- vibe的変更のドリフト管理はローカルCIレビューの一部として将来対応（本ADR範囲外）
 
-### OI-2: Design の永続/生成の境界基準
+### OI-2: Design の永続/生成の境界基準 — 解決
 
-Design 内の「設計判断」と「構造説明」の具体的な区別基準が必要。
+セクション単位で分離する。design.md から「生成可能」セクションを完全削除し、「判断」セクションのみ永続化する。
 
-- セクション単位で分けるか、段落単位か？
-- 現行の design.md テンプレートのどのセクションが「判断」に該当するか？
-- 生成可能な部分を分離する場合、design.md のフォーマットをどう変更するか？
+- **判断（永続化）**: Overview, Architecture Pattern選択, Tech Stack, コンポーネントIntent/Responsibilities/Constraints, Error Handling Strategy, Testing Strategy
+- **生成可能（design.mdに書かない）**: Mermaid図, Requirements Traceability表, Service Interfaceシグネチャ, 物理Data Models, Implementation Changelog
+- spec-design は最初から判断セクションのみ生成する
+- レビュー用の図表資料は Plan/Modify コマンドの拡張で「レビュー用文書」として別途生成する
 
-### OI-3: Tasks の「一時的」の具体的運用
+### OI-3: Tasks の「一時的」の具体的運用 — 解決
 
-Tasks を一時的と位置づけた場合の具体的な扱い。
+- tasks.md はファイルとして残す。spec.json の phase で完了判別する
+- 再生成時は無条件上書き
+- アーカイブ不要（git log で十分）
 
-- 完了後に削除するか、アーカイブするか、git管理は維持するか？
-- tasks.md は spec ディレクトリに残すが「参考情報」扱いとするか？
-- 将来の spec-tasks 再生成時に古い tasks.md をどう扱うか？
+### OI-4: 既存 spec からの移行戦略 — 解決
 
-### OI-4: 既存 spec からの移行戦略
+- 段階的移行（次回更新時に自然適用）
+- OI-2 のテンプレート変更確定後、必要なら既存 design.md の一括適用を検討
 
-conveyor-belt 等の既存 spec を本ADRの分類に沿って移行する方法。
+### OI-5: ADR作成の適用範囲と判断基準 — 解決
 
-- 既存の requirements.md / design.md は現行フォーマットのまま維持するか？
-- 次回の spec 更新時に段階的に移行するか、一括で移行するか？
+- 適用前提を「spec変更時に評価」から「設計判断発生時に評価」に拡張
+- 判断基準: 「spec横断かどうか」ではなく「理由が失われるか」で判定
+- 基準: 「実装やspec本文に落とし込む前に、"なぜその方針にしたか"を将来説明不能になりそうな意思決定」にADR必須
+- 単一spec内の判断でもADR対象。該当時は必須
 
-### OI-5: ADR作成の適用範囲と判断基準
+### OI-6: 現行コマンド群への影響 — 解決
 
-現状、ADRは仕様変更時（既存specの修正）にのみ作成される運用となっているが、新規実装時にも設計判断が発生する場面がある。
+OI-1〜OI-5の決定に基づき、以下のコマンド/ファイルを段階的に更新する:
 
-- 新規実装時にもADRを作成する運用を追加すべきか？
-- ただし、すべての変更・新規実装でADRを必須とするのではなく、「必要だと判断した場合に作成する」という任意運用が望ましい
-- 新規・変更の両方に共通する「ADRを作るべきか」の判断基準を decision-criteria.md に統合するか？
-- 現行の decision-criteria.md は変更時の基準に偏っていないか確認が必要
-
-### OI-6: 現行コマンド群への影響
-
-spec-requirements, spec-design, spec-tasks, validate-impl 等のコマンドに対する変更の範囲。
-
-- spec-design で「判断」と「説明」を区別して生成するようにするか？
-- validate-impl に requirements ドリフト検出を追加するか？
-- Tasks の一時的扱いは spec-tasks コマンドの動作に影響するか？
+- decision-criteria.md: OI-5 の拡張された判断基準を反映
+- steering: 5層モデルの運用ルールを追加
+- design.md テンプレート: OI-2 の判断セクションのみに改訂
+- validate-impl: OI-1 の双方向 traceability を追加
+- spec-design: OI-2 に合わせて判断セクションのみ生成
+- Plan/Modify コマンド: レビュー用文書生成機能を追加
 
 ## References
 

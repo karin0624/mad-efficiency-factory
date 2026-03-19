@@ -40,7 +40,7 @@ Do NOT wait for the user to say "remember this". Proactively save knowledge as i
 - Include **why** in every memory, not just **what**. The reason is what makes it useful later.
 
 ## Decision Records
-- Spec pipeline外で方針・ルール・制約に影響する変更をした場合、`.kiro/settings/rules/decision-criteria.md` の基準でADR必要性を評価。
+- 設計判断が発生した場合、`.kiro/settings/rules/decision-criteria.md` の基準でADR必要性を評価。トリガー条件の詳細と判断基準は同ファイルに委譲。
 - ADRが必要と判断した場合は `/kiro:decision-create` を実行。ADRは `.kiro/decisions/` に格納。
 - 方針変更を検討する際は `.kiro/decisions/` の既存ADRを参照し、過去の意思決定との整合性を確認。
 
