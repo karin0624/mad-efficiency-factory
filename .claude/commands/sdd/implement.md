@@ -82,11 +82,13 @@ action: <retry|skip|abort>
 1. **Preflight** — git状態チェック（behind/ahead検出）
 2. **Setup** — Plan解決 + worktree作成
 3. **A1** — Spec WHAT（要件定義）
-4. **A2** — Spec HOW（設計）
-5. **A3** — Spec Tasks（タスク生成）
-6. **B** — Implementation（実装）
-7. **B2** — Validation（検証）
-8. **Steering** — Steering同期
-9. **C** — Commit
-10. **L4** — Scene Review（該当時）
-11. **D** — Push + PR作成
+4. **A1R** — Requirements Review Gate（要件レビュー）
+5. **A2** — Spec HOW（設計）
+6. **A2R** — Design Review Gate（デザインレビュー）
+7. **A3** — Spec Tasks（タスク生成）
+8. **B** — Implementation（実装）
+9. **B2** — Validation（検証）
+10. **Steering** — Steering同期
+11. **C** — Commit
+12. **L4** — Scene Review（該当時）
+13. **D** — Push + PR作成

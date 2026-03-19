@@ -88,9 +88,10 @@ action: <retry|skip|abort>
 4. **Worktree** — worktree作成
 5. **ADR Gate** — ADR必要時は作成
 6. **M2** — カスケード更新（requirements → design → tasks）
-7. **M3** — デルタタスク生成
-8. **B** — Implementation
-9. **B2** — Validation
-10. **C** — Commit
-11. **L4** — Scene Review（該当時）
-12. **D** — Push + PR
+7. **M2R** — Cascade Review Gate（カスケード更新レビュー）
+8. **M3** — デルタタスク生成
+9. **B** — Implementation
+10. **B2** — Validation
+11. **C** — Commit
+12. **L4** — Scene Review（該当時）
+13. **D** — Push + PR

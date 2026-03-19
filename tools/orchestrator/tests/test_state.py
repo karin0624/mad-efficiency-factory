@@ -59,24 +59,41 @@ class TestDetectImplementResume:
         })
         assert detect_implement_resume(spec) == IRP.A3_TASKS_APPROVAL
 
-    def test_design_generated_codex_reviewed_resumes_at_tasks(self, tmp_spec):
+    def test_design_generated_review_not_approved_resumes_at_a2r(self, tmp_spec):
         spec = tmp_spec({
             "feature_name": "f",
             "phase": "design-generated",
             "approvals": {"design": {"codex_reviewed": True}},
         })
+        assert detect_implement_resume(spec) == IRP.A2R_REVIEW
+
+    def test_design_generated_review_approved_codex_reviewed_resumes_at_tasks(self, tmp_spec):
+        spec = tmp_spec({
+            "feature_name": "f",
+            "phase": "design-generated",
+            "approvals": {"design": {"codex_reviewed": True}},
+            "review": {"design_approved": True},
+        })
         assert detect_implement_resume(spec) == IRP.A3_TASKS
 
-    def test_design_generated_not_reviewed_resumes_at_review(self, tmp_spec):
+    def test_design_generated_review_approved_not_codex_resumes_at_review_only(self, tmp_spec):
         spec = tmp_spec({
             "feature_name": "f",
             "phase": "design-generated",
             "approvals": {"design": {"codex_reviewed": False}},
+            "review": {"design_approved": True},
         })
         assert detect_implement_resume(spec) == IRP.A2_HOW_REVIEW_ONLY
 
-    def test_requirements_generated_resumes_at_how(self, tmp_spec):
+    def test_requirements_generated_review_not_approved_resumes_at_a1r(self, tmp_spec):
         spec = tmp_spec({"feature_name": "f", "phase": "requirements-generated", "approvals": {}})
+        assert detect_implement_resume(spec) == IRP.A1R_REVIEW
+
+    def test_requirements_generated_review_approved_resumes_at_how(self, tmp_spec):
+        spec = tmp_spec({
+            "feature_name": "f", "phase": "requirements-generated", "approvals": {},
+            "review": {"requirements_approved": True},
+        })
         assert detect_implement_resume(spec) == IRP.A2_HOW_FULL
 
     def test_initialized_resumes_at_what_phase2(self, tmp_spec):
@@ -107,10 +124,17 @@ class TestDetectModifyResume:
         })
         assert detect_modify_resume(spec) == MRP.ADR_GATE
 
-    def test_spec_cascaded_resumes_at_delta_tasks(self, tmp_spec):
+    def test_spec_cascaded_resumes_at_m2r_review(self, tmp_spec):
         spec = tmp_spec({
             "feature_name": "f", "phase": "tasks-generated", "approvals": {},
             "modifications": [{"modify_phase": "spec-cascaded"}],
+        })
+        assert detect_modify_resume(spec) == MRP.M2R_REVIEW
+
+    def test_cascade_reviewed_resumes_at_delta_tasks(self, tmp_spec):
+        spec = tmp_spec({
+            "feature_name": "f", "phase": "tasks-generated", "approvals": {},
+            "modifications": [{"modify_phase": "cascade-reviewed"}],
         })
         assert detect_modify_resume(spec) == MRP.M3_DELTA_TASKS
 

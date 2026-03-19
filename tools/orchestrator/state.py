@@ -26,6 +26,7 @@ class ModifyPhase(str, Enum):
     ANALYSIS_COMPLETED = "analysis-completed"
     ADR_ACCEPTED = "adr-accepted"
     SPEC_CASCADED = "spec-cascaded"
+    CASCADE_REVIEWED = "cascade-reviewed"
     DELTA_TASKS_GENERATED = "delta-tasks-generated"
     IMPL_COMPLETED = "impl-completed"
     VALIDATED = "validated"
@@ -37,8 +38,10 @@ class ImplementResumePoint(str, Enum):
 
     A1_WHAT = "a1-what"
     A1_WHAT_PHASE2 = "a1-what-phase2"
+    A1R_REVIEW = "a1r-review"
     A2_HOW_FULL = "a2-how-full"
     A2_HOW_REVIEW_ONLY = "a2-how-review-only"
+    A2R_REVIEW = "a2r-review"
     A3_TASKS = "a3-tasks"
     A3_TASKS_APPROVAL = "a3-tasks-approval"
     B_IMPL = "b-impl"
@@ -51,6 +54,7 @@ class ModifyResumePoint(str, Enum):
 
     ADR_GATE = "adr-gate"
     M2_CASCADE = "m2-cascade"
+    M2R_REVIEW = "m2r-review"
     M3_DELTA_TASKS = "m3-delta-tasks"
     B_IMPL = "b-impl"
     B2_VALIDATE = "b2-validate"
@@ -87,6 +91,18 @@ class SpecState:
     @property
     def tasks_approved(self) -> bool:
         return self.approvals.get("tasks", {}).get("approved", False)
+
+    @property
+    def review(self) -> dict[str, Any]:
+        return self.raw.get("review", {})
+
+    @property
+    def requirements_review_approved(self) -> bool:
+        return self.review.get("requirements_approved", False)
+
+    @property
+    def design_review_approved(self) -> bool:
+        return self.review.get("design_approved", False)
 
     def save(self) -> None:
         """Write current state back to spec.json."""
@@ -155,11 +171,15 @@ def detect_implement_resume(spec: SpecState) -> ImplementResumePoint:
         return ImplementResumePoint.A3_TASKS_APPROVAL
 
     if phase == Phase.DESIGN_GENERATED:
+        if not spec.design_review_approved:
+            return ImplementResumePoint.A2R_REVIEW
         if spec.design_codex_reviewed:
             return ImplementResumePoint.A3_TASKS
         return ImplementResumePoint.A2_HOW_REVIEW_ONLY
 
     if phase == Phase.REQUIREMENTS_GENERATED:
+        if not spec.requirements_review_approved:
+            return ImplementResumePoint.A1R_REVIEW
         return ImplementResumePoint.A2_HOW_FULL
 
     if phase == Phase.INITIALIZED:
@@ -193,8 +213,11 @@ def detect_modify_resume(spec: SpecState) -> ModifyResumePoint | None:
     if modify_phase == ModifyPhase.DELTA_TASKS_GENERATED:
         return ModifyResumePoint.B_IMPL
 
-    if modify_phase == ModifyPhase.SPEC_CASCADED:
+    if modify_phase == ModifyPhase.CASCADE_REVIEWED:
         return ModifyResumePoint.M3_DELTA_TASKS
+
+    if modify_phase == ModifyPhase.SPEC_CASCADED:
+        return ModifyResumePoint.M2R_REVIEW
 
     if modify_phase == ModifyPhase.ADR_ACCEPTED:
         return ModifyResumePoint.M2_CASCADE

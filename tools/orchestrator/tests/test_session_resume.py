@@ -482,3 +482,200 @@ class TestDesignReviewResume:
         result = _run(p._handle_design_review_resume())
         assert result is None
         assert p.session.checkpoint == "A3"
+
+
+# ══════════════════════════════════════════════════════════════════
+# F6: A1R Requirements Review Gate
+# ══════════════════════════════════════════════════════════════════
+
+class TestRequirementsReviewResume:
+    """requirements_review resume in implement pipeline."""
+
+    def test_approve_proceeds_to_A2(self):
+        p = _make_implement_pipeline(
+            checkpoint="requirements_review",
+            checkpoint_data={"user_input": "approve — 承認して続行"},
+        )
+        with patch("tools.orchestrator.pipelines.implement.find_spec_in_worktree", return_value=None):
+            result = _run(p._handle_requirements_review_resume())
+        assert result is None
+        assert p.session.checkpoint == "A2"
+
+    def test_empty_input_approves(self):
+        p = _make_implement_pipeline(
+            checkpoint="requirements_review",
+            checkpoint_data={"user_input": ""},
+        )
+        with patch("tools.orchestrator.pipelines.implement.find_spec_in_worktree", return_value=None):
+            result = _run(p._handle_requirements_review_resume())
+        assert result is None
+        assert p.session.checkpoint == "A2"
+
+    def test_approve_marks_spec_review(self):
+        mock_spec = MagicMock()
+        mock_spec.raw = {}
+        p = _make_implement_pipeline(
+            checkpoint="requirements_review",
+            checkpoint_data={"user_input": "承認"},
+        )
+        with patch("tools.orchestrator.pipelines.implement.find_spec_in_worktree", return_value=mock_spec):
+            result = _run(p._handle_requirements_review_resume())
+        assert result is None
+        assert p.session.checkpoint == "A2"
+        assert mock_spec.raw["review"]["requirements_approved"] is True
+        mock_spec.save.assert_called_once()
+
+    def test_feedback_reruns_A1(self):
+        p = _make_implement_pipeline(
+            checkpoint="requirements_review",
+            checkpoint_data={
+                "user_input": "要件3にセキュリティ要件を追加してください",
+                "plan_path": "/tmp/plan.md",
+            },
+        )
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        p.run_agent_step = AsyncMock(return_value=mock_result)
+        result = _run(p._handle_requirements_review_resume())
+        assert result is None
+        assert p.session.checkpoint == "A1R"
+        p.run_agent_step.assert_called_once()
+
+    def test_feedback_with_A1_error_returns_error(self):
+        p = _make_implement_pipeline(
+            checkpoint="requirements_review",
+            checkpoint_data={
+                "user_input": "要件を全部やり直して",
+                "plan_path": "/tmp/plan.md",
+            },
+        )
+        mock_result = MagicMock()
+        mock_result.is_error = True
+        mock_result.error_message = "Agent failed"
+        mock_result.output_text = "error output"
+        p.run_agent_step = AsyncMock(return_value=mock_result)
+        result = _run(p._handle_requirements_review_resume())
+        assert result is not None
+        assert result["type"] == "error_occurred"
+
+
+# ══════════════════════════════════════════════════════════════════
+# F7: A2R Design Review Gate
+# ══════════════════════════════════════════════════════════════════
+
+class TestDesignReviewGateResume:
+    """design_review_gate resume in implement pipeline."""
+
+    def test_approve_proceeds_to_A3(self):
+        p = _make_implement_pipeline(
+            checkpoint="design_review_gate",
+            checkpoint_data={"user_input": "approve — 承認して続行"},
+        )
+        with patch("tools.orchestrator.pipelines.implement.find_spec_in_worktree", return_value=None):
+            result = _run(p._handle_design_review_gate_resume())
+        assert result is None
+        assert p.session.checkpoint == "A3"
+
+    def test_empty_input_approves(self):
+        p = _make_implement_pipeline(
+            checkpoint="design_review_gate",
+            checkpoint_data={"user_input": ""},
+        )
+        with patch("tools.orchestrator.pipelines.implement.find_spec_in_worktree", return_value=None):
+            result = _run(p._handle_design_review_gate_resume())
+        assert result is None
+        assert p.session.checkpoint == "A3"
+
+    def test_approve_marks_spec_review(self):
+        mock_spec = MagicMock()
+        mock_spec.raw = {}
+        p = _make_implement_pipeline(
+            checkpoint="design_review_gate",
+            checkpoint_data={"user_input": "承認"},
+        )
+        with patch("tools.orchestrator.pipelines.implement.find_spec_in_worktree", return_value=mock_spec):
+            result = _run(p._handle_design_review_gate_resume())
+        assert result is None
+        assert p.session.checkpoint == "A3"
+        assert mock_spec.raw["review"]["design_approved"] is True
+        mock_spec.save.assert_called_once()
+
+    def test_feedback_reruns_A2(self):
+        p = _make_implement_pipeline(
+            checkpoint="design_review_gate",
+            checkpoint_data={"user_input": "コンポーネント分割を見直してください"},
+        )
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        p.run_agent_step = AsyncMock(return_value=mock_result)
+        result = _run(p._handle_design_review_gate_resume())
+        assert result is None
+        assert p.session.checkpoint == "A2R"
+        p.run_agent_step.assert_called_once()
+
+    def test_feedback_with_A2_error_returns_error(self):
+        p = _make_implement_pipeline(
+            checkpoint="design_review_gate",
+            checkpoint_data={"user_input": "設計を全部やり直して"},
+        )
+        mock_result = MagicMock()
+        mock_result.is_error = True
+        mock_result.error_message = "Agent failed"
+        mock_result.output_text = "error output"
+        p.run_agent_step = AsyncMock(return_value=mock_result)
+        result = _run(p._handle_design_review_gate_resume())
+        assert result is not None
+        assert result["type"] == "error_occurred"
+
+
+# ══════════════════════════════════════════════════════════════════
+# F8: M2R Cascade Review Gate (modify)
+# ══════════════════════════════════════════════════════════════════
+
+class TestCascadeReviewGateResume:
+    """cascade_review_gate resume in modify pipeline."""
+
+    def test_approve_proceeds_to_M3(self):
+        p = _make_modify_pipeline(
+            checkpoint="cascade_review_gate",
+            checkpoint_data={"user_input": "approve — 承認して続行"},
+        )
+        result = _run(p._handle_cascade_review_gate_resume())
+        assert result is None
+        assert p.session.checkpoint == "M3"
+
+    def test_empty_input_approves(self):
+        p = _make_modify_pipeline(
+            checkpoint="cascade_review_gate",
+            checkpoint_data={"user_input": ""},
+        )
+        result = _run(p._handle_cascade_review_gate_resume())
+        assert result is None
+        assert p.session.checkpoint == "M3"
+
+    def test_feedback_reruns_M2(self):
+        p = _make_modify_pipeline(
+            checkpoint="cascade_review_gate",
+            checkpoint_data={"user_input": "デザインの依存関係を見直してください"},
+        )
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        p.run_agent_step = AsyncMock(return_value=mock_result)
+        result = _run(p._handle_cascade_review_gate_resume())
+        assert result is None
+        assert p.session.checkpoint == "M2R"
+        p.run_agent_step.assert_called_once()
+
+    def test_feedback_with_M2_error_returns_error(self):
+        p = _make_modify_pipeline(
+            checkpoint="cascade_review_gate",
+            checkpoint_data={"user_input": "カスケード更新をやり直して"},
+        )
+        mock_result = MagicMock()
+        mock_result.is_error = True
+        mock_result.error_message = "Cascade failed"
+        mock_result.output_text = "error output"
+        p.run_agent_step = AsyncMock(return_value=mock_result)
+        result = _run(p._handle_cascade_review_gate_resume())
+        assert result is not None
+        assert result["type"] == "error_occurred"

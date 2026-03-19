@@ -1,8 +1,8 @@
 """Modify pipeline: existing spec -> delta modification workflow (checkpoint-based).
 
 Steps: Preflight -> Feature resolve -> M1(Analysis) -> Worktree
-       -> ADR Gate -> M2(Cascade) -> M3(Delta tasks) -> B(Impl) -> B2(Validate)
-       -> [L4 check] -> C(Commit) -> D(Push+PR)
+       -> ADR Gate -> M2(Cascade) -> M2R(Cascade Review) -> M3(Delta tasks)
+       -> B(Impl) -> B2(Validate) -> [L4 check] -> C(Commit) -> D(Push+PR)
 """
 
 from __future__ import annotations
@@ -107,6 +107,7 @@ class ModifyPipeline(InterruptiblePipeline):
             ("worktree", self._seg_worktree),
             ("ADR", self._seg_ADR),
             ("M2", self._seg_M2),
+            ("M2R", self._seg_M2R),
             ("M3", self._seg_M3),
             ("B", self._seg_B),
             ("B2", self._seg_B2),
@@ -173,7 +174,7 @@ class ModifyPipeline(InterruptiblePipeline):
             step_name = cp[5:-13]
             segments = [
                 ("preflight", None), ("resolve", None), ("M1", None),
-                ("worktree", None), ("ADR", None), ("M2", None),
+                ("worktree", None), ("ADR", None), ("M2", None), ("M2R", None),
                 ("M3", None), ("B", None), ("B2", None), ("delivery", None),
             ]
             return self._handle_skip_confirm_resume(step_name, segments)
@@ -183,6 +184,9 @@ class ModifyPipeline(InterruptiblePipeline):
 
         if cp == "m2_cascade_review":
             return await self._handle_m2_cascade_review_resume()
+
+        if cp == "cascade_review_gate":
+            return await self._handle_cascade_review_gate_resume()
 
         if cp == "validation_triage":
             return await self._handle_validation_triage_resume()
@@ -660,6 +664,111 @@ class ModifyPipeline(InterruptiblePipeline):
 
         return None
 
+    async def _seg_M2R(self) -> dict[str, Any] | None:
+        """M2R: Cascade Review Gate — review changes made by M2 cascade."""
+        resume_point = self.session.checkpoint_data.get("resume_point", "")
+        rp = MRP(resume_point) if resume_point else None
+        wt_path = Path(self.session.worktree_path)
+        feature_name = self.session.feature_name or self.session.params.get("feature", "")
+
+        if rp is not None and rp not in (MRP.ADR_GATE, MRP.M2_CASCADE, MRP.M2R_REVIEW):
+            self.skip_step("M2R: cascade-review-gate", "sonnet", "resume")
+            return None
+
+        m1_data = (self.session.m1_results or {}).get("single", {})
+        cascade_depth = m1_data.get("cascade_depth", "")
+
+        # Only show review gate when requirements or design were changed
+        if cascade_depth == "requirements-only" or not cascade_depth:
+            self.skip_step("M2R: cascade-review-gate", "sonnet", "レビュー不要")
+            return None
+
+        # Check for review documents (requirements-review.md / design-review.md)
+        spec_dir = wt_path / ".kiro" / "specs" / feature_name
+        req_review = spec_dir / "requirements-review.md"
+        design_review = spec_dir / "design-review.md"
+
+        review_docs: list[str] = []
+        focus_items: list[str] = []
+
+        for doc in (req_review, design_review):
+            if doc.exists():
+                review_docs.append(str(doc))
+                text = doc.read_text()
+                focus_items.extend(
+                    line.strip() for line in text.splitlines() if "🔴" in line
+                )
+
+        if not review_docs:
+            # Fallback: no review documents — skip gate
+            self.skip_step("M2R: cascade-review-gate", "sonnet", "レビュー文書なし — スキップ")
+            return None
+
+        focus_summary = "\n".join(focus_items) if focus_items else "（重大な指摘なし）"
+        context = (
+            f"変更されたレビュー文書:\n"
+            + "\n".join(f"  - {d}" for d in review_docs)
+            + f"\n\nカスケード深度: {cascade_depth}"
+            + f"\n\nフォーカスエリア（🔴項目）:\n{focus_summary}"
+        )
+
+        return self.make_interaction(
+            checkpoint="cascade_review_gate",
+            question="カスケード更新のレビュー文書が生成されました。変更内容を確認してください。",
+            options=["approve — 承認して続行", "feedback — フィードバックを入力"],
+            context=context,
+        )
+
+    async def _handle_cascade_review_gate_resume(self) -> dict[str, Any] | None:
+        """Handle resume from cascade_review_gate checkpoint."""
+        user_input = self.session.checkpoint_data.get("user_input", "")
+
+        # Approve → proceed to M3
+        if not user_input.strip() or "approve" in user_input.lower() or "承認" in user_input:
+            self.session.checkpoint = "M3"
+            self._save()
+            return None
+
+        # Feedback → re-run M2 with feedback
+        wt_path = Path(self.session.worktree_path)
+        feedback = user_input.strip()
+        m1_data = (self.session.m1_results or {}).get("single", {})
+        m1 = M1Result.from_dict(m1_data)
+        adr_path = self.session.checkpoint_data.get("adr_path")
+
+        extra_params: dict[str, str] = {}
+        if adr_path:
+            extra_params["ADR_PATH"] = adr_path
+
+        result = await self.run_agent_step(
+            AgentStep(
+                "M2: cascade (feedback)",
+                "tools/orchestrator/prompts/modify-cascade.md",
+                "opus",
+                {
+                    "WORKTREE_PATH": str(wt_path),
+                    "FEATURE_NAME": m1.feature_name,
+                    "CHANGE_IMPACT_REPORT": m1.m1_output,
+                    "CASCADE_DEPTH": m1.cascade_depth,
+                    "USER_FEEDBACK": feedback,
+                    **extra_params,
+                },
+            ),
+            cwd=wt_path,
+        )
+
+        if result.is_error:
+            return self.make_error(
+                checkpoint="step_M2_failed",
+                error=result.error_message,
+                step_output=result.output_text[-2000:],
+            )
+
+        # Loop back to M2R to re-check review documents
+        self.session.checkpoint = "M2R"
+        self._save()
+        return None
+
     async def _seg_M3(self) -> dict[str, Any] | None:
         """M3 delta tasks."""
         resume_point = self.session.checkpoint_data.get("resume_point", "")
@@ -672,7 +781,7 @@ class ModifyPipeline(InterruptiblePipeline):
             self.skip_step("M3: delta-tasks", "sonnet", "CASCADE_DEPTH=requirements-only")
             return None
 
-        if rp is not None and rp not in (MRP.ADR_GATE, MRP.M2_CASCADE, MRP.M3_DELTA_TASKS):
+        if rp is not None and rp not in (MRP.ADR_GATE, MRP.M2_CASCADE, MRP.M2R_REVIEW, MRP.M3_DELTA_TASKS):
             self.skip_step("M3: delta-tasks", "sonnet", "resume")
             return None
 
