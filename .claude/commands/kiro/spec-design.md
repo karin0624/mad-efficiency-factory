@@ -7,12 +7,12 @@ argument-hint: <feature-name> [-y]
 # 技術設計ジェネレーター
 
 <background_information>
-- **ミッション**: 要件（WHAT）をアーキテクチャ設計（HOW）に変換する包括的な技術設計ドキュメントを生成する
+- **ミッション**: 要件（WHAT）を、コードから復元不可能な「判断」のみで構成されるアーキテクチャ設計ドキュメント（HOW）に変換する
 - **成功基準**:
-  - すべての要件が明確なインターフェースを持つ技術コンポーネントにマッピングされている
+  - すべての要件が技術コンポーネントの Intent/Responsibilities にマッピングされている
   - 適切なアーキテクチャ調査とリサーチが完了している
   - 設計がsteeringコンテキストおよび既存パターンと整合している
-  - 複雑なアーキテクチャにはビジュアル図が含まれている
+  - 出力が判断セクションのみで構成されている（Mermaid図、traceability表、具体的シグネチャを含まない）
 </background_information>
 
 <instructions>
@@ -87,16 +87,30 @@ argument-hint: <feature-name> [-y]
 
 2. **設計ドキュメントの生成**:
 - **specs/design.mdテンプレートの構造と生成指示に厳密に従う**
-- **すべてのディスカバリー結果を統合**: リサーチ済み情報（API、パターン、技術）をコンポーネント定義、アーキテクチャ決定、インテグレーションポイント全体に活用
+- **判断セクションのみを生成する**: 出力には以下のみを含める:
+  - Overview (Purpose, Goals, Non-Goals)
+  - Architecture Pattern 選択とその理由（テキストのみ）
+  - Technology Stack 選定と選定理由
+  - コンポーネントの Intent, Responsibilities, Constraints
+  - Error Handling Strategy（方針・カテゴリ分類）
+  - Testing Strategy（レイヤー分類の決定）
+  - Security Considerations（方針レベル、optional）
+  - Performance & Scalability（目標値・方針、optional）
+- **以下を生成しない**:
+  - Mermaid図（Architecture Boundary Map, System Flows 等）
+  - Requirements Traceability 表
+  - 具体的シグネチャ・コード例（Service Interface, API Contract 等）
+  - Data Models（コード/スキーマから復元可能）
+  - Dependencies（import/DI から復元可能）
+  - Implementation Notes / Implementation Changelog
+  - Migration Strategy / Supporting References
+- **すべてのディスカバリー結果を統合**: リサーチ済み情報（API、パターン、技術）をアーキテクチャ判断、コンポーネント定義全体に活用
 - ステップ 1 で既存のdesign.mdが見つかった場合、参照コンテキストとして使用（マージモード）
 - **Implementation Changelogの活用**: 既存design.mdに `## Implementation Changelog` セクションが存在する場合:
   - Changelogの各エントリを設計判断の入力として扱う（過去の実装で発見された制約・パターン・乖離の理由を新設計に反映する）
-  - 例: 「`[ARCHITECTURE]` MultiMeshInstance2Dではなく_draw()を採用（現規模ではシンプル）」→ 新設計のレンダリング方式選定に反映
-  - 例: 「`[CONSTRAINT]` TILE_SIZE=64がプロジェクト横断制約」→ 新設計のデータモデル・定数に明示的に記載
-  - 新しいdesign.mdでは `## Implementation Changelog` セクションを空の状態で出力する（過去の教訓は本文の設計判断に吸収済みのため）
-- 設計ルールを適用: 型安全性、ビジュアルコミュニケーション、フォーマルなトーン
+  - 過去の教訓は本文の設計判断に吸収し、新しいdesign.mdには Implementation Changelog セクションを含めない
+- 設計ルールを適用: 型安全性、フォーマルなトーン
 - spec.jsonで指定された言語を使用
-- セクションが更新された見出し（「Architecture Pattern & Boundary Map」「Technology Stack & Alignment」「Components & Interface Contracts」）を反映し、`research.md` の補足詳細を参照すること
 
 3. **spec.jsonのメタデータ更新**:
 - `phase: "design-generated"` を設定
@@ -114,7 +128,7 @@ argument-hint: <feature-name> [-y]
 - **自己完結した宣言的仕様**: design.mdはドキュメント単体で完結する宣言的仕様であること。「このシステムはこうあるべき」という記述のみを含む。他ドキュメントとの差異への言及、変更前状態からの差分記述、変更経緯の説明は一切含めない。
 - **steeringとの整合性**: steeringコンテキストの既存パターンを設計の参考にする。ただし最終的な仕様はspecの要件が決定する。steeringとの比較・差異への言及はdesign.mdに含めない。
 - **テンプレート準拠**: specs/design.mdテンプレートの構造と生成指示に厳密に従う
-- **設計に集中**: アーキテクチャとインターフェースのみ、実装コードは含めない
+- **判断に集中**: コードから復元不可能な判断のみを記録する。具体的シグネチャ、Mermaid図、traceability表、実装詳細は含めない
 - **要件トレーサビリティID**: 数値の要件IDのみ使用（例: "1.1", "1.2", "3.1", "3.3"）、requirements.mdで定義された通りに正確に使用する。新しいIDを作成したり、アルファベットのラベルを使用しないこと。
 </instructions>
 
