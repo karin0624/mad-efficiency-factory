@@ -58,14 +58,14 @@ action: <retry|skip|abort>
 
 ## ステップ 5: レスポンス処理
 
-レスポンスの `status` に応じて処理（implement/modify/modify-plan コマンドと同じロジック）:
+レスポンスの `type` に応じて処理（implement/modify/modify-plan コマンドと同じロジック）:
 
-- **completed**: 完了結果を報告
+- **pipeline_completed**: 完了結果を報告
 - **interaction_required**: 次の質問を表示し、回答を待って再度 `mcp__sdd__sdd_resume`
 - **error_occurred**: エラーと推奨アクションを表示
-- **failed**: エラー内容を報告して終了
+- **pipeline_failed**: エラー内容を報告して終了
 
-`completed` または `failed` になるまで繰り返す。
+`pipeline_completed` または `pipeline_failed` になるまで繰り返す。
 
 </instructions>
 

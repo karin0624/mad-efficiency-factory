@@ -28,9 +28,9 @@ plan: "$ARGUMENTS"
 
 ## ステップ 2: レスポンス処理
 
-レスポンスの `status` フィールドに応じて処理する:
+レスポンスの `type` フィールドに応じて処理する:
 
-### `completed`
+### `pipeline_completed`
 パイプライン完了。以下を報告:
 - PR URL（`pr_url`）
 - ブランチ名（`branch`）
@@ -50,7 +50,7 @@ user_input: <ユーザーの回答>
 
 ### `error_occurred`
 エラー発生。以下を表示:
-- `error`: エラー内容
+- `error_message`: エラー内容
 - `step_output`: ステップの出力（あれば）
 - `suggested_actions`: 推奨アクション（retry/skip/abort）
 
@@ -60,12 +60,12 @@ session_id: <レスポンスのsession_id>
 action: <retry|skip|abort>
 ```
 
-### `failed`
+### `pipeline_failed`
 回復不能なエラー。エラー内容を報告して終了。
 
 ## ステップ 3: 繰り返し
 
-`completed` または `failed` になるまでステップ 2 を繰り返す。
+`pipeline_completed` または `pipeline_failed` になるまでステップ 2 を繰り返す。
 
 </instructions>
 

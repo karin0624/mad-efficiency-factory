@@ -105,6 +105,7 @@ def detect_mode_and_setup(
             "mode_plan": "",
             "mode_single_or_plan": "true",
             "feature_name": feature,
+            "delivery_feature_name": feature,
         }
 
     if change:
@@ -683,6 +684,10 @@ make modify plan={slug}
     return {
         "mp_index_path": str(index_path),
         "mp_status": "completed",
+        "mode": "plan",
+        "mode_plan": "true",
+        "mode_single_or_plan": "true",
+        "modify_plan": slug,
     }
 
 
@@ -802,7 +807,31 @@ async def plan_m1_all(
             "adr_reason": parsed.adr_reason,
         }
 
-    return {"plan_m1_results": m1_results}
+    summary_lines: list[str] = []
+    for spec_name in pending:
+        data = m1_results[spec_name]
+        summary_head = (
+            data["delta_summary"].splitlines()[0]
+            if data["delta_summary"]
+            else data["change_description"].splitlines()[0]
+        )
+        summary_lines.append(
+            f"- **{spec_name}**: {data['classification']} "
+            f"(cascade: {data['cascade_depth']}, "
+            f"ADR: {'要' if data['adr_required'] else '不要'})\n"
+            f"  {summary_head}"
+        )
+
+    plan_m1_summary = (
+        f"## M1分析結果 ({len(pending)} specs)\n\n"
+        + "\n".join(summary_lines)
+        + "\n\n実装を開始しますか？"
+    )
+
+    return {
+        "plan_m1_results": m1_results,
+        "plan_m1_summary": plan_m1_summary,
+    }
 
 
 async def plan_impl_all(
@@ -811,13 +840,29 @@ async def plan_impl_all(
     """Run M2 → M3 → B → B2 for each pending spec in plan."""
     from .claude_p import ClaudePRunner
 
-    pending = variables.get("plan_pending", [])
     plan_dir = Path(variables["plan_dir"])
+    order = variables.get("plan_order", [])
+    pending = _get_pending_specs(plan_dir, order) if order else variables.get("plan_pending", [])
+    if not pending:
+        return {}
+
     m1_results = variables.get("plan_m1_results", {})
     wt_path = Path(variables["worktree_path"])
     adr_paths = variables.get("plan_adr_paths", {})
 
     runner = ClaudePRunner(config)
+    total = len(order) if order else len(pending)
+
+    def _step_error(step_label: str, spec_name: str, err: str) -> StepResult:
+        completed_so_far = total - len(pending) + pending.index(spec_name)
+        return StepResult(
+            is_error=True,
+            error_message=(
+                f"{step_label} failed for {spec_name}: {err}\n"
+                f"進捗: {completed_so_far}/{total} specs完了\n"
+                "retry = このspecから再試行, skip = 完了分でdelivery, abort = 中止"
+            ),
+        )
 
     for spec_name in pending:
         m1_data = m1_results.get(spec_name, {})
@@ -844,14 +889,12 @@ async def plan_impl_all(
         )
         result = await runner.run(prompt, model="opus", cwd=wt_path)
         if result.is_error:
-            return StepResult(
-                is_error=True,
-                error_message=f"M2 cascade failed for {spec_name}: {result.error_message}",
-            )
+            return _step_error("M2 cascade", spec_name, result.error_message)
         if result.parsed.cascade_failed:
-            return StepResult(
-                is_error=True,
-                error_message=f"M2 cascade FAILED for {spec_name} (design-review REJECT)",
+            return _step_error(
+                "M2 cascade",
+                spec_name,
+                "design-review REJECT",
             )
 
         # M3 delta tasks
@@ -868,10 +911,7 @@ async def plan_impl_all(
             )
             result = await runner.run(prompt, model="sonnet", cwd=wt_path)
             if result.is_error:
-                return StepResult(
-                    is_error=True,
-                    error_message=f"M3 delta-tasks failed for {spec_name}: {result.error_message}",
-                )
+                return _step_error("M3 delta-tasks", spec_name, result.error_message)
             wt_spec = find_spec_by_name(wt_path, feature_name)
             if wt_spec:
                 wt_spec.set_modify_phase(ModifyPhase.DELTA_TASKS_GENERATED)
@@ -889,10 +929,7 @@ async def plan_impl_all(
             )
             result = await runner.run(prompt, model="sonnet", cwd=wt_path)
             if result.is_error:
-                return StepResult(
-                    is_error=True,
-                    error_message=f"B impl failed for {spec_name}: {result.error_message}",
-                )
+                return _step_error("B impl", spec_name, result.error_message)
             wt_spec = find_spec_by_name(wt_path, feature_name)
             if wt_spec:
                 wt_spec.set_modify_phase(ModifyPhase.IMPL_COMPLETED)
@@ -906,15 +943,9 @@ async def plan_impl_all(
             )
             result = await runner.run(prompt, model="opus", cwd=wt_path)
             if result.is_error:
-                return StepResult(
-                    is_error=True,
-                    error_message=f"B2 validate failed for {spec_name}: {result.error_message}",
-                )
+                return _step_error("B2 validate", spec_name, result.error_message)
             if result.parsed.validation_failed:
-                return StepResult(
-                    is_error=True,
-                    error_message=f"Validation FAILED for {spec_name} (NO-GO)",
-                )
+                return _step_error("B2 validate", spec_name, "NO-GO")
             wt_spec = find_spec_by_name(wt_path, feature_name)
             if wt_spec:
                 wt_spec.set_modify_phase(ModifyPhase.VALIDATED)
@@ -930,21 +961,45 @@ def plan_delivery_setup(
     """Prepare variables for plan-mode delivery (commit + PR)."""
     pending = variables.get("plan_pending", [])
     m1_results = variables.get("plan_m1_results", {})
+    plan_name = variables.get("modify_plan", "")
+    plan_dir_value = variables.get("plan_dir", "")
 
-    all_features = [m1_results[s]["feature_name"] for s in pending if s in m1_results]
-    feature_name = all_features[0] if all_features else ""
+    delivery_specs: list[str] = []
+    if plan_dir_value:
+        order = variables.get("plan_order", pending)
+        status_path = Path(plan_dir_value) / ".status.json"
+        if status_path.exists():
+            try:
+                completed = json.loads(status_path.read_text()).get("completed", [])
+                delivery_specs = [spec for spec in order if spec in completed]
+            except (json.JSONDecodeError, KeyError):
+                delivery_specs = []
+    if not delivery_specs:
+        delivery_specs = pending
 
-    all_delta = "\n".join(m1_results.get(s, {}).get("delta_summary", "") for s in pending)
-    all_change = "\n".join(m1_results.get(s, {}).get("change_description", "") for s in pending)
-    change_summary = all_delta.split("\n")[0] if all_delta else all_change[:80]
+    feature_name = delivery_specs[0] if delivery_specs else ""
+    all_features = [m1_results[s]["feature_name"] for s in delivery_specs if s in m1_results]
+    delivery_feature_name = f"plan-{plan_name}" if plan_name else (
+        all_features[0] if all_features else ""
+    )
+
+    all_delta = "\n".join(m1_results.get(s, {}).get("delta_summary", "") for s in delivery_specs)
+    all_change = "\n".join(
+        m1_results.get(s, {}).get("change_description", "") for s in delivery_specs
+    )
+    change_summary = (all_delta.split("\n")[0] if all_delta else all_change)[:120]
+    affected_specs = ", ".join(delivery_specs)
 
     # Check if steering should run
-    cascade_depths = [m1_results.get(s, {}).get("cascade_depth", "") for s in pending]
+    cascade_depths = [m1_results.get(s, {}).get("cascade_depth", "") for s in delivery_specs]
     run_steering = any(cd != "requirements-only" for cd in cascade_depths)
 
     return {
         "feature_name": feature_name,
+        "delivery_feature_name": delivery_feature_name,
         "change_summary": change_summary,
+        "affected_specs": affected_specs,
+        "plan_delivery_specs": delivery_specs,
         "run_steering": "true" if run_steering else "",
     }
 
@@ -955,7 +1010,7 @@ def plan_cleanup(
     """Cleanup for plan-driven mode: PR URL, worktree, phases, caches."""
     d_output = variables.get("d_output", "")
     pr_url = _extract_pr_url(d_output)
-    pending = variables.get("plan_pending", [])
+    pending = variables.get("plan_delivery_specs", variables.get("plan_pending", []))
     m1_results = variables.get("plan_m1_results", {})
     wt_path = Path(variables["worktree_path"])
 

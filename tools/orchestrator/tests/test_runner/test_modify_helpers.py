@@ -26,6 +26,8 @@ from tools.orchestrator.runner.modify_helpers import (
     detect_mode_and_setup,
     modify_cleanup,
     plan_delivery_setup,
+    plan_impl_all,
+    plan_m1_all,
     plan_setup,
     post_b2_update,
     post_b_update,
@@ -81,6 +83,7 @@ class TestDetectModeAndSetup:
         assert result["mode_investigate"] == ""
         assert result["mode_plan"] == ""
         assert result["feature_name"] == "my-feature"
+        assert result["delivery_feature_name"] == "my-feature"
 
     def test_investigate_mode(self, mock_config: MagicMock):
         variables: dict[str, Any] = {"feature": "", "change": "Add dark mode", "modify_plan": ""}
@@ -424,10 +427,168 @@ class TestPlanSetup:
         assert result.is_error
 
 
+class TestPlanM1All:
+    def test_builds_review_summary(self, mock_config: MagicMock, tmp_path: Path):
+        prompts_dir = tmp_path / "tools" / "orchestrator" / "prompts"
+        prompts_dir.mkdir(parents=True)
+        (prompts_dir / "modify-analyze.md").write_text("Analyze {{ FEATURE_NAME }}")
+
+        plan_dir = tmp_path / "docs" / "modify-plans" / "m1"
+        plan_dir.mkdir(parents=True)
+        (plan_dir / "spec-a.md").write_text(
+            "# Plan\n\n## /modify 実行パラメータ\n\n```yaml\n"
+            "feature_name: spec-a\n"
+            "change_description: Update A\n```\n"
+        )
+        (plan_dir / "spec-b.md").write_text(
+            "# Plan\n\n## /modify 実行パラメータ\n\n```yaml\n"
+            "feature_name: spec-b\n"
+            "change_description: Update B\n```\n"
+        )
+
+        result_a = MagicMock()
+        result_a.is_error = False
+        result_a.output_text = "ANALYSIS_DONE\n"
+        result_a.parsed = MagicMock(
+            analysis_done=True,
+            cascade_depth="requirements+design+tasks",
+            classification="major",
+            delta_summary="Update A summary\nmore",
+            adr_required=False,
+            adr_category="",
+            adr_reason="",
+        )
+
+        result_b = MagicMock()
+        result_b.is_error = False
+        result_b.output_text = "ANALYSIS_DONE\n"
+        result_b.parsed = MagicMock(
+            analysis_done=True,
+            cascade_depth="requirements-only",
+            classification="doc-update",
+            delta_summary="Update B summary",
+            adr_required=True,
+            adr_category="architecture",
+            adr_reason="reason",
+        )
+
+        with patch("tools.orchestrator.runner.claude_p.ClaudePRunner") as MockRunner:
+            runner = MockRunner.return_value
+            runner.run = AsyncMock(side_effect=[result_a, result_b])
+
+            variables: dict[str, Any] = {
+                "plan_dir": str(plan_dir),
+                "plan_pending": ["spec-a", "spec-b"],
+            }
+            result = asyncio.run(plan_m1_all(config=mock_config, variables=variables))
+
+        assert isinstance(result, dict)
+        assert "spec-a" in result["plan_m1_results"]
+        assert "spec-b" in result["plan_m1_results"]
+        assert "## M1分析結果 (2 specs)" in result["plan_m1_summary"]
+        assert "- **spec-a**: major" in result["plan_m1_summary"]
+        assert "ADR: 要" in result["plan_m1_summary"]
+
+
+class TestPlanImplAll:
+    def test_retry_skips_completed_specs(self, mock_config: MagicMock, tmp_path: Path):
+        prompts_dir = tmp_path / "tools" / "orchestrator" / "prompts"
+        prompts_dir.mkdir(parents=True)
+        (prompts_dir / "modify-cascade.md").write_text("Cascade {{ FEATURE_NAME }}")
+
+        plan_dir = tmp_path / "docs" / "modify-plans" / "m1"
+        plan_dir.mkdir(parents=True)
+        (plan_dir / ".status.json").write_text(json.dumps({"completed": ["spec-a"]}))
+
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        result_ok = MagicMock()
+        result_ok.is_error = False
+        result_ok.parsed = MagicMock(cascade_failed=False)
+
+        with patch("tools.orchestrator.runner.claude_p.ClaudePRunner") as MockRunner:
+            runner = MockRunner.return_value
+            runner.run = AsyncMock(return_value=result_ok)
+
+            variables: dict[str, Any] = {
+                "plan_dir": str(plan_dir),
+                "plan_order": ["spec-a", "spec-b"],
+                "plan_pending": ["spec-a", "spec-b"],
+                "plan_m1_results": {
+                    "spec-a": {
+                        "feature_name": "spec-a",
+                        "cascade_depth": "requirements-only",
+                        "m1_output": "A",
+                    },
+                    "spec-b": {
+                        "feature_name": "spec-b",
+                        "cascade_depth": "requirements-only",
+                        "m1_output": "B",
+                    },
+                },
+                "worktree_path": str(worktree),
+            }
+            result = asyncio.run(plan_impl_all(config=mock_config, variables=variables))
+
+        assert result == {}
+        assert runner.run.call_count == 1
+        assert "FEATURE_NAME: spec-b" in runner.run.call_args.args[0]
+        data = json.loads((plan_dir / ".status.json").read_text())
+        assert data["completed"] == ["spec-a", "spec-b"]
+
+    def test_error_message_includes_retry_progress(self, mock_config: MagicMock, tmp_path: Path):
+        prompts_dir = tmp_path / "tools" / "orchestrator" / "prompts"
+        prompts_dir.mkdir(parents=True)
+        (prompts_dir / "modify-cascade.md").write_text("Cascade {{ FEATURE_NAME }}")
+
+        plan_dir = tmp_path / "docs" / "modify-plans" / "m1"
+        plan_dir.mkdir(parents=True)
+        (plan_dir / ".status.json").write_text(json.dumps({"completed": ["spec-a"]}))
+
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        result_error = MagicMock()
+        result_error.is_error = True
+        result_error.error_message = "boom"
+
+        with patch("tools.orchestrator.runner.claude_p.ClaudePRunner") as MockRunner:
+            runner = MockRunner.return_value
+            runner.run = AsyncMock(return_value=result_error)
+
+            variables: dict[str, Any] = {
+                "plan_dir": str(plan_dir),
+                "plan_order": ["spec-a", "spec-b"],
+                "plan_pending": ["spec-a", "spec-b"],
+                "plan_m1_results": {
+                    "spec-b": {
+                        "feature_name": "spec-b",
+                        "cascade_depth": "requirements-only",
+                        "m1_output": "B",
+                    },
+                },
+                "worktree_path": str(worktree),
+            }
+            result = asyncio.run(plan_impl_all(config=mock_config, variables=variables))
+
+        assert isinstance(result, StepResult)
+        assert result.is_error
+        assert "進捗: 1/2 specs完了" in result.error_message
+        assert "retry = このspecから再試行" in result.error_message
+
+
 class TestPlanDeliverySetup:
-    def test_sets_delivery_variables(self, mock_config: MagicMock):
+    def test_sets_delivery_variables(self, mock_config: MagicMock, tmp_path: Path):
+        plan_dir = tmp_path / "docs" / "modify-plans" / "m7"
+        plan_dir.mkdir(parents=True)
+        (plan_dir / ".status.json").write_text(json.dumps({"completed": ["spec-a"]}))
+
         variables: dict[str, Any] = {
             "plan_pending": ["spec-a", "spec-b"],
+            "plan_order": ["spec-a", "spec-b"],
+            "plan_dir": str(plan_dir),
+            "modify_plan": "m7",
             "plan_m1_results": {
                 "spec-a": {
                     "feature_name": "feat-a",
@@ -446,7 +607,9 @@ class TestPlanDeliverySetup:
         result = plan_delivery_setup(config=mock_config, variables=variables)
 
         assert isinstance(result, dict)
-        assert result["feature_name"] == "feat-a"
+        assert result["feature_name"] == "spec-a"
+        assert result["delivery_feature_name"] == "plan-m7"
+        assert result["affected_specs"] == "spec-a"
         assert result["run_steering"] == "true"
 
 
@@ -606,6 +769,9 @@ class TestWriteModifyIndex:
         result = write_modify_index(config=mock_config, variables=variables)
 
         assert result["mp_status"] == "completed"
+        assert result["mode_plan"] == "true"
+        assert result["mode_single_or_plan"] == "true"
+        assert result["modify_plan"] == "m1"
         index_path = output_dir / "_index.md"
         assert index_path.exists()
         content = index_path.read_text()

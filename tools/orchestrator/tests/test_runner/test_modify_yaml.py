@@ -39,13 +39,14 @@ class TestModifyYamlStructure:
             "M3", "M3_update",
             "B", "B_update",
             "B2", "B2_update",
+            # Plan mode
+            "plan_setup", "plan_M1_all", "plan_M1_review", "plan_impl_all",
+            "plan_delivery_setup",
             # Delivery (shared)
             "steering", "L4_check", "L4", "C", "D",
-            # Single cleanup
+            # Cleanup
             "cleanup",
-            # Plan mode
-            "plan_setup", "plan_M1_all", "plan_impl_all",
-            "plan_delivery_setup", "plan_cleanup",
+            "plan_cleanup",
         ]
         assert ids == expected
 
@@ -85,6 +86,7 @@ class TestModifyYamlStructure:
         # Plan
         assert type_map["plan_setup"] == "python"
         assert type_map["plan_M1_all"] == "python"
+        assert type_map["plan_M1_review"] == "review_gate"
         assert type_map["plan_impl_all"] == "python"
 
     def test_claude_steps_have_prompts(self, workflow: Workflow):
@@ -125,7 +127,7 @@ class TestModifyYamlModeConditions:
                 )
 
     def test_plan_steps_guarded(self, workflow: Workflow):
-        plan_ids = {"plan_setup", "plan_M1_all", "plan_impl_all",
+        plan_ids = {"plan_setup", "plan_M1_all", "plan_M1_review", "plan_impl_all",
                     "plan_delivery_setup", "plan_cleanup"}
         for step in workflow.steps:
             if step.id in plan_ids:
@@ -178,6 +180,12 @@ class TestModifyYamlReviewGates:
         assert mp0c is not None
         assert mp0c.type == "review_gate"
         assert len(mp0c.options) == 2
+
+    def test_plan_m1_review_gate(self, workflow: Workflow):
+        gate = workflow.get_step("plan_M1_review")
+        assert gate is not None
+        assert gate.type == "review_gate"
+        assert len(gate.options) == 2
 
 
 class TestModifyYamlMarkers:
@@ -251,6 +259,19 @@ class TestModifyYamlModels:
             step = workflow.get_step(step_id)
             assert step is not None
             assert step.model == "sonnet", f"Step {step_id} should use sonnet"
+
+
+class TestModifyYamlParams:
+    def test_commit_uses_delivery_feature_name(self, workflow: Workflow):
+        c = workflow.get_step("C")
+        assert c is not None
+        assert c.params["FEATURE_NAME"] == "{{ delivery_feature_name }}"
+
+    def test_push_pr_includes_affected_specs(self, workflow: Workflow):
+        d = workflow.get_step("D")
+        assert d is not None
+        assert d.params["FEATURE_NAME"] == "{{ delivery_feature_name }}"
+        assert d.params["AFFECTED_SPECS"] == "{{ affected_specs }}"
 
 
 class TestModifyYamlSessionSave:

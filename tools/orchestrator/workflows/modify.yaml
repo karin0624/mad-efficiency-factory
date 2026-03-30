@@ -28,6 +28,8 @@ vars:
     type: string
   base_branch:
     type: string
+  delivery_feature_name:
+    type: string
   # M1 results
   m1_output:
     type: string
@@ -42,6 +44,8 @@ vars:
   adr_path:
     type: string
   change_summary:
+    type: string
+  affected_specs:
     type: string
   USER_FEEDBACK:
     type: string
@@ -292,6 +296,38 @@ steps:
     when: "{{ run_B2 }}"
     function: tools.orchestrator.runner.modify_helpers:post_b2_update
 
+  # ══════════════════════════════════════════════════════════════
+  # Plan-driven mode: loop over specs via Python helpers
+  # ══════════════════════════════════════════════════════════════
+
+  - id: plan_setup
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_setup
+
+  - id: plan_M1_all
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_m1_all
+
+  - id: plan_M1_review
+    type: review_gate
+    when: "{{ mode_plan }}"
+    question: "{{ plan_m1_summary }}"
+    options:
+      - "承認 — 全specの実装を開始"
+      - "キャンセル"
+
+  - id: plan_impl_all
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_impl_all
+
+  - id: plan_delivery_setup
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_delivery_setup
+
   # ── Delivery (shared: single + plan modes) ─────────────────────
 
   # ── Steering sync ──────────────────────────────────────────────
@@ -325,7 +361,7 @@ steps:
     params:
       WORKTREE_PATH: "{{ worktree_path }}"
       BRANCH_NAME: "{{ branch_name }}"
-      FEATURE_NAME: "{{ feature_name }}"
+      FEATURE_NAME: "{{ delivery_feature_name }}"
 
   # ── D: Push + PR ───────────────────────────────────────────────
   - id: D
@@ -337,44 +373,19 @@ steps:
     params:
       WORKTREE_PATH: "{{ worktree_path }}"
       BRANCH_NAME: "{{ branch_name }}"
-      FEATURE_NAME: "{{ feature_name }}"
+      FEATURE_NAME: "{{ delivery_feature_name }}"
       BASE_BRANCH: "{{ base_branch }}"
       MODIFY_MODE: "true"
       CHANGE_SUMMARY: "{{ change_summary }}"
+      AFFECTED_SPECS: "{{ affected_specs }}"
     extract:
       d_output: "{{ output }}"
 
-  # ── Cleanup (single mode) ──────────────────────────────────────
+  # ── Cleanup ────────────────────────────────────────────────────
   - id: cleanup
     type: python
     when: "{{ mode_single }}"
     function: tools.orchestrator.runner.modify_helpers:modify_cleanup
-
-  # ══════════════════════════════════════════════════════════════
-  # Plan-driven mode: loop over specs via Python helpers
-  # ══════════════════════════════════════════════════════════════
-
-  - id: plan_setup
-    type: python
-    when: "{{ mode_plan }}"
-    function: tools.orchestrator.runner.modify_helpers:plan_setup
-
-  - id: plan_M1_all
-    type: python
-    when: "{{ mode_plan }}"
-    function: tools.orchestrator.runner.modify_helpers:plan_m1_all
-
-  - id: plan_impl_all
-    type: python
-    when: "{{ mode_plan }}"
-    function: tools.orchestrator.runner.modify_helpers:plan_impl_all
-
-  - id: plan_delivery_setup
-    type: python
-    when: "{{ mode_plan }}"
-    function: tools.orchestrator.runner.modify_helpers:plan_delivery_setup
-
-  # Plan mode shares delivery steps (C, L4, D) above via mode_single_or_plan
 
   - id: plan_cleanup
     type: python

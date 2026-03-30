@@ -2,7 +2,7 @@
 description: Start modify pipeline — apply delta changes to existing spec
 allowed-tools: mcp__sdd__sdd_start, mcp__sdd__sdd_resume, mcp__sdd__sdd_status
 disable-model-invocation: true
-argument-hint: <feature-name> <change-description>
+argument-hint: <change-description>
 ---
 
 # SDD Modify パイプライン
@@ -17,15 +17,13 @@ argument-hint: <feature-name> <change-description>
 
 ## ステップ 1: 引数の解析
 
-`$ARGUMENTS` を解析する:
-- 最初のトークン → `feature`（フィーチャー名）
-- 残り → `change`（変更内容の説明）
+`$ARGUMENTS` 全体を `change`（変更内容の説明）として扱う。
 
-例: `/sdd:modify belt-system ベルトの速度を2倍にする`
-→ feature=`belt-system`, change=`ベルトの速度を2倍にする`
+例: `/sdd:modify ベルトの速度を2倍にする`
+→ change=`ベルトの速度を2倍にする`
 
-`$ARGUMENTS` が空または feature のみの場合は使い方を案内して終了:
-「使い方: `/sdd:modify <feature-name> <変更内容>`」
+`$ARGUMENTS` が空の場合は使い方を案内して終了:
+「使い方: `/sdd:modify <変更内容>`」
 
 ## ステップ 2: パイプライン開始
 
@@ -33,15 +31,14 @@ argument-hint: <feature-name> <change-description>
 
 ```
 pipeline: "modify"
-feature: <feature>
-change: <change>
+change: "$ARGUMENTS"
 ```
 
 ## ステップ 3: レスポンス処理
 
-レスポンスの `status` フィールドに応じて処理する:
+レスポンスの `type` フィールドに応じて処理する:
 
-### `completed`
+### `pipeline_completed`
 パイプライン完了。以下を報告:
 - PR URL
 - ブランチ名
@@ -61,12 +58,12 @@ session_id: <session_id>
 action: <retry|skip|abort>
 ```
 
-### `failed`
+### `pipeline_failed`
 エラー内容を報告して終了。
 
 ## ステップ 4: 繰り返し
 
-`completed` または `failed` になるまでステップ 3 を繰り返す。
+`pipeline_completed` または `pipeline_failed` になるまでステップ 3 を繰り返す。
 
 </instructions>
 
