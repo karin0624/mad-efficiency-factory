@@ -1,0 +1,309 @@
+name: implement
+description: "Preflight -> Plan resolve -> Worktree -> Spec -> Impl -> Validate -> PR"
+
+vars:
+  plan:
+    from_param: plan
+  user_description:
+    from_param: plan
+  worktree_path:
+    type: path
+  branch_name:
+    type: string
+  feature_name:
+    type: string
+  base_branch:
+    type: string
+  resume_point:
+    type: string
+    default: "a1-what"
+  # Plan Phase variables
+  needs_plan_creation:
+    type: string
+  plan_file_path:
+    type: string
+  plan_name:
+    type: string
+  p0_needs_clarification:
+    type: string
+  USER_FEEDBACK:
+    type: string
+
+steps:
+  # ── Preflight ───────────────────────────────────────────────────
+  - id: preflight
+    type: python
+    function: tools.orchestrator.runner.helpers:run_preflight_check
+
+  - id: preflight_behind
+    type: review_gate
+    when: "{{ preflight_behind }}"
+    question: "リモートに {{ preflight_behind_count }} 件の新コミットがあります。pullしますか？"
+    options:
+      - "pull して続行"
+      - "そのまま続行"
+
+  - id: preflight_pull
+    type: python
+    when: "{{ preflight_behind }}"
+    function: tools.orchestrator.runner.helpers:preflight_pull_action
+
+  - id: preflight_ahead
+    type: review_gate
+    when: "{{ preflight_ahead }}"
+    question: "ローカルに {{ preflight_ahead_count }} 件の未pushコミットがあります。pushしますか？"
+    options:
+      - "push して続行"
+      - "そのまま続行"
+
+  - id: preflight_push
+    type: python
+    when: "{{ preflight_ahead }}"
+    function: tools.orchestrator.runner.helpers:preflight_push_action
+
+  # ── Plan Phase: Resolve or Create Plan ──────────────────────────
+  - id: plan_resolve
+    type: python
+    function: tools.orchestrator.runner.helpers:plan_resolve_or_create_step
+
+  - id: P0_input_check
+    type: python
+    when: "{{ needs_plan_creation }}"
+    function: tools.orchestrator.runner.helpers:p0_input_check_step
+
+  - id: P0_clarify
+    type: review_gate
+    when: "{{ p0_needs_clarification }}"
+    question: "機能の説明が不十分です。以下の情報を追加してください:\n- 何を実現したいか（ユースケース）\n- 対象となるモジュール/コンポーネント\n- 主要な振る舞い・制約"
+    options:
+      - "補足情報を入力"
+
+  - id: P0_merge_clarification
+    type: python
+    when: "{{ p0_needs_clarification }}"
+    function: tools.orchestrator.runner.helpers:merge_p0_clarification
+
+  - id: P1_plan_gen
+    type: claude
+    when: "{{ needs_plan_creation }}"
+    prompt: tools/orchestrator/prompts/plan-gen.md
+    model: opus
+    params:
+      PLAN_FILE_PATH: "{{ plan_file_path }}"
+      USER_DESCRIPTION: "{{ user_description }}"
+
+  - id: P1e_plan_edit
+    type: claude
+    when: "{{ USER_FEEDBACK }}"
+    prompt: tools/orchestrator/prompts/plan-edit.md
+    model: sonnet
+    params:
+      PLAN_FILE_PATH: "{{ plan_file_path }}"
+      USER_FEEDBACK: "{{ USER_FEEDBACK }}"
+
+  - id: P2_plan_readiness
+    type: claude
+    when: "{{ needs_plan_creation }}"
+    prompt: tools/orchestrator/prompts/plan-readiness.md
+    model: opus
+    params:
+      PLAN_FILE_PATH: "{{ plan_file_path }}"
+
+  - id: P2_gate
+    type: review_gate
+    when: "{{ needs_plan_creation }}"
+    question: "Plan が生成されました。内容を確認してください。"
+    options:
+      - "approve — 承認して実装開始"
+      - "feedback — フィードバックを入力"
+    on_feedback:
+      rerun: P1e_plan_edit
+      extra_params:
+        USER_FEEDBACK: "{{ user_input }}"
+      then: P2_gate
+
+  - id: post_plan_creation
+    type: python
+    when: "{{ needs_plan_creation }}"
+    function: tools.orchestrator.runner.helpers:post_plan_creation_step
+
+  # ── Setup: Worktree + Resume detection ─────────────────────────
+  - id: setup
+    type: python
+    function: tools.orchestrator.runner.helpers:setup_worktree_only_step
+
+  # ── A1: Spec-What (Requirements) ───────────────────────────────
+  - id: A1
+    type: claude
+    prompt: tools/orchestrator/prompts/impl-spec-what.md
+    model: opus
+    cwd: "{{ worktree_path }}"
+    when: "{{ resume_point in RUN_A1 }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      PLAN_FILE_ABSOLUTE_PATH: "{{ plan_path }}"
+
+  - id: A1_detect_feature
+    type: python
+    function: tools.orchestrator.runner.helpers:post_a1_detect_feature
+
+  # ── A1R: Requirements Review Gate ──────────────────────────────
+  - id: A1R
+    type: review_gate
+    when: "{{ resume_point in RUN_A1R }}"
+    file: "{{ worktree_path }}/.kiro/specs/{{ feature_name }}/requirements-review.md"
+    focus: "\U0001F534"
+    question: "要件レビュー文書が生成されました。内容を確認してください。"
+    options:
+      - "approve — 承認して続行"
+      - "feedback — フィードバックを入力"
+    on_feedback:
+      rerun: A1
+      extra_params:
+        USER_FEEDBACK: "{{ user_input }}"
+      then: A1R
+
+  # ── A2: Spec-How (Design) ──────────────────────────────────────
+  - id: A2
+    type: claude
+    prompt: tools/orchestrator/prompts/impl-spec-how.md
+    model: opus
+    cwd: "{{ worktree_path }}"
+    when: "{{ resume_point in RUN_A2 }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+      RESUME_MODE: "{{ resume_mode }}"
+    save_session: true
+    on_marker:
+      REVIEW_NEEDS_HUMAN:
+        pause: design_review
+        save_session: true
+        question: "デザインレビューに人間の判断が必要な項目があります。"
+        options:
+          - "確認済み — 続行"
+          - "フィードバックを入力"
+      REJECT:
+        pause: step_A2_rejected
+        question: "デザインレビューが REJECT されました。"
+        options:
+          - "retry"
+          - "abort"
+
+  # ── A2R: Design Review Gate ────────────────────────────────────
+  - id: A2R
+    type: review_gate
+    when: "{{ resume_point in RUN_A2R }}"
+    file: "{{ worktree_path }}/.kiro/specs/{{ feature_name }}/design-review.md"
+    focus: "\U0001F534"
+    question: "デザインレビュー文書が生成されました。内容を確認してください。"
+    options:
+      - "approve — 承認して続行"
+      - "feedback — フィードバックを入力"
+    on_feedback:
+      rerun: A2
+      extra_params:
+        USER_FEEDBACK: "{{ user_input }}"
+        RESUME_MODE: "full"
+      then: A2R
+
+  # ── A3: Spec-Tasks ─────────────────────────────────────────────
+  - id: A3
+    type: claude
+    prompt: tools/orchestrator/prompts/impl-spec-tasks.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    when: "{{ resume_point in RUN_A3 }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+
+  # ── B: Implementation ──────────────────────────────────────────
+  - id: B
+    type: claude
+    prompt: tools/orchestrator/prompts/impl-code.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    when: "{{ resume_point in RUN_B }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+
+  # ── B2: Validation ─────────────────────────────────────────────
+  - id: B2
+    type: claude
+    prompt: tools/orchestrator/prompts/impl-validate.md
+    model: opus
+    cwd: "{{ worktree_path }}"
+    when: "{{ resume_point in RUN_B2 }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+    save_session: true
+    on_marker:
+      VALIDATION_FAILED:
+        pause: validation_triage
+        save_session: true
+        question: "バリデーションに失敗しました。"
+        options:
+          - "GO (問題を受容して続行)"
+          - "Conditional GO (理由を記録して続行)"
+          - "Retry (B から再実行)"
+          - "Abort"
+        on_resume:
+          "Conditional GO":
+            resume_session: true
+            extra_prompt: "ユーザーがConditional GOを選択。理由: {{ user_input }}。impl-journal.mdに記録してください。"
+          "Retry":
+            goto: B
+          "Abort":
+            goto: _abort
+
+  # ── Steering sync ──────────────────────────────────────────────
+  - id: steering
+    type: skill
+    skill: "kiro:steering"
+    cwd: "{{ worktree_path }}"
+
+  # ── C: Commit ──────────────────────────────────────────────────
+  - id: C
+    type: claude
+    prompt: tools/orchestrator/prompts/impl-commit.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      BRANCH_NAME: "{{ branch_name }}"
+      FEATURE_NAME: "{{ feature_name }}"
+
+  # ── L4: Scene Review (optional) ────────────────────────────────
+  - id: L4_check
+    type: python
+    function: tools.orchestrator.runner.helpers:check_l4_tasks
+
+  - id: L4
+    type: skill
+    when: "{{ has_l4_tasks }}"
+    skill: "kiro:scene-review"
+    cwd: "{{ worktree_path }}"
+    args:
+      args: "{{ feature_name }}"
+
+  # ── D: Push + PR ───────────────────────────────────────────────
+  - id: D
+    type: claude
+    prompt: tools/orchestrator/prompts/impl-push-pr.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      BRANCH_NAME: "{{ branch_name }}"
+      FEATURE_NAME: "{{ feature_name }}"
+      BASE_BRANCH: "{{ base_branch }}"
+    extract:
+      d_output: "{{ output }}"
+
+  # ── Cleanup: Extract PR URL and remove worktree ────────────────
+  - id: cleanup
+    type: python
+    function: tools.orchestrator.runner.helpers:extract_pr_and_cleanup

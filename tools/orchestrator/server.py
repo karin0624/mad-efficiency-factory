@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .config import OrchestratorConfig
 from .response import pipeline_failed
+from .runner import WorkflowRunner
 from .session import (
     PipelineSession,
     create_session,
@@ -18,6 +19,13 @@ from .session import (
 )
 
 mcp = FastMCP("sdd")
+
+# Pipeline name → YAML workflow file (relative to tools/orchestrator/workflows/)
+_WORKFLOW_FILES: dict[str, str] = {
+    "implement": "implement.yaml",
+    "modify": "modify.yaml",
+    "modify-plan": "modify.yaml",  # modify-plan is investigate mode of modify
+}
 
 
 def _get_config() -> OrchestratorConfig:
@@ -29,33 +37,13 @@ def _session_dir(config: OrchestratorConfig) -> Path:
     return config.project_root / config.session_dir
 
 
-async def _run_pipeline(
-    session: PipelineSession,
-    config: OrchestratorConfig,
-    session_dir: Path,
-) -> dict[str, Any]:
-    """Instantiate and run the appropriate pipeline."""
-    if session.pipeline == "implement":
-        from .pipelines.implement import ImplementPipeline
-
-        return await ImplementPipeline(config, session, session_dir).run_until_checkpoint()
-    elif session.pipeline == "modify":
-        from .pipelines.modify import ModifyPipeline
-
-        return await ModifyPipeline(config, session, session_dir).run_until_checkpoint()
-    elif session.pipeline == "modify-plan":
-        from .pipelines.modify_plan import ModifyPlanPipeline
-
-        return await ModifyPlanPipeline(config, session, session_dir).run_until_checkpoint()
-    else:
-        session.status = "failed"
-        save_session(session, session_dir)
-        return pipeline_failed(
-            session_id=session.session_id,
-            pipeline=session.pipeline,
-            current_step="init",
-            error_message=f"Unknown pipeline: {session.pipeline}",
-        )
+def _workflow_path(pipeline: str) -> Path:
+    """Resolve the YAML workflow path for a pipeline name."""
+    filename = _WORKFLOW_FILES.get(pipeline)
+    if not filename:
+        msg = f"Unknown pipeline: {pipeline}"
+        raise ValueError(msg)
+    return Path(__file__).parent / "workflows" / filename
 
 
 @mcp.tool()
@@ -84,10 +72,17 @@ async def sdd_start(
         "change": change,
         "modify_plan": modify_plan,
     }
+
+    # For modify-plan, set the mode flag so modify.yaml runs in investigate mode
+    if pipeline == "modify-plan":
+        params["mode"] = "investigate"
+
     session = create_session(pipeline, params, sd)
 
     try:
-        return await _run_pipeline(session, config, sd)
+        wf_path = _workflow_path(pipeline)
+        runner = WorkflowRunner(config, session=session, session_dir=sd)
+        return await runner.run(wf_path, params)
     except Exception as e:
         session.status = "failed"
         save_session(session, sd)
@@ -133,17 +128,10 @@ async def sdd_resume(
             error_message=f"Session is not paused (status={session.status})",
         )
 
-    # Store resume input in checkpoint_data
-    if user_input:
-        session.checkpoint_data["user_input"] = user_input
-    if action:
-        session.checkpoint_data["action"] = action
-
-    session.status = "running"
-    save_session(session, sd)
-
     try:
-        return await _run_pipeline(session, config, sd)
+        wf_path = _workflow_path(session.pipeline)
+        runner = WorkflowRunner(config, session=session, session_dir=sd)
+        return await runner.resume(wf_path, user_input=user_input, action=action)
     except Exception as e:
         session.status = "failed"
         save_session(session, sd)

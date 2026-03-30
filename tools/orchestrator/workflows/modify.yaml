@@ -1,0 +1,405 @@
+name: modify
+description: "Change analysis -> Cascade -> Delta tasks -> Impl -> Validate -> PR (single/plan/investigate modes)"
+
+vars:
+  feature:
+    from_param: feature
+  change:
+    from_param: change
+  modify_plan:
+    from_param: modify_plan
+  # Mode flags (set by mode_setup)
+  mode:
+    type: string
+  mode_investigate:
+    type: string
+  mode_single:
+    type: string
+  mode_plan:
+    type: string
+  mode_single_or_plan:
+    type: string
+  # Runtime variables
+  feature_name:
+    type: string
+  worktree_path:
+    type: path
+  branch_name:
+    type: string
+  base_branch:
+    type: string
+  # M1 results
+  m1_output:
+    type: string
+  cascade_depth:
+    type: string
+  classification:
+    type: string
+  delta_summary:
+    type: string
+  adr_required:
+    type: string
+  adr_path:
+    type: string
+  change_summary:
+    type: string
+  # When-condition flags (set by process_m1_result / setup_modify_worktree)
+  run_M2:
+    type: string
+  run_M2R:
+    type: string
+  run_M3:
+    type: string
+  run_B:
+    type: string
+  run_B2:
+    type: string
+  run_steering:
+    type: string
+
+steps:
+  # ── Preflight ──────────────────────────────────────────────────
+  - id: preflight
+    type: python
+    function: tools.orchestrator.runner.helpers:run_preflight_check
+
+  - id: preflight_behind
+    type: review_gate
+    when: "{{ preflight_behind }}"
+    question: "リモートに {{ preflight_behind_count }} 件の新コミットがあります。pullしますか？"
+    options:
+      - "pull して続行"
+      - "そのまま続行"
+
+  - id: preflight_pull
+    type: python
+    when: "{{ preflight_behind }}"
+    function: tools.orchestrator.runner.helpers:preflight_pull_action
+
+  - id: preflight_ahead
+    type: review_gate
+    when: "{{ preflight_ahead }}"
+    question: "ローカルに {{ preflight_ahead_count }} 件の未pushコミットがあります。pushしますか？"
+    options:
+      - "push して続行"
+      - "そのまま続行"
+
+  - id: preflight_push
+    type: python
+    when: "{{ preflight_ahead }}"
+    function: tools.orchestrator.runner.helpers:preflight_push_action
+
+  # ── Mode detection + initial setup ─────────────────────────────
+  - id: mode_setup
+    type: python
+    function: tools.orchestrator.runner.modify_helpers:detect_mode_and_setup
+
+  # ══════════════════════════════════════════════════════════════
+  # Investigate mode (modify-plan): MP0 → MP1 → MP2 → index
+  # ══════════════════════════════════════════════════════════════
+
+  - id: MP0
+    type: claude
+    when: "{{ mode_investigate }}"
+    prompt: tools/orchestrator/prompts/modify-plan-investigate.md
+    model: opus
+    params:
+      CHANGE_DESCRIPTION: "{{ change }}"
+    extract:
+      mp0_output: "{{ output }}"
+
+  - id: MP0_process
+    type: python
+    when: "{{ mode_investigate }}"
+    function: tools.orchestrator.runner.modify_helpers:process_mp0_result
+
+  - id: MP0_confirm
+    type: review_gate
+    when: "{{ mode_investigate }}"
+    question: "この対象specリストで進めますか？\n{{ mp0_spec_list }}"
+    options:
+      - "はい、進める"
+      - "キャンセル"
+
+  - id: output_dir_setup
+    type: python
+    when: "{{ mode_investigate }}"
+    function: tools.orchestrator.runner.modify_helpers:setup_output_dir
+
+  - id: MP1
+    type: python
+    when: "{{ mode_investigate }}"
+    function: tools.orchestrator.runner.modify_helpers:run_mp1_parallel
+
+  - id: MP2
+    type: python
+    when: "{{ mode_investigate }}"
+    function: tools.orchestrator.runner.modify_helpers:run_mp2_parallel
+
+  - id: MP_review
+    type: review_gate
+    when: "{{ mode_investigate }}"
+    question: "planを確認してください。\n{{ mp2_summary }}"
+    options:
+      - "Accept — 確定"
+      - "Feedback — 修正指示"
+
+  - id: write_index
+    type: python
+    when: "{{ mode_investigate }}"
+    function: tools.orchestrator.runner.modify_helpers:write_modify_index
+
+  # ══════════════════════════════════════════════════════════════
+  # Single-spec mode: M1 → Worktree → ADR → M2 → M2R → M3 → B → B2 → Delivery
+  # ══════════════════════════════════════════════════════════════
+
+  # ── M1: Change-impact analysis ─────────────────────────────────
+  - id: M1
+    type: claude
+    when: "{{ mode_single }}"
+    prompt: tools/orchestrator/prompts/modify-analyze.md
+    model: opus
+    params:
+      FEATURE_NAME: "{{ feature_name }}"
+      CHANGE_DESCRIPTION: "{{ change }}"
+    save_session: true
+    extract:
+      m1_output: "{{ output }}"
+
+  - id: M1_process
+    type: python
+    when: "{{ mode_single }}"
+    function: tools.orchestrator.runner.modify_helpers:process_m1_result
+
+  - id: M1_review
+    type: review_gate
+    when: "{{ m1_needs_review }}"
+    question: "M1分析の確信度が低い項目があります:\nCLASSIFICATION: {{ classification }}\nCASCADE_DEPTH: {{ cascade_depth }}"
+    options:
+      - "確認済み — 続行"
+      - "フィードバックを入力"
+    on_feedback:
+      rerun: M1
+      extra_params:
+        CHANGE_DESCRIPTION: "{{ change }}"
+      then: M1_process
+
+  # ── Worktree setup ─────────────────────────────────────────────
+  - id: worktree_setup
+    type: python
+    when: "{{ mode_single }}"
+    function: tools.orchestrator.runner.modify_helpers:setup_modify_worktree
+
+  # ── ADR gate ───────────────────────────────────────────────────
+  - id: ADR
+    type: python
+    when: "{{ adr_required }}"
+    function: tools.orchestrator.runner.modify_helpers:run_adr_gate_step_async
+
+  - id: ADR_review
+    type: review_gate
+    when: "{{ adr_needs_review }}"
+    question: "ADRのステータスが '{{ adr_status }}' です。確認してください。"
+    options:
+      - "確認済み — 続行"
+      - "フィードバックを入力"
+
+  # ── M2: Cascade ────────────────────────────────────────────────
+  - id: M2
+    type: claude
+    when: "{{ run_M2 }}"
+    prompt: tools/orchestrator/prompts/modify-cascade.md
+    model: opus
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+      CHANGE_IMPACT_REPORT: "{{ m1_output }}"
+      CASCADE_DEPTH: "{{ cascade_depth }}"
+    save_session: true
+    on_marker:
+      CASCADE_FAILED:
+        pause: m2_cascade_review
+        save_session: true
+        question: "カスケード処理が失敗しました（design-review REJECT 等）。"
+        options:
+          - "フィードバックを入力して再試行"
+          - "リトライ"
+          - "中止"
+
+  # ── M2R: Cascade Review Gate ───────────────────────────────────
+  - id: M2R_check
+    type: python
+    when: "{{ run_M2R }}"
+    function: tools.orchestrator.runner.modify_helpers:check_cascade_review
+
+  - id: M2R
+    type: review_gate
+    when: "{{ m2r_needs_review }}"
+    question: "カスケード更新のレビュー文書が生成されました。変更内容を確認してください。"
+    options:
+      - "approve — 承認して続行"
+      - "feedback — フィードバックを入力"
+    on_feedback:
+      rerun: M2
+      extra_params:
+        USER_FEEDBACK: "{{ user_input }}"
+      then: M2R_check
+
+  # ── M3: Delta tasks ────────────────────────────────────────────
+  - id: M3
+    type: claude
+    when: "{{ run_M3 }}"
+    prompt: tools/orchestrator/prompts/modify-tasks.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+      CHANGE_IMPACT_REPORT: "{{ m1_output }}"
+      CASCADE_DEPTH: "{{ cascade_depth }}"
+
+  - id: M3_update
+    type: python
+    when: "{{ run_M3 }}"
+    function: tools.orchestrator.runner.modify_helpers:post_m3_update
+
+  # ── B: Implementation ──────────────────────────────────────────
+  - id: B
+    type: claude
+    when: "{{ run_B }}"
+    prompt: tools/orchestrator/prompts/impl-code.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+
+  - id: B_update
+    type: python
+    when: "{{ run_B }}"
+    function: tools.orchestrator.runner.modify_helpers:post_b_update
+
+  # ── B2: Validation ─────────────────────────────────────────────
+  - id: B2
+    type: claude
+    when: "{{ run_B2 }}"
+    prompt: tools/orchestrator/prompts/impl-validate.md
+    model: opus
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      FEATURE_NAME: "{{ feature_name }}"
+    save_session: true
+    on_marker:
+      VALIDATION_FAILED:
+        pause: validation_triage
+        save_session: true
+        question: "バリデーションに失敗しました。"
+        options:
+          - "GO (問題を受容して続行)"
+          - "Conditional GO (理由を記録して続行)"
+          - "Retry (B から再実行)"
+          - "Abort"
+        on_resume:
+          "Conditional GO":
+            resume_session: true
+            extra_prompt: "ユーザーがConditional GOを選択。理由: {{ user_input }}。impl-journal.mdに記録してください。"
+          "Retry":
+            goto: B
+          "Abort":
+            goto: _abort
+
+  - id: B2_update
+    type: python
+    when: "{{ run_B2 }}"
+    function: tools.orchestrator.runner.modify_helpers:post_b2_update
+
+  # ── Delivery (shared: single + plan modes) ─────────────────────
+
+  # ── Steering sync ──────────────────────────────────────────────
+  - id: steering
+    type: skill
+    when: "{{ run_steering }}"
+    skill: "kiro:steering"
+    cwd: "{{ worktree_path }}"
+
+  # ── C: Commit ──────────────────────────────────────────────────
+  - id: C
+    type: claude
+    when: "{{ mode_single_or_plan }}"
+    prompt: tools/orchestrator/prompts/impl-commit.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      BRANCH_NAME: "{{ branch_name }}"
+      FEATURE_NAME: "{{ feature_name }}"
+
+  # ── L4: Scene Review (optional) ────────────────────────────────
+  - id: L4_check
+    type: python
+    when: "{{ mode_single_or_plan }}"
+    function: tools.orchestrator.runner.helpers:check_l4_tasks
+
+  - id: L4
+    type: skill
+    when: "{{ has_l4_tasks }}"
+    skill: "kiro:scene-review"
+    cwd: "{{ worktree_path }}"
+    args:
+      args: "{{ feature_name }}"
+
+  # ── D: Push + PR ───────────────────────────────────────────────
+  - id: D
+    type: claude
+    when: "{{ mode_single_or_plan }}"
+    prompt: tools/orchestrator/prompts/impl-push-pr.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      BRANCH_NAME: "{{ branch_name }}"
+      FEATURE_NAME: "{{ feature_name }}"
+      BASE_BRANCH: "{{ base_branch }}"
+      MODIFY_MODE: "true"
+      CHANGE_SUMMARY: "{{ change_summary }}"
+    extract:
+      d_output: "{{ output }}"
+
+  # ── Cleanup (single mode) ──────────────────────────────────────
+  - id: cleanup
+    type: python
+    when: "{{ mode_single }}"
+    function: tools.orchestrator.runner.modify_helpers:modify_cleanup
+
+  # ══════════════════════════════════════════════════════════════
+  # Plan-driven mode: loop over specs via Python helpers
+  # ══════════════════════════════════════════════════════════════
+
+  - id: plan_setup
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_setup
+
+  - id: plan_M1_all
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_m1_all
+
+  - id: plan_impl_all
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_impl_all
+
+  - id: plan_delivery_setup
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_delivery_setup
+
+  # Plan mode shares delivery steps (C, L4, D) above via mode_single_or_plan
+
+  - id: plan_cleanup
+    type: python
+    when: "{{ mode_plan }}"
+    function: tools.orchestrator.runner.modify_helpers:plan_cleanup

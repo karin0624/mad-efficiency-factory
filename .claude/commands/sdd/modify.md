@@ -37,8 +37,6 @@ feature: <feature>
 change: <change>
 ```
 
-modify-planが存在する場合は `modify_plan` パラメータも指定可能。
-
 ## ステップ 3: レスポンス処理
 
 レスポンスの `status` フィールドに応じて処理する:
@@ -81,17 +79,4 @@ action: <retry|skip|abort>
 
 ## パイプラインの段階
 
-参考: modify パイプラインは以下の段階で構成される:
-1. **Preflight** — git状態チェック
-2. **Feature resolve** — 対象Spec特定
-3. **M1** — 変更影響分析（cascade depth, classification, ADR判定）
-4. **Worktree** — worktree作成
-5. **ADR Gate** — ADR必要時は作成
-6. **M2** — カスケード更新（requirements → design → tasks）
-7. **M2R** — Cascade Review Gate（カスケード更新レビュー）
-8. **M3** — デルタタスク生成
-9. **B** — Implementation
-10. **B2** — Validation
-11. **C** — Commit
-12. **L4** — Scene Review（該当時）
-13. **D** — Push + PR
+参考: modify パイプラインは `workflows/modify.yaml` で定義される

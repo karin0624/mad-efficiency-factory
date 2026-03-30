@@ -1,16 +1,16 @@
 ---
-description: Start implement pipeline — plan to PR via SDD orchestrator
+description: Start implement pipeline — SDD orchestrator
 allowed-tools: mcp__sdd__sdd_start, mcp__sdd__sdd_resume, mcp__sdd__sdd_status
 disable-model-invocation: true
-argument-hint: <plan-name>
+argument-hint: [plan-name-or-description]
 ---
 
 # SDD Implement パイプライン
 
 <background_information>
-- **ミッション**: Planファイルから完全な実装パイプラインを実行する（Preflight → Spec生成 → 実装 → 検証 → PR作成）
+- **ミッション**: 機能の実装パイプラインを実行する（Preflight → Plan作成/解決 → Worktree → Spec生成 → 実装 → 検証 → PR作成）
 - **使用MCPツール**: `mcp__sdd__sdd_start` (pipeline="implement")
-- **特徴**: チェックポイント方式 — 各段階で一時停止し、対話的に進行できる
+- **特徴**: チェックポイント方式 — 各段階で一時停止し、対話的に進行できる。Plan作成もワークフローに統合されており、既存Planがなければ自動的に作成フェーズに入る
 </background_information>
 
 <instructions>
@@ -24,7 +24,7 @@ pipeline: "implement"
 plan: "$ARGUMENTS"
 ```
 
-`$ARGUMENTS` が空の場合は「Plan名を指定してください（例: `/sdd:implement my-feature`）」と案内して終了。
+`$ARGUMENTS` には既存のPlan名または機能の説明を指定できる。空の場合は「Plan名または機能の説明を指定してください（例: `/sdd:implement my-feature`）」と案内して終了。
 
 ## ステップ 2: レスポンス処理
 
@@ -78,17 +78,4 @@ action: <retry|skip|abort>
 
 ## パイプラインの段階
 
-参考: implement パイプラインは以下の段階で構成される:
-1. **Preflight** — git状態チェック（behind/ahead検出）
-2. **Setup** — Plan解決 + worktree作成
-3. **A1** — Spec WHAT（要件定義）
-4. **A1R** — Requirements Review Gate（要件レビュー）
-5. **A2** — Spec HOW（設計）
-6. **A2R** — Design Review Gate（デザインレビュー）
-7. **A3** — Spec Tasks（タスク生成）
-8. **B** — Implementation（実装）
-9. **B2** — Validation（検証）
-10. **Steering** — Steering同期
-11. **C** — Commit
-12. **L4** — Scene Review（該当時）
-13. **D** — Push + PR作成
+参考: implement パイプラインは `workflows/implement.yaml` で定義される（Plan作成フェーズを含む統合ワークフロー）
