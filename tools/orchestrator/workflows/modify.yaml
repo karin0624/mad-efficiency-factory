@@ -30,7 +30,7 @@ vars:
     type: string
   delivery_feature_name:
     type: string
-  # M1 results
+  # change_analyze results
   m1_output:
     type: string
   cascade_depth:
@@ -60,8 +60,6 @@ vars:
     type: string
   run_B2:
     type: string
-  run_steering:
-    type: string
 
 steps:
   # ── Preflight ──────────────────────────────────────────────────
@@ -75,10 +73,10 @@ steps:
     function: tools.orchestrator.runner.modify_helpers:detect_mode_and_setup
 
   # ══════════════════════════════════════════════════════════════
-  # Investigate mode (modify-plan): MP0 → MP1 → MP2 → index
+  # Investigate mode (modify-plan): investigate → index
   # ══════════════════════════════════════════════════════════════
 
-  - id: MP0
+  - id: investigate_analyze
     type: claude
     when: "{{ mode_investigate }}"
     prompt: tools/orchestrator/prompts/modify-plan-investigate.md
@@ -88,12 +86,12 @@ steps:
     extract:
       mp0_output: "{{ output }}"
 
-  - id: MP0_process
+  - id: investigate_process
     type: python
     when: "{{ mode_investigate }}"
     function: tools.orchestrator.runner.modify_helpers:process_mp0_result
 
-  - id: MP0_confirm
+  - id: investigate_confirm
     type: review_gate
     when: "{{ mode_investigate }}"
     question: "この対象specリストで進めますか？\n{{ mp0_spec_list }}"
@@ -106,17 +104,17 @@ steps:
     when: "{{ mode_investigate }}"
     function: tools.orchestrator.runner.modify_helpers:setup_output_dir
 
-  - id: MP1
+  - id: investigate_cascade
     type: python
     when: "{{ mode_investigate }}"
     function: tools.orchestrator.runner.modify_helpers:run_mp1_parallel
 
-  - id: MP2
+  - id: investigate_plan
     type: python
     when: "{{ mode_investigate }}"
     function: tools.orchestrator.runner.modify_helpers:run_mp2_parallel
 
-  - id: MP_review
+  - id: investigate_review
     type: review_gate
     when: "{{ mode_investigate }}"
     question: "planを確認してください。\n{{ mp2_summary }}"
@@ -130,11 +128,11 @@ steps:
     function: tools.orchestrator.runner.modify_helpers:write_modify_index
 
   # ══════════════════════════════════════════════════════════════
-  # Single-spec mode: M1 → Worktree → ADR → M2 → M2R → M3 → B → B2 → Delivery
+  # Single-spec mode: change_analyze → Worktree → ADR → cascade → delta_tasks → impl_code → impl_validate → Delivery
   # ══════════════════════════════════════════════════════════════
 
-  # ── M1: Change-impact analysis ─────────────────────────────────
-  - id: M1
+  # ── change_analyze: Change-impact analysis ─────────────────────────────────
+  - id: change_analyze
     type: claude
     when: "{{ mode_single }}"
     prompt: tools/orchestrator/prompts/modify-analyze.md
@@ -146,23 +144,23 @@ steps:
     extract:
       m1_output: "{{ output }}"
 
-  - id: M1_process
+  - id: change_analyze_process
     type: python
     when: "{{ mode_single }}"
     function: tools.orchestrator.runner.modify_helpers:process_m1_result
 
-  - id: M1_review
+  - id: change_analyze_review
     type: review_gate
     when: "{{ m1_needs_review }}"
-    question: "M1分析の確信度が低い項目があります:\nCLASSIFICATION: {{ classification }}\nCASCADE_DEPTH: {{ cascade_depth }}"
+    question: "change_analyze分析の確信度が低い項目があります:\nCLASSIFICATION: {{ classification }}\nCASCADE_DEPTH: {{ cascade_depth }}"
     options:
       - "確認済み — 続行"
       - "フィードバックを入力"
     on_feedback:
-      rerun: M1
+      rerun: change_analyze
       extra_params:
         CHANGE_DESCRIPTION: "{{ change }}"
-      then: M1_process
+      then: change_analyze_process
 
   # ── Worktree setup ─────────────────────────────────────────────
   - id: worktree_setup
@@ -184,8 +182,8 @@ steps:
       - "確認済み — 続行"
       - "フィードバックを入力"
 
-  # ── M2: Cascade ────────────────────────────────────────────────
-  - id: M2
+  # ── cascade: Cascade ────────────────────────────────────────────
+  - id: cascade
     type: claude
     when: "{{ run_M2 }}"
     prompt: tools/orchestrator/prompts/modify-cascade.md
@@ -208,13 +206,13 @@ steps:
           - "リトライ"
           - "中止"
 
-  # ── M2R: Cascade Review Gate ───────────────────────────────────
-  - id: M2R_check
+  # ── cascade_review: Cascade Review Gate ───────────────────────────────
+  - id: cascade_review_check
     type: python
     when: "{{ run_M2R }}"
     function: tools.orchestrator.runner.modify_helpers:check_cascade_review
 
-  - id: M2R
+  - id: cascade_review
     type: review_gate
     when: "{{ m2r_needs_review }}"
     question: "カスケード更新のレビュー文書が生成されました。変更内容を確認してください。"
@@ -222,13 +220,13 @@ steps:
       - "approve — 承認して続行"
       - "feedback — フィードバックを入力"
     on_feedback:
-      rerun: M2
+      rerun: cascade
       extra_params:
         USER_FEEDBACK: "{{ user_input }}"
-      then: M2R_check
+      then: cascade_review_check
 
-  # ── M3: Delta tasks ────────────────────────────────────────────
-  - id: M3
+  # ── delta_tasks: Delta tasks ────────────────────────────────────────
+  - id: delta_tasks
     type: claude
     when: "{{ run_M3 }}"
     prompt: tools/orchestrator/prompts/modify-tasks.md
@@ -240,13 +238,13 @@ steps:
       CHANGE_IMPACT_REPORT: "{{ m1_output }}"
       CASCADE_DEPTH: "{{ cascade_depth }}"
 
-  - id: M3_update
+  - id: delta_tasks_update
     type: python
     when: "{{ run_M3 }}"
     function: tools.orchestrator.runner.modify_helpers:post_m3_update
 
-  # ── B: Implementation ──────────────────────────────────────────
-  - id: B
+  # ── impl_code: Implementation ──────────────────────────────────────────
+  - id: impl_code
     type: claude
     when: "{{ run_B }}"
     prompt: tools/orchestrator/prompts/impl-code.md
@@ -256,13 +254,13 @@ steps:
       WORKTREE_PATH: "{{ worktree_path }}"
       FEATURE_NAME: "{{ feature_name }}"
 
-  - id: B_update
+  - id: impl_code_update
     type: python
     when: "{{ run_B }}"
     function: tools.orchestrator.runner.modify_helpers:post_b_update
 
-  # ── B2: Validation ─────────────────────────────────────────────
-  - id: B2
+  # ── impl_validate: Validation ─────────────────────────────────────────
+  - id: impl_validate
     type: claude
     when: "{{ run_B2 }}"
     prompt: tools/orchestrator/prompts/impl-validate.md
@@ -280,18 +278,18 @@ steps:
         options:
           - "GO (問題を受容して続行)"
           - "Conditional GO (理由を記録して続行)"
-          - "Retry (B から再実行)"
+          - "Retry (impl_code から再実行)"
           - "Abort"
         on_resume:
           "Conditional GO":
             resume_session: true
             extra_prompt: "ユーザーがConditional GOを選択。理由: {{ user_input }}。impl-journal.mdに記録してください。"
           "Retry":
-            goto: B
+            goto: impl_code
           "Abort":
             goto: _abort
 
-  - id: B2_update
+  - id: impl_validate_update
     type: python
     when: "{{ run_B2 }}"
     function: tools.orchestrator.runner.modify_helpers:post_b2_update
@@ -305,12 +303,12 @@ steps:
     when: "{{ mode_plan }}"
     function: tools.orchestrator.runner.modify_helpers:plan_setup
 
-  - id: plan_M1_all
+  - id: plan_analyze_all
     type: python
     when: "{{ mode_plan }}"
     function: tools.orchestrator.runner.modify_helpers:plan_m1_all
 
-  - id: plan_M1_review
+  - id: plan_analyze_review
     type: review_gate
     when: "{{ mode_plan }}"
     question: "{{ plan_m1_summary }}"
@@ -337,13 +335,13 @@ steps:
     skill: "kiro:steering"
     cwd: "{{ worktree_path }}"
 
-  # ── L4: Scene Review (optional) ────────────────────────────────
-  - id: L4_check
+  # ── scene_review: Scene Review (optional) ────────────────────────────────
+  - id: scene_review_check
     type: python
     when: "{{ mode_single_or_plan }}"
     function: tools.orchestrator.runner.helpers:check_l4_tasks
 
-  - id: L4
+  - id: scene_review
     type: skill
     when: "{{ has_l4_tasks }}"
     skill: "kiro:scene-review"
@@ -351,8 +349,8 @@ steps:
     args:
       args: "{{ feature_name }}"
 
-  # ── C: Commit ──────────────────────────────────────────────────
-  - id: C
+  # ── commit: Commit ──────────────────────────────────────────────
+  - id: commit
     type: claude
     when: "{{ mode_single_or_plan }}"
     prompt: tools/orchestrator/prompts/impl-commit.md
@@ -363,8 +361,8 @@ steps:
       BRANCH_NAME: "{{ branch_name }}"
       FEATURE_NAME: "{{ delivery_feature_name }}"
 
-  # ── D: Push + PR ───────────────────────────────────────────────
-  - id: D
+  # ── push_pr: Push + PR ───────────────────────────────────────────────
+  - id: push_pr
     type: claude
     when: "{{ mode_single_or_plan }}"
     prompt: tools/orchestrator/prompts/impl-push-pr.md

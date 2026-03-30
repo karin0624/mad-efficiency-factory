@@ -33,15 +33,15 @@ class TestImplementYamlStructure:
             "post_plan_creation",
             # Setup + Spec + Impl
             "setup",
-            "A1", "A1_detect_feature",
-            "A1R",
-            "A2", "A2R",
-            "A3",
-            "B", "B2",
+            "spec_requirements", "detect_feature",
+            "requirements_review",
+            "spec_design", "design_review",
+            "spec_tasks",
+            "impl_code", "impl_validate",
             "steering",
-            "L4_check", "L4",
-            "C",
-            "D", "cleanup",
+            "scene_review_check", "scene_review",
+            "commit",
+            "push_pr", "cleanup",
         ]
         assert ids == expected
 
@@ -60,17 +60,17 @@ class TestImplementYamlStructure:
         assert type_map["post_plan_creation"] == "python"
         # Setup + existing
         assert type_map["setup"] == "python"
-        assert type_map["A1"] == "claude"
-        assert type_map["A1R"] == "review_gate"
-        assert type_map["A2"] == "claude"
-        assert type_map["A2R"] == "review_gate"
-        assert type_map["A3"] == "claude"
-        assert type_map["B"] == "claude"
-        assert type_map["B2"] == "claude"
+        assert type_map["spec_requirements"] == "claude"
+        assert type_map["requirements_review"] == "review_gate"
+        assert type_map["spec_design"] == "claude"
+        assert type_map["design_review"] == "review_gate"
+        assert type_map["spec_tasks"] == "claude"
+        assert type_map["impl_code"] == "claude"
+        assert type_map["impl_validate"] == "claude"
         assert type_map["steering"] == "skill"
-        assert type_map["C"] == "claude"
-        assert type_map["L4"] == "skill"
-        assert type_map["D"] == "claude"
+        assert type_map["commit"] == "claude"
+        assert type_map["scene_review"] == "skill"
+        assert type_map["push_pr"] == "claude"
         assert type_map["cleanup"] == "python"
 
     def test_claude_steps_have_prompts(self, workflow: Workflow):
@@ -91,87 +91,87 @@ class TestImplementYamlStructure:
 
 
 class TestImplementYamlReviewGates:
-    def test_a1r_has_feedback_loop(self, workflow: Workflow):
-        a1r = workflow.get_step("A1R")
-        assert a1r is not None
-        assert a1r.on_feedback is not None
-        assert a1r.on_feedback.rerun == "A1"
-        assert a1r.on_feedback.then == "A1R"
+    def test_requirements_review_has_feedback_loop(self, workflow: Workflow):
+        gate = workflow.get_step("requirements_review")
+        assert gate is not None
+        assert gate.on_feedback is not None
+        assert gate.on_feedback.rerun == "spec_requirements"
+        assert gate.on_feedback.then == "requirements_review"
 
-    def test_a2r_has_feedback_loop(self, workflow: Workflow):
-        a2r = workflow.get_step("A2R")
-        assert a2r is not None
-        assert a2r.on_feedback is not None
-        assert a2r.on_feedback.rerun == "A2"
-        assert a2r.on_feedback.then == "A2R"
+    def test_design_review_has_feedback_loop(self, workflow: Workflow):
+        gate = workflow.get_step("design_review")
+        assert gate is not None
+        assert gate.on_feedback is not None
+        assert gate.on_feedback.rerun == "spec_design"
+        assert gate.on_feedback.then == "design_review"
 
     def test_review_gates_have_file_references(self, workflow: Workflow):
-        a1r = workflow.get_step("A1R")
-        assert a1r is not None
-        assert "requirements-review.md" in a1r.file
+        req_review = workflow.get_step("requirements_review")
+        assert req_review is not None
+        assert "requirements-review.md" in req_review.file
 
-        a2r = workflow.get_step("A2R")
-        assert a2r is not None
-        assert "design-review.md" in a2r.file
+        des_review = workflow.get_step("design_review")
+        assert des_review is not None
+        assert "design-review.md" in des_review.file
 
 
 class TestImplementYamlMarkers:
-    def test_a2_has_on_marker(self, workflow: Workflow):
-        a2 = workflow.get_step("A2")
-        assert a2 is not None
-        assert "REVIEW_NEEDS_HUMAN" in a2.on_marker
-        assert "REJECT" in a2.on_marker
-        assert a2.on_marker["REVIEW_NEEDS_HUMAN"].pause == "design_review"
-        assert a2.on_marker["REVIEW_NEEDS_HUMAN"].save_session is True
+    def test_spec_design_has_on_marker(self, workflow: Workflow):
+        step = workflow.get_step("spec_design")
+        assert step is not None
+        assert "REVIEW_NEEDS_HUMAN" in step.on_marker
+        assert "REJECT" in step.on_marker
+        assert step.on_marker["REVIEW_NEEDS_HUMAN"].pause == "design_review"
+        assert step.on_marker["REVIEW_NEEDS_HUMAN"].save_session is True
 
-    def test_b2_has_on_marker(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        assert "VALIDATION_FAILED" in b2.on_marker
-        assert b2.on_marker["VALIDATION_FAILED"].pause == "validation_triage"
-        assert b2.on_marker["VALIDATION_FAILED"].save_session is True
-        assert b2.on_marker["VALIDATION_FAILED"].question != ""
-        assert len(b2.on_marker["VALIDATION_FAILED"].options) == 4
+    def test_impl_validate_has_on_marker(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        assert "VALIDATION_FAILED" in step.on_marker
+        assert step.on_marker["VALIDATION_FAILED"].pause == "validation_triage"
+        assert step.on_marker["VALIDATION_FAILED"].save_session is True
+        assert step.on_marker["VALIDATION_FAILED"].question != ""
+        assert len(step.on_marker["VALIDATION_FAILED"].options) == 4
 
-    def test_b2_conditional_go_option(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        options = b2.on_marker["VALIDATION_FAILED"].options
+    def test_impl_validate_conditional_go_option(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        options = step.on_marker["VALIDATION_FAILED"].options
         assert any("Conditional GO" in o for o in options)
 
-    def test_b2_on_resume_actions(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        on_resume = b2.on_marker["VALIDATION_FAILED"].on_resume
+    def test_impl_validate_on_resume_actions(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        on_resume = step.on_marker["VALIDATION_FAILED"].on_resume
         assert "Conditional GO" in on_resume
         assert on_resume["Conditional GO"].resume_session is True
         assert "Retry" in on_resume
-        assert on_resume["Retry"].goto == "B"
+        assert on_resume["Retry"].goto == "impl_code"
         assert "Abort" in on_resume
         assert on_resume["Abort"].goto == "_abort"
 
 
 class TestImplementYamlWhenConditions:
     def test_resume_conditions_use_run_sets(self, workflow: Workflow):
-        for step_id in ["A1", "A2", "A3", "B", "B2"]:
+        for step_id in ["spec_requirements", "spec_design", "spec_tasks", "impl_code", "impl_validate"]:
             step = workflow.get_step(step_id)
             assert step is not None
             assert step.when, f"Step {step_id} should have a when condition"
             assert "resume_point in RUN_" in step.when
 
-    def test_l4_has_condition(self, workflow: Workflow):
-        l4 = workflow.get_step("L4")
-        assert l4 is not None
-        assert "has_l4_tasks" in l4.when
+    def test_scene_review_has_condition(self, workflow: Workflow):
+        step = workflow.get_step("scene_review")
+        assert step is not None
+        assert "has_l4_tasks" in step.when
 
     def test_preflight_sync_gates_removed(self, workflow: Workflow):
         for step_id in ["preflight_behind", "preflight_pull", "preflight_ahead", "preflight_push"]:
             assert workflow.get_step(step_id) is None
 
-    def test_l4_runs_before_commit(self, workflow: Workflow):
+    def test_scene_review_runs_before_commit(self, workflow: Workflow):
         ids = workflow.step_ids()
-        assert ids.index("L4_check") < ids.index("C")
-        assert ids.index("L4") < ids.index("C")
+        assert ids.index("scene_review_check") < ids.index("commit")
+        assert ids.index("scene_review") < ids.index("commit")
 
 
 class TestImplementYamlPlanPhase:
@@ -216,25 +216,25 @@ class TestImplementYamlPlanPhase:
 
 class TestImplementYamlModels:
     def test_opus_for_critical_steps(self, workflow: Workflow):
-        for step_id in ["A1", "A2", "B2", "P1_plan_gen", "P2_plan_readiness"]:
+        for step_id in ["spec_requirements", "spec_design", "impl_validate", "P1_plan_gen", "P2_plan_readiness"]:
             step = workflow.get_step(step_id)
             assert step is not None
             assert step.model == "opus", f"Step {step_id} should use opus"
 
     def test_sonnet_for_execution_steps(self, workflow: Workflow):
-        for step_id in ["A3", "B", "C", "D", "P1e_plan_edit"]:
+        for step_id in ["spec_tasks", "impl_code", "commit", "push_pr", "P1e_plan_edit"]:
             step = workflow.get_step(step_id)
             assert step is not None
             assert step.model == "sonnet", f"Step {step_id} should use sonnet"
 
 
 class TestImplementYamlParams:
-    def test_a1_includes_user_feedback_param(self, workflow: Workflow):
-        a1 = workflow.get_step("A1")
-        assert a1 is not None
-        assert a1.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"
+    def test_spec_requirements_includes_user_feedback_param(self, workflow: Workflow):
+        step = workflow.get_step("spec_requirements")
+        assert step is not None
+        assert step.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"
 
-    def test_a2_includes_user_feedback_param(self, workflow: Workflow):
-        a2 = workflow.get_step("A2")
-        assert a2 is not None
-        assert a2.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"
+    def test_spec_design_includes_user_feedback_param(self, workflow: Workflow):
+        step = workflow.get_step("spec_design")
+        assert step is not None
+        assert step.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"

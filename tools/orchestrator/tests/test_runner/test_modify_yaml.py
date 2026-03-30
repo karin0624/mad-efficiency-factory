@@ -29,21 +29,21 @@ class TestModifyYamlStructure:
             # Mode detection
             "mode_setup",
             # Investigate mode
-            "MP0", "MP0_process", "MP0_confirm",
-            "output_dir_setup", "MP1", "MP2", "MP_review", "write_index",
+            "investigate_analyze", "investigate_process", "investigate_confirm",
+            "output_dir_setup", "investigate_cascade", "investigate_plan", "investigate_review", "write_index",
             # Single mode
-            "M1", "M1_process", "M1_review",
+            "change_analyze", "change_analyze_process", "change_analyze_review",
             "worktree_setup",
             "ADR", "ADR_review",
-            "M2", "M2R_check", "M2R",
-            "M3", "M3_update",
-            "B", "B_update",
-            "B2", "B2_update",
+            "cascade", "cascade_review_check", "cascade_review",
+            "delta_tasks", "delta_tasks_update",
+            "impl_code", "impl_code_update",
+            "impl_validate", "impl_validate_update",
             # Plan mode
-            "plan_setup", "plan_M1_all", "plan_M1_review", "plan_impl_all",
+            "plan_setup", "plan_analyze_all", "plan_analyze_review", "plan_impl_all",
             "plan_delivery_setup",
             # Delivery (shared)
-            "steering", "L4_check", "L4", "C", "D",
+            "steering", "scene_review_check", "scene_review", "commit", "push_pr",
             # Cleanup
             "cleanup",
             "plan_cleanup",
@@ -57,36 +57,36 @@ class TestModifyYamlStructure:
         # Mode
         assert type_map["mode_setup"] == "python"
         # Investigate
-        assert type_map["MP0"] == "claude"
-        assert type_map["MP0_process"] == "python"
-        assert type_map["MP0_confirm"] == "review_gate"
-        assert type_map["MP1"] == "python"
-        assert type_map["MP2"] == "python"
-        assert type_map["MP_review"] == "review_gate"
+        assert type_map["investigate_analyze"] == "claude"
+        assert type_map["investigate_process"] == "python"
+        assert type_map["investigate_confirm"] == "review_gate"
+        assert type_map["investigate_cascade"] == "python"
+        assert type_map["investigate_plan"] == "python"
+        assert type_map["investigate_review"] == "review_gate"
         assert type_map["write_index"] == "python"
         # Single
-        assert type_map["M1"] == "claude"
-        assert type_map["M1_process"] == "python"
-        assert type_map["M1_review"] == "review_gate"
+        assert type_map["change_analyze"] == "claude"
+        assert type_map["change_analyze_process"] == "python"
+        assert type_map["change_analyze_review"] == "review_gate"
         assert type_map["worktree_setup"] == "python"
         assert type_map["ADR"] == "python"
         assert type_map["ADR_review"] == "review_gate"
-        assert type_map["M2"] == "claude"
-        assert type_map["M2R_check"] == "python"
-        assert type_map["M2R"] == "review_gate"
-        assert type_map["M3"] == "claude"
-        assert type_map["B"] == "claude"
-        assert type_map["B2"] == "claude"
+        assert type_map["cascade"] == "claude"
+        assert type_map["cascade_review_check"] == "python"
+        assert type_map["cascade_review"] == "review_gate"
+        assert type_map["delta_tasks"] == "claude"
+        assert type_map["impl_code"] == "claude"
+        assert type_map["impl_validate"] == "claude"
         # Delivery
         assert type_map["steering"] == "skill"
-        assert type_map["C"] == "claude"
-        assert type_map["L4"] == "skill"
-        assert type_map["D"] == "claude"
+        assert type_map["commit"] == "claude"
+        assert type_map["scene_review"] == "skill"
+        assert type_map["push_pr"] == "claude"
         assert type_map["cleanup"] == "python"
         # Plan
         assert type_map["plan_setup"] == "python"
-        assert type_map["plan_M1_all"] == "python"
-        assert type_map["plan_M1_review"] == "review_gate"
+        assert type_map["plan_analyze_all"] == "python"
+        assert type_map["plan_analyze_review"] == "review_gate"
         assert type_map["plan_impl_all"] == "python"
 
     def test_claude_steps_have_prompts(self, workflow: Workflow):
@@ -110,8 +110,8 @@ class TestModifyYamlModeConditions:
     """Verify that steps are gated by correct mode conditions."""
 
     def test_investigate_steps_guarded(self, workflow: Workflow):
-        investigate_ids = {"MP0", "MP0_process", "MP0_confirm",
-                          "output_dir_setup", "MP1", "MP2", "MP_review", "write_index"}
+        investigate_ids = {"investigate_analyze", "investigate_process", "investigate_confirm",
+                          "output_dir_setup", "investigate_cascade", "investigate_plan", "investigate_review", "write_index"}
         for step in workflow.steps:
             if step.id in investigate_ids:
                 assert "mode_investigate" in step.when, (
@@ -119,7 +119,7 @@ class TestModifyYamlModeConditions:
                 )
 
     def test_single_steps_guarded(self, workflow: Workflow):
-        single_ids = {"M1", "M1_process", "worktree_setup"}
+        single_ids = {"change_analyze", "change_analyze_process", "worktree_setup"}
         for step in workflow.steps:
             if step.id in single_ids:
                 assert "mode_single" in step.when, (
@@ -127,7 +127,7 @@ class TestModifyYamlModeConditions:
                 )
 
     def test_plan_steps_guarded(self, workflow: Workflow):
-        plan_ids = {"plan_setup", "plan_M1_all", "plan_M1_review", "plan_impl_all",
+        plan_ids = {"plan_setup", "plan_analyze_all", "plan_analyze_review", "plan_impl_all",
                     "plan_delivery_setup", "plan_cleanup"}
         for step in workflow.steps:
             if step.id in plan_ids:
@@ -136,8 +136,8 @@ class TestModifyYamlModeConditions:
                 )
 
     def test_delivery_shared_steps(self, workflow: Workflow):
-        """C, L4_check, D are shared by single and plan modes."""
-        shared_ids = {"C", "L4_check", "D"}
+        """commit, scene_review_check, push_pr are shared by single and plan modes."""
+        shared_ids = {"commit", "scene_review_check", "push_pr"}
         for step in workflow.steps:
             if step.id in shared_ids:
                 assert "mode_single_or_plan" in step.when, (
@@ -148,26 +148,26 @@ class TestModifyYamlModeConditions:
         for step_id in ["preflight_behind", "preflight_pull", "preflight_ahead", "preflight_push"]:
             assert workflow.get_step(step_id) is None
 
-    def test_l4_runs_before_commit(self, workflow: Workflow):
+    def test_scene_review_runs_before_commit(self, workflow: Workflow):
         ids = workflow.step_ids()
-        assert ids.index("L4_check") < ids.index("C")
-        assert ids.index("L4") < ids.index("C")
+        assert ids.index("scene_review_check") < ids.index("commit")
+        assert ids.index("scene_review") < ids.index("commit")
 
 
 class TestModifyYamlReviewGates:
-    def test_m1_review_has_feedback_loop(self, workflow: Workflow):
-        m1r = workflow.get_step("M1_review")
-        assert m1r is not None
-        assert m1r.on_feedback is not None
-        assert m1r.on_feedback.rerun == "M1"
-        assert m1r.on_feedback.then == "M1_process"
+    def test_change_analyze_review_has_feedback_loop(self, workflow: Workflow):
+        gate = workflow.get_step("change_analyze_review")
+        assert gate is not None
+        assert gate.on_feedback is not None
+        assert gate.on_feedback.rerun == "change_analyze"
+        assert gate.on_feedback.then == "change_analyze_process"
 
-    def test_m2r_has_feedback_loop(self, workflow: Workflow):
-        m2r = workflow.get_step("M2R")
-        assert m2r is not None
-        assert m2r.on_feedback is not None
-        assert m2r.on_feedback.rerun == "M2"
-        assert m2r.on_feedback.then == "M2R_check"
+    def test_cascade_review_has_feedback_loop(self, workflow: Workflow):
+        gate = workflow.get_step("cascade_review")
+        assert gate is not None
+        assert gate.on_feedback is not None
+        assert gate.on_feedback.rerun == "cascade"
+        assert gate.on_feedback.then == "cascade_review_check"
 
     def test_adr_review_gate(self, workflow: Workflow):
         adr_r = workflow.get_step("ADR_review")
@@ -175,87 +175,87 @@ class TestModifyYamlReviewGates:
         assert adr_r.type == "review_gate"
         assert "adr_needs_review" in adr_r.when
 
-    def test_mp0_confirm_gate(self, workflow: Workflow):
-        mp0c = workflow.get_step("MP0_confirm")
-        assert mp0c is not None
-        assert mp0c.type == "review_gate"
-        assert len(mp0c.options) == 2
+    def test_investigate_confirm_gate(self, workflow: Workflow):
+        gate = workflow.get_step("investigate_confirm")
+        assert gate is not None
+        assert gate.type == "review_gate"
+        assert len(gate.options) == 2
 
-    def test_plan_m1_review_gate(self, workflow: Workflow):
-        gate = workflow.get_step("plan_M1_review")
+    def test_plan_analyze_review_gate(self, workflow: Workflow):
+        gate = workflow.get_step("plan_analyze_review")
         assert gate is not None
         assert gate.type == "review_gate"
         assert len(gate.options) == 2
 
 
 class TestModifyYamlMarkers:
-    def test_m2_has_cascade_failed_marker(self, workflow: Workflow):
-        m2 = workflow.get_step("M2")
-        assert m2 is not None
-        assert "CASCADE_FAILED" in m2.on_marker
-        assert m2.on_marker["CASCADE_FAILED"].pause == "m2_cascade_review"
-        assert m2.on_marker["CASCADE_FAILED"].save_session is True
+    def test_cascade_has_cascade_failed_marker(self, workflow: Workflow):
+        step = workflow.get_step("cascade")
+        assert step is not None
+        assert "CASCADE_FAILED" in step.on_marker
+        assert step.on_marker["CASCADE_FAILED"].pause == "m2_cascade_review"
+        assert step.on_marker["CASCADE_FAILED"].save_session is True
 
-    def test_b2_has_validation_failed_marker(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        assert "VALIDATION_FAILED" in b2.on_marker
-        assert b2.on_marker["VALIDATION_FAILED"].pause == "validation_triage"
-        assert b2.on_marker["VALIDATION_FAILED"].save_session is True
-        assert len(b2.on_marker["VALIDATION_FAILED"].options) == 4
+    def test_impl_validate_has_validation_failed_marker(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        assert "VALIDATION_FAILED" in step.on_marker
+        assert step.on_marker["VALIDATION_FAILED"].pause == "validation_triage"
+        assert step.on_marker["VALIDATION_FAILED"].save_session is True
+        assert len(step.on_marker["VALIDATION_FAILED"].options) == 4
 
-    def test_b2_conditional_go_option(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        options = b2.on_marker["VALIDATION_FAILED"].options
+    def test_impl_validate_conditional_go_option(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        options = step.on_marker["VALIDATION_FAILED"].options
         assert any("Conditional GO" in o for o in options)
 
-    def test_b2_on_resume_actions(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        on_resume = b2.on_marker["VALIDATION_FAILED"].on_resume
+    def test_impl_validate_on_resume_actions(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        on_resume = step.on_marker["VALIDATION_FAILED"].on_resume
         assert "Conditional GO" in on_resume
         assert on_resume["Conditional GO"].resume_session is True
         assert on_resume["Conditional GO"].extra_prompt != ""
         assert "Retry" in on_resume
-        assert on_resume["Retry"].goto == "B"
+        assert on_resume["Retry"].goto == "impl_code"
         assert "Abort" in on_resume
         assert on_resume["Abort"].goto == "_abort"
 
 
 class TestModifyYamlCascadeConditions:
-    """Verify cascade_depth-based when conditions for M2/M3/B/B2."""
+    """Verify cascade_depth-based when conditions for cascade/delta_tasks/impl_code/impl_validate."""
 
-    def test_m2_has_run_condition(self, workflow: Workflow):
-        m2 = workflow.get_step("M2")
-        assert m2 is not None
-        assert "run_M2" in m2.when
+    def test_cascade_has_run_condition(self, workflow: Workflow):
+        step = workflow.get_step("cascade")
+        assert step is not None
+        assert "run_M2" in step.when
 
-    def test_m3_has_run_condition(self, workflow: Workflow):
-        m3 = workflow.get_step("M3")
-        assert m3 is not None
-        assert "run_M3" in m3.when
+    def test_delta_tasks_has_run_condition(self, workflow: Workflow):
+        step = workflow.get_step("delta_tasks")
+        assert step is not None
+        assert "run_M3" in step.when
 
-    def test_b_has_run_condition(self, workflow: Workflow):
-        b = workflow.get_step("B")
-        assert b is not None
-        assert "run_B" in b.when
+    def test_impl_code_has_run_condition(self, workflow: Workflow):
+        step = workflow.get_step("impl_code")
+        assert step is not None
+        assert "run_B" in step.when
 
-    def test_b2_has_run_condition(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        assert "run_B2" in b2.when
+    def test_impl_validate_has_run_condition(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        assert "run_B2" in step.when
 
 
 class TestModifyYamlModels:
     def test_opus_for_analysis_steps(self, workflow: Workflow):
-        for step_id in ["M1", "MP0", "M2", "B2"]:
+        for step_id in ["change_analyze", "investigate_analyze", "cascade", "impl_validate"]:
             step = workflow.get_step(step_id)
             assert step is not None
             assert step.model == "opus", f"Step {step_id} should use opus"
 
     def test_sonnet_for_execution_steps(self, workflow: Workflow):
-        for step_id in ["M3", "B", "C", "D"]:
+        for step_id in ["delta_tasks", "impl_code", "commit", "push_pr"]:
             step = workflow.get_step(step_id)
             assert step is not None
             assert step.model == "sonnet", f"Step {step_id} should use sonnet"
@@ -263,38 +263,38 @@ class TestModifyYamlModels:
 
 class TestModifyYamlParams:
     def test_commit_uses_delivery_feature_name(self, workflow: Workflow):
-        c = workflow.get_step("C")
-        assert c is not None
-        assert c.params["FEATURE_NAME"] == "{{ delivery_feature_name }}"
+        step = workflow.get_step("commit")
+        assert step is not None
+        assert step.params["FEATURE_NAME"] == "{{ delivery_feature_name }}"
 
     def test_push_pr_includes_affected_specs(self, workflow: Workflow):
-        d = workflow.get_step("D")
-        assert d is not None
-        assert d.params["FEATURE_NAME"] == "{{ delivery_feature_name }}"
-        assert d.params["AFFECTED_SPECS"] == "{{ affected_specs }}"
+        step = workflow.get_step("push_pr")
+        assert step is not None
+        assert step.params["FEATURE_NAME"] == "{{ delivery_feature_name }}"
+        assert step.params["AFFECTED_SPECS"] == "{{ affected_specs }}"
 
 
 class TestModifyYamlSessionSave:
     """Verify save_session is set for steps that need session resume."""
 
-    def test_m1_saves_session(self, workflow: Workflow):
-        m1 = workflow.get_step("M1")
-        assert m1 is not None
-        assert m1.save_session is True
+    def test_change_analyze_saves_session(self, workflow: Workflow):
+        step = workflow.get_step("change_analyze")
+        assert step is not None
+        assert step.save_session is True
 
-    def test_m2_saves_session(self, workflow: Workflow):
-        m2 = workflow.get_step("M2")
-        assert m2 is not None
-        assert m2.save_session is True
+    def test_cascade_saves_session(self, workflow: Workflow):
+        step = workflow.get_step("cascade")
+        assert step is not None
+        assert step.save_session is True
 
-    def test_b2_saves_session(self, workflow: Workflow):
-        b2 = workflow.get_step("B2")
-        assert b2 is not None
-        assert b2.save_session is True
+    def test_impl_validate_saves_session(self, workflow: Workflow):
+        step = workflow.get_step("impl_validate")
+        assert step is not None
+        assert step.save_session is True
 
 
 class TestModifyYamlParams:
-    def test_m2_includes_user_feedback_param(self, workflow: Workflow):
-        m2 = workflow.get_step("M2")
-        assert m2 is not None
-        assert m2.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"
+    def test_cascade_includes_user_feedback_param(self, workflow: Workflow):
+        step = workflow.get_step("cascade")
+        assert step is not None
+        assert step.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"

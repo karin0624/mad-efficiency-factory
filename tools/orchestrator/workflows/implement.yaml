@@ -106,8 +106,8 @@ steps:
     type: python
     function: tools.orchestrator.runner.helpers:setup_worktree_only_step
 
-  # ── A1: Spec-What (Requirements) ───────────────────────────────
-  - id: A1
+  # ── spec_requirements: Spec-What (Requirements) ───────────────────────────────
+  - id: spec_requirements
     type: claude
     prompt: tools/orchestrator/prompts/impl-spec-what.md
     model: opus
@@ -118,12 +118,12 @@ steps:
       PLAN_FILE_ABSOLUTE_PATH: "{{ plan_path }}"
       USER_FEEDBACK: "{{ USER_FEEDBACK }}"
 
-  - id: A1_detect_feature
+  - id: detect_feature
     type: python
     function: tools.orchestrator.runner.helpers:post_a1_detect_feature
 
-  # ── A1R: Requirements Review Gate ──────────────────────────────
-  - id: A1R
+  # ── requirements_review: Requirements Review Gate ──────────────────────────
+  - id: requirements_review
     type: review_gate
     when: "{{ resume_point in RUN_A1R }}"
     file: "{{ worktree_path }}/.kiro/specs/{{ feature_name }}/requirements-review.md"
@@ -133,13 +133,13 @@ steps:
       - "approve — 承認して続行"
       - "feedback — フィードバックを入力"
     on_feedback:
-      rerun: A1
+      rerun: spec_requirements
       extra_params:
         USER_FEEDBACK: "{{ user_input }}"
-      then: A1R
+      then: requirements_review
 
-  # ── A2: Spec-How (Design) ──────────────────────────────────────
-  - id: A2
+  # ── spec_design: Spec-How (Design) ──────────────────────────────────────
+  - id: spec_design
     type: claude
     prompt: tools/orchestrator/prompts/impl-spec-how.md
     model: opus
@@ -166,8 +166,8 @@ steps:
           - "retry"
           - "abort"
 
-  # ── A2R: Design Review Gate ────────────────────────────────────
-  - id: A2R
+  # ── design_review: Design Review Gate ────────────────────────────────
+  - id: design_review
     type: review_gate
     when: "{{ resume_point in RUN_A2R }}"
     file: "{{ worktree_path }}/.kiro/specs/{{ feature_name }}/design-review.md"
@@ -177,14 +177,14 @@ steps:
       - "approve — 承認して続行"
       - "feedback — フィードバックを入力"
     on_feedback:
-      rerun: A2
+      rerun: spec_design
       extra_params:
         USER_FEEDBACK: "{{ user_input }}"
         RESUME_MODE: "full"
-      then: A2R
+      then: design_review
 
-  # ── A3: Spec-Tasks ─────────────────────────────────────────────
-  - id: A3
+  # ── spec_tasks: Spec-Tasks ─────────────────────────────────────────────
+  - id: spec_tasks
     type: claude
     prompt: tools/orchestrator/prompts/impl-spec-tasks.md
     model: sonnet
@@ -194,8 +194,8 @@ steps:
       WORKTREE_PATH: "{{ worktree_path }}"
       FEATURE_NAME: "{{ feature_name }}"
 
-  # ── B: Implementation ──────────────────────────────────────────
-  - id: B
+  # ── impl_code: Implementation ──────────────────────────────────────────
+  - id: impl_code
     type: claude
     prompt: tools/orchestrator/prompts/impl-code.md
     model: sonnet
@@ -205,8 +205,8 @@ steps:
       WORKTREE_PATH: "{{ worktree_path }}"
       FEATURE_NAME: "{{ feature_name }}"
 
-  # ── B2: Validation ─────────────────────────────────────────────
-  - id: B2
+  # ── impl_validate: Validation ─────────────────────────────────────────
+  - id: impl_validate
     type: claude
     prompt: tools/orchestrator/prompts/impl-validate.md
     model: opus
@@ -224,14 +224,14 @@ steps:
         options:
           - "GO (問題を受容して続行)"
           - "Conditional GO (理由を記録して続行)"
-          - "Retry (B から再実行)"
+          - "Retry (impl_code から再実行)"
           - "Abort"
         on_resume:
           "Conditional GO":
             resume_session: true
             extra_prompt: "ユーザーがConditional GOを選択。理由: {{ user_input }}。impl-journal.mdに記録してください。"
           "Retry":
-            goto: B
+            goto: impl_code
           "Abort":
             goto: _abort
 
@@ -241,12 +241,12 @@ steps:
     skill: "kiro:steering"
     cwd: "{{ worktree_path }}"
 
-  # ── L4: Scene Review (optional) ────────────────────────────────
-  - id: L4_check
+  # ── scene_review: Scene Review (optional) ────────────────────────────────
+  - id: scene_review_check
     type: python
     function: tools.orchestrator.runner.helpers:check_l4_tasks
 
-  - id: L4
+  - id: scene_review
     type: skill
     when: "{{ has_l4_tasks }}"
     skill: "kiro:scene-review"
@@ -254,8 +254,8 @@ steps:
     args:
       args: "{{ feature_name }}"
 
-  # ── C: Commit ──────────────────────────────────────────────────
-  - id: C
+  # ── commit: Commit ──────────────────────────────────────────────
+  - id: commit
     type: claude
     prompt: tools/orchestrator/prompts/impl-commit.md
     model: sonnet
@@ -265,8 +265,8 @@ steps:
       BRANCH_NAME: "{{ branch_name }}"
       FEATURE_NAME: "{{ feature_name }}"
 
-  # ── D: Push + PR ───────────────────────────────────────────────
-  - id: D
+  # ── push_pr: Push + PR ───────────────────────────────────────────────
+  - id: push_pr
     type: claude
     prompt: tools/orchestrator/prompts/impl-push-pr.md
     model: sonnet
