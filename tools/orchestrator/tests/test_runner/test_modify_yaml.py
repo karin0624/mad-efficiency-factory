@@ -25,8 +25,7 @@ class TestModifyYamlStructure:
         ids = workflow.step_ids()
         expected = [
             # Preflight
-            "preflight", "preflight_behind", "preflight_pull",
-            "preflight_ahead", "preflight_push",
+            "preflight",
             # Mode detection
             "mode_setup",
             # Investigate mode
@@ -41,7 +40,7 @@ class TestModifyYamlStructure:
             "B", "B_update",
             "B2", "B2_update",
             # Delivery (shared)
-            "steering", "C", "L4_check", "L4", "D",
+            "steering", "L4_check", "L4", "C", "D",
             # Single cleanup
             "cleanup",
             # Plan mode
@@ -54,7 +53,6 @@ class TestModifyYamlStructure:
         type_map = {s.id: s.type for s in workflow.steps}
         # Preflight
         assert type_map["preflight"] == "python"
-        assert type_map["preflight_behind"] == "review_gate"
         # Mode
         assert type_map["mode_setup"] == "python"
         # Investigate
@@ -143,6 +141,15 @@ class TestModifyYamlModeConditions:
                 assert "mode_single_or_plan" in step.when, (
                     f"Step {step.id} should be gated by mode_single_or_plan"
                 )
+
+    def test_preflight_sync_gates_removed(self, workflow: Workflow):
+        for step_id in ["preflight_behind", "preflight_pull", "preflight_ahead", "preflight_push"]:
+            assert workflow.get_step(step_id) is None
+
+    def test_l4_runs_before_commit(self, workflow: Workflow):
+        ids = workflow.step_ids()
+        assert ids.index("L4_check") < ids.index("C")
+        assert ids.index("L4") < ids.index("C")
 
 
 class TestModifyYamlReviewGates:
@@ -263,3 +270,10 @@ class TestModifyYamlSessionSave:
         b2 = workflow.get_step("B2")
         assert b2 is not None
         assert b2.save_session is True
+
+
+class TestModifyYamlParams:
+    def test_m2_includes_user_feedback_param(self, workflow: Workflow):
+        m2 = workflow.get_step("M2")
+        assert m2 is not None
+        assert m2.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"

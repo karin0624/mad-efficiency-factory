@@ -24,8 +24,7 @@ class TestImplementYamlStructure:
     def test_has_all_expected_steps(self, workflow: Workflow):
         ids = workflow.step_ids()
         expected = [
-            "preflight", "preflight_behind", "preflight_pull",
-            "preflight_ahead", "preflight_push",
+            "preflight",
             # Plan Phase
             "plan_resolve",
             "P0_input_check", "P0_clarify", "P0_merge_clarification",
@@ -40,8 +39,8 @@ class TestImplementYamlStructure:
             "A3",
             "B", "B2",
             "steering",
-            "C",
             "L4_check", "L4",
+            "C",
             "D", "cleanup",
         ]
         assert ids == expected
@@ -165,12 +164,14 @@ class TestImplementYamlWhenConditions:
         assert l4 is not None
         assert "has_l4_tasks" in l4.when
 
-    def test_preflight_gates_have_conditions(self, workflow: Workflow):
-        for step_id in ["preflight_behind", "preflight_pull",
-                        "preflight_ahead", "preflight_push"]:
-            step = workflow.get_step(step_id)
-            assert step is not None
-            assert step.when
+    def test_preflight_sync_gates_removed(self, workflow: Workflow):
+        for step_id in ["preflight_behind", "preflight_pull", "preflight_ahead", "preflight_push"]:
+            assert workflow.get_step(step_id) is None
+
+    def test_l4_runs_before_commit(self, workflow: Workflow):
+        ids = workflow.step_ids()
+        assert ids.index("L4_check") < ids.index("C")
+        assert ids.index("L4") < ids.index("C")
 
 
 class TestImplementYamlPlanPhase:
@@ -225,3 +226,15 @@ class TestImplementYamlModels:
             step = workflow.get_step(step_id)
             assert step is not None
             assert step.model == "sonnet", f"Step {step_id} should use sonnet"
+
+
+class TestImplementYamlParams:
+    def test_a1_includes_user_feedback_param(self, workflow: Workflow):
+        a1 = workflow.get_step("A1")
+        assert a1 is not None
+        assert a1.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"
+
+    def test_a2_includes_user_feedback_param(self, workflow: Workflow):
+        a2 = workflow.get_step("A2")
+        assert a2 is not None
+        assert a2.params["USER_FEEDBACK"] == "{{ USER_FEEDBACK }}"

@@ -18,8 +18,6 @@ from tools.orchestrator.runner.helpers import (
     plan_resolve_or_create_step,
     post_a1_detect_feature,
     post_plan_creation_step,
-    preflight_pull_action,
-    preflight_push_action,
     run_preflight_check,
     setup_worktree_only_step,
     setup_worktree_step,
@@ -40,40 +38,19 @@ def variables() -> dict:
 
 
 class TestRunPreflightCheck:
-    @patch("tools.orchestrator.runner.helpers.run_preflight")
-    def test_success_no_sync_needed(self, mock_preflight, config, variables):
-        from tools.orchestrator.preflight import PreflightResult
-        mock_preflight.return_value = PreflightResult(
-            base_branch="master", behind=0, ahead=0
-        )
+    @patch("tools.orchestrator.runner.helpers.run_preflight_simple")
+    def test_success_returns_base_branch_and_empty_sync_flags(self, mock_preflight, config, variables):
+        from tools.orchestrator.preflight import PreflightResultSimple
+        mock_preflight.return_value = PreflightResultSimple(base_branch="master")
         result = run_preflight_check(config=config, variables=variables)
         assert isinstance(result, dict)
         assert result["base_branch"] == "master"
         assert result["preflight_behind"] == ""
+        assert result["preflight_behind_count"] == "0"
         assert result["preflight_ahead"] == ""
+        assert result["preflight_ahead_count"] == "0"
 
-    @patch("tools.orchestrator.runner.helpers.run_preflight")
-    def test_behind_sets_flag(self, mock_preflight, config, variables):
-        from tools.orchestrator.preflight import PreflightResult
-        mock_preflight.return_value = PreflightResult(
-            base_branch="main", behind=3, ahead=0
-        )
-        result = run_preflight_check(config=config, variables=variables)
-        assert result["preflight_behind"] == "3"
-        assert result["preflight_behind_count"] == "3"
-        assert result["preflight_ahead"] == ""
-
-    @patch("tools.orchestrator.runner.helpers.run_preflight")
-    def test_ahead_sets_flag(self, mock_preflight, config, variables):
-        from tools.orchestrator.preflight import PreflightResult
-        mock_preflight.return_value = PreflightResult(
-            base_branch="master", behind=0, ahead=2
-        )
-        result = run_preflight_check(config=config, variables=variables)
-        assert result["preflight_behind"] == ""
-        assert result["preflight_ahead"] == "2"
-
-    @patch("tools.orchestrator.runner.helpers.run_preflight")
+    @patch("tools.orchestrator.runner.helpers.run_preflight_simple")
     def test_error_returns_step_result(self, mock_preflight, config, variables):
         from tools.orchestrator.preflight import PreflightError
         mock_preflight.side_effect = PreflightError("diverged")
@@ -81,36 +58,6 @@ class TestRunPreflightCheck:
         assert isinstance(result, StepResult)
         assert result.is_error
         assert "diverged" in result.error_message
-
-
-# ── preflight_pull_action / push_action ──────────────────────────
-
-
-class TestPreflightActions:
-    @patch("tools.orchestrator.runner.helpers.pull_base")
-    def test_pull_when_selected(self, mock_pull, config):
-        variables = {"_user_input": "pull して続行", "base_branch": "master"}
-        result = preflight_pull_action(config=config, variables=variables)
-        assert result == {}
-        mock_pull.assert_called_once()
-
-    @patch("tools.orchestrator.runner.helpers.pull_base")
-    def test_no_pull_when_skipped(self, mock_pull, config):
-        variables = {"_user_input": "そのまま続行", "base_branch": "master"}
-        preflight_pull_action(config=config, variables=variables)
-        mock_pull.assert_not_called()
-
-    @patch("tools.orchestrator.runner.helpers.push_base")
-    def test_push_when_selected(self, mock_push, config):
-        variables = {"_user_input": "push して続行", "base_branch": "master"}
-        preflight_push_action(config=config, variables=variables)
-        mock_push.assert_called_once()
-
-    @patch("tools.orchestrator.runner.helpers.push_base")
-    def test_no_push_when_skipped(self, mock_push, config):
-        variables = {"_user_input": "そのまま続行", "base_branch": "master"}
-        preflight_push_action(config=config, variables=variables)
-        mock_push.assert_not_called()
 
 
 # ── setup_worktree_step ──────────────────────────────────────────

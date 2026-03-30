@@ -43,6 +43,8 @@ vars:
     type: string
   change_summary:
     type: string
+  USER_FEEDBACK:
+    type: string
   # When-condition flags (set by process_m1_result / setup_modify_worktree)
   run_M2:
     type: string
@@ -62,32 +64,6 @@ steps:
   - id: preflight
     type: python
     function: tools.orchestrator.runner.helpers:run_preflight_check
-
-  - id: preflight_behind
-    type: review_gate
-    when: "{{ preflight_behind }}"
-    question: "リモートに {{ preflight_behind_count }} 件の新コミットがあります。pullしますか？"
-    options:
-      - "pull して続行"
-      - "そのまま続行"
-
-  - id: preflight_pull
-    type: python
-    when: "{{ preflight_behind }}"
-    function: tools.orchestrator.runner.helpers:preflight_pull_action
-
-  - id: preflight_ahead
-    type: review_gate
-    when: "{{ preflight_ahead }}"
-    question: "ローカルに {{ preflight_ahead_count }} 件の未pushコミットがあります。pushしますか？"
-    options:
-      - "push して続行"
-      - "そのまま続行"
-
-  - id: preflight_push
-    type: python
-    when: "{{ preflight_ahead }}"
-    function: tools.orchestrator.runner.helpers:preflight_push_action
 
   # ── Mode detection + initial setup ─────────────────────────────
   - id: mode_setup
@@ -216,6 +192,7 @@ steps:
       FEATURE_NAME: "{{ feature_name }}"
       CHANGE_IMPACT_REPORT: "{{ m1_output }}"
       CASCADE_DEPTH: "{{ cascade_depth }}"
+      USER_FEEDBACK: "{{ USER_FEEDBACK }}"
     save_session: true
     on_marker:
       CASCADE_FAILED:
@@ -324,18 +301,6 @@ steps:
     skill: "kiro:steering"
     cwd: "{{ worktree_path }}"
 
-  # ── C: Commit ──────────────────────────────────────────────────
-  - id: C
-    type: claude
-    when: "{{ mode_single_or_plan }}"
-    prompt: tools/orchestrator/prompts/impl-commit.md
-    model: sonnet
-    cwd: "{{ worktree_path }}"
-    params:
-      WORKTREE_PATH: "{{ worktree_path }}"
-      BRANCH_NAME: "{{ branch_name }}"
-      FEATURE_NAME: "{{ feature_name }}"
-
   # ── L4: Scene Review (optional) ────────────────────────────────
   - id: L4_check
     type: python
@@ -349,6 +314,18 @@ steps:
     cwd: "{{ worktree_path }}"
     args:
       args: "{{ feature_name }}"
+
+  # ── C: Commit ──────────────────────────────────────────────────
+  - id: C
+    type: claude
+    when: "{{ mode_single_or_plan }}"
+    prompt: tools/orchestrator/prompts/impl-commit.md
+    model: sonnet
+    cwd: "{{ worktree_path }}"
+    params:
+      WORKTREE_PATH: "{{ worktree_path }}"
+      BRANCH_NAME: "{{ branch_name }}"
+      FEATURE_NAME: "{{ feature_name }}"
 
   # ── D: Push + PR ───────────────────────────────────────────────
   - id: D

@@ -18,6 +18,11 @@ class PreflightResult:
     ahead: int
 
 
+@dataclass
+class PreflightResultSimple:
+    base_branch: str
+
+
 def _run(cmd: list[str], cwd: Path, check: bool = True) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, check=check)
     return result.stdout.strip()
@@ -109,6 +114,14 @@ def pull_base(project_root: Path, base_branch: str) -> None:
 def push_base(project_root: Path, base_branch: str) -> None:
     """Push to origin base branch."""
     _run(["git", "push", "origin", base_branch], cwd=project_root)
+
+
+def run_preflight_simple(project_root: Path) -> PreflightResultSimple:
+    """Run the minimal preflight needed before creating a worktree."""
+    check_gh_auth(project_root)
+    base_branch = detect_base_branch(project_root)
+    fetch_origin(project_root)
+    return PreflightResultSimple(base_branch=base_branch)
 
 
 def run_preflight(project_root: Path) -> PreflightResult:

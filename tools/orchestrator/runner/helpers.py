@@ -21,9 +21,7 @@ from ..output_parser import has_l4_human_review
 from ..plan_resolver import PlanResolutionError, resolve_plan
 from ..preflight import (
     PreflightError,
-    pull_base,
-    push_base,
-    run_preflight,
+    run_preflight_simple,
 )
 from ..state import (
     ImplementResumePoint as RP,
@@ -50,35 +48,19 @@ _RUN_B2 = _RUN_B | {RP.B2_VALIDATE.value}
 
 
 def run_preflight_check(*, config: OrchestratorConfig, variables: dict[str, Any], **_: Any) -> dict[str, Any] | StepResult:
-    """Run preflight checks. Sets base_branch and behind/ahead flags."""
+    """Run preflight checks. Sets base_branch for downstream worktree setup."""
     try:
-        preflight = run_preflight(config.project_root)
+        preflight = run_preflight_simple(config.project_root)
     except PreflightError as e:
         return StepResult(is_error=True, error_message=str(e))
 
     return {
         "base_branch": preflight.base_branch,
-        "preflight_behind": str(preflight.behind) if preflight.behind > 0 else "",
-        "preflight_behind_count": str(preflight.behind),
-        "preflight_ahead": str(preflight.ahead) if preflight.ahead > 0 else "",
-        "preflight_ahead_count": str(preflight.ahead),
+        "preflight_behind": "",
+        "preflight_behind_count": "0",
+        "preflight_ahead": "",
+        "preflight_ahead_count": "0",
     }
-
-
-def preflight_pull_action(*, config: OrchestratorConfig, variables: dict[str, Any], **_: Any) -> dict[str, Any]:
-    """Pull from remote if user chose to."""
-    user_input = variables.get("_user_input", "")
-    if "pull" in user_input.lower():
-        pull_base(config.project_root, variables["base_branch"])
-    return {}
-
-
-def preflight_push_action(*, config: OrchestratorConfig, variables: dict[str, Any], **_: Any) -> dict[str, Any]:
-    """Push to remote if user chose to."""
-    user_input = variables.get("_user_input", "")
-    if "push" in user_input.lower():
-        push_base(config.project_root, variables["base_branch"])
-    return {}
 
 
 # ── Setup ─────────────────────────────────────────────────────────

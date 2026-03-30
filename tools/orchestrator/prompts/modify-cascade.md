@@ -18,6 +18,12 @@ promptから以下を受け取る:
 - `FEATURE_NAME`: 既存spec名
 - `CHANGE_IMPACT_REPORT`: Agent M1の出力（ANALYSIS_DONE以降のテキスト）
 - `CASCADE_DEPTH`: カスケード深度（`requirements-only` / `requirements+design` / `requirements+design+tasks` / `full`）
+- `USER_FEEDBACK`: レビューゲートからのフィードバック（空文字の可能性あり）
+
+## ユーザーフィードバック
+
+`USER_FEEDBACK` が空でない場合、そのフィードバック内容を最優先で対応すること。
+指摘された問題点・改善要望を spec 成果物へ反映した上で、通常の手順を実行する。
 
 ## 実行手順
 
