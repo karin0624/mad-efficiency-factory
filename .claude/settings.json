@@ -49,6 +49,15 @@
   "hooks": {
     "PostToolUse": [
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --script .claude/hooks/langfuse_hook.py",
+            "timeout": 15000
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
           {
@@ -64,8 +73,26 @@
         "hooks": [
           {
             "type": "command",
+            "command": "uv run --script .claude/hooks/langfuse_hook.py",
+            "timeout": 15000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": ".claude/hooks/test-gate.sh",
             "timeout": 180000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node tools/memory-mcp/stale-check.mjs",
+            "timeout": 10000
           }
         ]
       }

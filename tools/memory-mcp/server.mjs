@@ -167,7 +167,13 @@ const server = new McpServer({
 
 server.tool(
   "remember",
-  "Save a memory to the knowledge base. Use this to persist useful information across conversations.",
+  `Save a memory. RULES:
+- NEVER save information derivable from code, file structure, or git history
+- ONLY save: WHY decisions were made, user preferences, non-obvious gotchas, external references
+- Ask yourself: "Will this become wrong when the code changes?" If yes, do NOT save it.
+
+GOOD: decision rationale, user feedback, non-documented gotchas, external URLs
+BAD: architecture snapshots, API listings, implementation logs, config summaries`,
   {
     type: z
       .enum(["user", "feedback", "project", "reference"])
@@ -176,9 +182,25 @@ server.tool(
       ),
     name: z.string().describe("Short descriptive name for this memory"),
     content: z.string().describe("The memory content to store"),
+    justification: z
+      .string()
+      .describe(
+        "REQUIRED: Why this memory cannot be derived from code/git. Min 10 chars."
+      ),
   },
-  async ({ type, name, content }) => {
+  async ({ type, name, content, justification }) => {
+    if (!justification || justification.trim().length < 10) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Rejected: justification required (min 10 chars). Explain why this cannot be derived from code/git.",
+          },
+        ],
+      };
+    }
     const result = stmts.insert.run(type, name, content);
+    // justificationはDBに保存しない（書き込み時の摩擦として機能するだけ）
     return {
       content: [
         {
